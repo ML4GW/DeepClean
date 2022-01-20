@@ -169,10 +169,10 @@ def train(
 
     if not (0 <= alpha <= 1):
         raise ValueError("Alpha value must be between 0 and 1")
-    os.makedirs(output_directory, exists_ok=True)
+    os.makedirs(output_directory, exist_ok=True)
 
     # Use GPU if available
-    device = "cuda:5"  # dc.nn.utils.get_device(device)
+    device = "cpu"  # uda:5"  # dc.nn.utils.get_device(device)
 
     # Preprocess data
     logging.info("Preprocessing")

@@ -29,6 +29,22 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
+name = "deepclean.networks"
+version = "0.0.1"
+description = "DeepClean model architecture zoo"
+category = "main"
+optional = true
+python-versions = "^3.8,<3.10"
+develop = true
+
+[package.dependencies]
+torch = "^1.0"
+
+[package.source]
+type = "directory"
+url = "../networks"
+
+[[package]]
 name = "deepclean.signal"
 version = "0.0.1"
 description = "DeepClean signal processing utilities"
@@ -44,6 +60,17 @@ scipy = "^1.7"
 [package.source]
 type = "directory"
 url = "../signal"
+
+[[package]]
+name = "hermes.typeo"
+version = "0.1.3"
+description = "Utilities for running functions as scripts"
+category = "main"
+optional = true
+python-versions = ">=3.8,<4.0"
+
+[package.dependencies]
+toml = ">=0.10.2,<0.11.0"
 
 [[package]]
 name = "iniconfig"
@@ -139,7 +166,7 @@ numpy = ">=1.16.5,<1.23.0"
 name = "toml"
 version = "0.10.2"
 description = "Python Library for Tom's Obvious, Minimal Language"
-category = "dev"
+category = "main"
 optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 
@@ -162,10 +189,13 @@ category = "main"
 optional = false
 python-versions = ">=3.6"
 
+[extras]
+wrapper = ["hermes.typeo", "deepclean.networks"]
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "6396bea74e78fcbbaec24876ceddec88a3067171f70a7f24924c5e84375ec4ae"
+content-hash = "ac9dcf33c5a512659d997cfe2284e58f025968494da02b20a0891efdb1daf1e1"
 
 [metadata.files]
 atomicwrites = [
@@ -180,7 +210,12 @@ colorama = [
     {file = "colorama-0.4.4-py2.py3-none-any.whl", hash = "sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2"},
     {file = "colorama-0.4.4.tar.gz", hash = "sha256:5941b2b48a20143d2267e95b1c2a7603ce057ee39fd88e7329b0c292aa16869b"},
 ]
+"deepclean.networks" = []
 "deepclean.signal" = []
+"hermes.typeo" = [
+    {file = "hermes.typeo-0.1.3-py3-none-any.whl", hash = "sha256:12bf665446379e4123e8a89de3352167373587d59d1835e08cd435d78ad74f81"},
+    {file = "hermes.typeo-0.1.3.tar.gz", hash = "sha256:3fdbfbdd8c7c1a6f7bf6d8c53240c3a20ec5990dddaac16621ee1cc2e4cbe6dd"},
+]
 iniconfig = [
     {file = "iniconfig-1.1.1-py2.py3-none-any.whl", hash = "sha256:011e24c64b7f47f6ebd835bb12a743f2fbe9a26d4cecaa7f53bc4f35ee9da8b3"},
     {file = "iniconfig-1.1.1.tar.gz", hash = "sha256:bc3af051d7d14b2ee5ef9969666def0cd1a000e121eaea580d4a313df4b37f32"},

@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "deepclean.networks"
+name = "deepclean.trainer"
 version = "0.0.1"
-description = "DeepClean model architecture zoo"
+description = "DeepClean training helper functions"
 authors = ["Alec Gunny <alec.gunny@gmail.com>"]
 # readme = "README.md"
 packages = [
@@ -13,6 +13,13 @@ python = "^3.8,<3.10"
 torch = "^1.0"
 
 "deepclean.signal" = {path = "../signal", develop = true}
+
+# tools for wrapper
+"hermes.typeo" = {version = "^0.1", optional = true}
+"deepclean.networks" = {path = "../networks", develop = true, optional = true}
+
+[tool.poetry.extras]
+wrapper = ["hermes.typeo", "deepclean.networks"]
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

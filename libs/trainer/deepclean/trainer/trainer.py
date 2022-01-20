@@ -15,6 +15,7 @@ torch.set_default_tensor_type(torch.FloatTensor)
 
 def run_train_step(
     model: torch.nn.Module,
+    optimizer: torch.nn.Optimizer,
     train_data: ChunkedTimeSeriesDataset,
     valid_data: Optional[ChunkedTimeSeriesDataset] = None,
     profiler: Optional[torch.profiler.Profiler] = None

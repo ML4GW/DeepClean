@@ -16,12 +16,19 @@ class TorchWelch(nn.Module):
         asd: bool = False,
         device: str = "cpu"
     ):
+        if overlap >= fftlength:
+            raise ValueError(
+                "Can't have overlap {} longer than fftlength {}".format(
+                    overlap, fftlength
+                )
+            )
+
         super().__init__()
         self.nperseg = int(fftlength * sample_rate)
         self.nfreq = self.nperseg // 2 + 1
         self.noverlap = int(overlap * sample_rate)
-        self.window = torch.hann_window(self.nperseg).to(device) * 2
-        self.scale = 1 / window.sum()**2
+        self.window = torch.hann_window(self.nperseg).to(device)
+        self.scale = 1.0 / self.window.sum()**2
 
         if average not in ("mean", "median"):
             raise ValueError(
@@ -36,20 +43,31 @@ class TorchWelch(nn.Module):
             x = x.view(x.shape[0], -1)
         N, nsample = x.shape
 
-        nstride = self.nperseg - noverlap
-        nseg = int(np.ceil((nsample - nperseg) / nstride)) + 1
+        if nsample < self.nperseg:
+            raise ValueError(
+                "Not enough samples {} in input for number "
+                "of fft samples".format(nsample, self.nperseg)
+            )
+
+        nstride = self.nperseg - self.noverlap
+        nseg = (nsample - self.nperseg) // nstride + 1
 
         # Calculate the PSD
         psd = torch.zeros((nseg, N, self.nfreq)).to(self.device)
 
         # calculate the FFT amplitude of each segment
+        # TODO: can we use torch.stft instead? Should be equivalent
         for i in range(nseg):
-            seg_ts = data[:, i * nstride : i * nstride + nperseg] * window
-            seg_fd = torch.fft.rfft(seg_ts, dim=1).abs()**2
+            seg_ts = x[:, i * nstride: i * nstride + self.nperseg]
+            seg_ts = seg_ts * self.window
+            seg_fd = torch.fft.rfft(seg_ts, dim=1)
+            psd[i] = seg_fd.abs()**2
 
-            # multiply by 2 here since we'll almost never
-            # use the 0th or last frequency bins anyway
-            psd[i] = seg_fd * self.scale * 2
+        if self.nperseg % 2:
+            psd[:, :, 1:] *= 2
+        else:
+            psd[:, :, 1:-1] *= 2
+        psd *= self.scale
 
         # taking the average
         if self.average == "mean":
@@ -87,7 +105,7 @@ class PSDLoss(nn.Module):
                 freq_low = [freq_low]
                 if not isinstance(freq_high, (int, float)):
                     raise ValueError(
-                        "'freq_low' and 'freq_hi' values {} and {} "
+                        "'freq_low' and 'freq_high' values {} and {} "
                         "are incompatible.".format(freq_low, freq_high)
                     )
                 freq_high = [freq_high]
@@ -102,42 +120,38 @@ class PSDLoss(nn.Module):
                         )
                 except TypeError:
                     raise ValueError(
-                        "'freq_low' and 'freq_hi' values {} and {} "
+                        "'freq_low' and 'freq_high' values {} and {} "
                         "are incompatible.".format(freq_low, freq_high)
                     )
 
             freqs = np.linspace(0.0, sample_rate / 2, self.welch.nfreq)
             mask = np.zeros_like(freqs, dtype=np.int64)
             for low, high in zip(freq_low, freq_high):
-                in_range = (low <= freqs) & (freqs < hi)
+                in_range = (low <= freqs) & (freqs < high)
                 mask[in_range] = 1
 
             self.mask = torch.Tensor(mask).to(device)
             self.N = mask.sum()
             logging.debug(f"Averaging over {self.N} frequency bins")
-        elif freq_low is None:
-            raise ValueError(
-                "If 'freq_high' is specified, "
-                "'freq_low' must be specified as well"
-            )
-        elif freq_high is None:
-            raise ValueError(
-                "If 'freq_low' is specified, "
-                "'freq_high' must be specified as well"
-            )
+        elif freq_low is None and freq_high is None:
+            self.mask = self.N = None
         else:
-            self.mask = None
-            self.N = None
+            raise ValueError(
+                "If '{}' is specified, '{}' must be specified as well".format(
+                    "freq_high" if freq_low is None else "freq_low",
+                    "freq_low" if freq_low is None else "freq_high"
+                )
+            )
 
     def forward(self, pred, target):
         # Calculate the PSD of the residual and the target
         psd_res = self.welch(target - pred)
         psd_target = self.welch(target)
-        ratio = psd_res / psd_ratio
+        ratio = psd_res / psd_target
 
         if self.mask is not None:
             ratio *= self.mask
-            loss = torch.sum(ratio) / self.N
+            loss = torch.sum(ratio) / (self.N * len(pred))
         else:
             loss = torch.mean(ratio)
         return loss

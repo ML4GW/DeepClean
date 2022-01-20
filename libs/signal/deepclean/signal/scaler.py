@@ -1,9 +1,8 @@
-from deepclean.signal import Op
+from deepclean.signal.op import Op
 
 
 class StandardScaler(Op):
     def fit(self, X):
-        X =  X[[i for _, i in it if i != strain_idx]]
         self.mean = X.mean(axis=1, keepdims=True)
         self.std = X.std(axis=1, keepdims=True)
 

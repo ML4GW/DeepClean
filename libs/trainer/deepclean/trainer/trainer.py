@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -8,20 +9,21 @@ import torch
 from deepclean.signal import BandpassFilter, StandardScaler
 from deepclean.trainer import ChunkedTimeSeriesDataset, CompositePSDLoss
 
-
 # Default tensor type
 torch.set_default_tensor_type(torch.FloatTensor)
 
 
 def run_train_step(
     model: torch.nn.Module,
-    optimizer: torch.nn.Optimizer,
+    optimizer: torch.optim.Optimizer,
+    criterion: torch.nn.Module,
     train_data: ChunkedTimeSeriesDataset,
     valid_data: Optional[ChunkedTimeSeriesDataset] = None,
-    profiler: Optional[torch.profiler.Profiler] = None
+    profiler: Optional[torch.profiler.profile] = None,
 ):
     train_loss = 0
     samples_seen = 0
+    start_time = time.time()
     model.train()
     for witnesses, strain in train_data:
         optimizer.zero_grad(set_to_none=True)  # reset gradient
@@ -81,9 +83,8 @@ def run_train_step(
 
 
 def train(
-    architecture: torch.nn.module,
+    architecture: torch.nn.Module,
     output_directory: str,
-
     # data params
     X: np.ndarray,
     y: np.ndarray,
@@ -93,12 +94,10 @@ def train(
     chunk_length: float = 0.05,
     num_chunks: int = 4,
     valid_data: Optional[Tuple[np.ndarray, np.ndarray]] = None,
-
     # preproc params
     filt_fl: Union[float, List[float]] = 55.0,
     filt_fh: Union[float, List[float]] = 65.0,
     filt_order: int = 8,
-
     # optimization params
     batch_size: int = 32,
     max_epochs: int = 40,
@@ -108,15 +107,13 @@ def train(
     patience: Optional[int] = None,
     factor: float = 0.1,
     early_stop: int = 20,
-
     # criterion params
     fftlength: float = 2,
     overlap: Optional[float] = None,
     alpha: float = 1.0,
-
     # misc params
     device: Optional[str] = None,
-    profile: bool = False
+    profile: bool = False,
 ) -> float:
     """Train a DeepClean model on a stretch of data
 
@@ -185,7 +182,7 @@ def train(
         freq_low=filt_fl,
         freq_high=filt_fh,
         sample_rate=sample_rate,
-        order=filt_order
+        order=filt_order,
     )
     witness_pipeline = witness_scaler >> bandpass
     witness_pipeline.fit(X)
@@ -216,7 +213,7 @@ def train(
         chunk_length=chunk_length,
         num_chunks=num_chunks,
         shuffle=True,
-        device=device
+        device=device,
     )
 
     if valid_data is not None:
@@ -229,7 +226,7 @@ def train(
             batch_size=batch_size * 4,
             chunk_length=-1,
             shuffle=False,
-            device=device
+            device=device,
         )
 
     # Creating model, loss function, optimizer and lr scheduler
@@ -269,7 +266,7 @@ def train(
             optimizer,
             patience=patience,
             factor=factor,
-            min_lr=lr / factor ** 2
+            min_lr=lr / factor ** 2,
         )
 
     # start training
@@ -291,9 +288,9 @@ def train(
         else:
             profiler = None
 
-        logging.info(f"### Epoch {epoch + 1}/{max_epochs} ###")
+        logging.info(f"=== Epoch {epoch + 1}/{max_epochs} ===")
         train_loss, valid_loss, duration, throughput = run_train_step(
-            model, train_data, valid_data, profiler
+            model, optimizer, criterion, train_data, valid_data, profiler
         )
         history["train_loss"].append(train_loss)
 
@@ -318,7 +315,7 @@ def train(
                 )
                 best_valid_loss = valid_loss
 
-                weights_path = os.path.join(logger.data_subdir, "weights.pt")
+                weights_path = os.path.join(output_directory, "weights.pt")
                 torch.save(model.state_dict(), weights_path)
                 since_last_improvement = 0
             else:

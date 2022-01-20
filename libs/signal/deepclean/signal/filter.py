@@ -2,7 +2,7 @@ from typing import List, Union
 
 from scipy import signal
 
-from deepclean.signal import Op
+from deepclean.signal.op import Op
 
 
 class BandpassFilter(Op):
@@ -81,16 +81,18 @@ class BandpassFilter(Op):
         # create a different filter for each band
         self.sos = []
         for low, high in zip(freq_low, freq_high):
-            self.sos.append(signal.butter(
-                order,
-                [low, high],
-                btype="bandpass",
-                output="sos",
-                fs=sample_rate
-            ))
+            self.sos.append(
+                signal.butter(
+                    order,
+                    [low, high],
+                    btype="bandpass",
+                    output="sos",
+                    fs=sample_rate,
+                )
+            )
 
     def __call__(self, x):
-        output = 0.
+        output = 0.0
         for sos in self.sos:
-            output += signal.sosfiltfilt(sos, y, axis=-1)
+            output += signal.sosfiltfilt(sos, x, axis=-1)
         return output

@@ -1,5 +1,5 @@
 import logging
-from typing import List, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import torch
@@ -14,7 +14,7 @@ class TorchWelch(nn.Module):
         overlap: int,
         average: str = "mean",
         asd: bool = False,
-        device: str = "cpu"
+        device: str = "cpu",
     ):
         if overlap >= fftlength:
             raise ValueError(
@@ -28,7 +28,7 @@ class TorchWelch(nn.Module):
         self.nfreq = self.nperseg // 2 + 1
         self.noverlap = int(overlap * sample_rate)
         self.window = torch.hann_window(self.nperseg).to(device)
-        self.scale = 1.0 / self.window.sum()**2
+        self.scale = 1.0 / self.window.sum() ** 2
 
         if average not in ("mean", "median"):
             raise ValueError(
@@ -46,7 +46,7 @@ class TorchWelch(nn.Module):
         if nsample < self.nperseg:
             raise ValueError(
                 "Not enough samples {} in input for number "
-                "of fft samples".format(nsample, self.nperseg)
+                "of fft samples {}".format(nsample, self.nperseg)
             )
 
         nstride = self.nperseg - self.noverlap
@@ -58,10 +58,10 @@ class TorchWelch(nn.Module):
         # calculate the FFT amplitude of each segment
         # TODO: can we use torch.stft instead? Should be equivalent
         for i in range(nseg):
-            seg_ts = x[:, i * nstride: i * nstride + self.nperseg]
+            seg_ts = x[:, i * nstride : i * nstride + self.nperseg]
             seg_ts = seg_ts * self.window
             seg_fd = torch.fft.rfft(seg_ts, dim=1)
-            psd[i] = seg_fd.abs()**2
+            psd[i] = seg_fd.abs() ** 2
 
         if self.nperseg % 2:
             psd[:, :, 1:] *= 2
@@ -93,7 +93,7 @@ class PSDLoss(nn.Module):
         asd: bool = False,
         freq_low: Union[float, List[float], None] = None,
         freq_high: Union[float, List[float], None] = None,
-        device: str = "cpu"
+        device: str = "cpu",
     ):
         super().__init__()
 
@@ -139,7 +139,7 @@ class PSDLoss(nn.Module):
             raise ValueError(
                 "If '{}' is specified, '{}' must be specified as well".format(
                     "freq_high" if freq_low is None else "freq_low",
-                    "freq_low" if freq_low is None else "freq_high"
+                    "freq_low" if freq_low is None else "freq_high",
                 )
             )
 
@@ -163,30 +163,35 @@ class CompositePSDLoss(nn.Module):
     def __init__(
         self,
         alpha: float,
-        sample_rate: float,
-        fftlength: float,
-        overlap: float,
+        sample_rate: Optional[float] = None,
+        fftlength: Optional[float] = None,
+        overlap: Optional[float] = None,
         asd: bool = False,
         freq_low: Union[float, List[float], None] = None,
         freq_high: Union[float, List[float], None] = None,
-        device: str = "cpu"
+        device: str = "cpu",
     ):
         super().__init__()
         if not 0 <= alpha <= 1:
-            raise ValueError(
-                "Alpha value {} out of range".format(alpha)
-            )
+            raise ValueError("Alpha value {} out of range".format(alpha))
         self.alpha = alpha
 
-        self.psd_loss = PSDLoss(
-            sample_rate=sample_rate,
-            freq_low=freq_low,
-            freq_high=freq_high,
-            fftlength=fftlength,
-            overlap=overlap,
-            asd=asd,
-            device=device,
-        )
+        if alpha > 0:
+            if any([i is None for i in [sample_rate, fftlength, overlap]]):
+                raise ValueError(
+                    "Must specify all of 'sample_rate', 'fftlength', "
+                    "and 'overlap' if alpha > 0"
+                )
+
+            self.psd_loss = PSDLoss(
+                sample_rate=sample_rate,
+                freq_low=freq_low,
+                freq_high=freq_high,
+                fftlength=fftlength,
+                overlap=overlap,
+                asd=asd,
+                device=device,
+            )
         self.mse_loss = nn.MSELoss()
 
     def forward(self, pred, target):

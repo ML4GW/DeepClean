@@ -2,7 +2,7 @@ import inspect
 
 from hermes.typeo import typeo
 
-from deepclean.networks import networks
+from deepclean.networks import get_network_fns
 from deepclean.trainer.trainer import train
 
 
@@ -38,44 +38,42 @@ def _configure_wrapper(f, wrapper):
         pass
 
 
-def _make_network_fns(train_kwargs):
-    network_fns = {}
-    for name, arch in networks.items():
-
-        def network_fn(**kwargs):
-            def get_network(input_shape):
-                return arch(input_shape, **kwargs)
-
-            train_kwargs["architecture"] = get_network
-            return train(**train_kwargs)
-
-        params = []
-        for i, param in enumerate(inspect.signature(arch).parameters.values()):
-            if i > 0:
-                params.append(param)
-
-        network_fn.__signature__ = inspect.Signature(parameters=params)
-        network_fn.__name__ = name
-        network_fns[name] = network_fn
-    return network_fns
-
-
 def make_cmd_line_fn(f):
+    """Turn a data-generating function into a command line trainer
+
+    Wraps the function `f`, which is assumed to generate training
+    and validation data, so that this data gets passed to
+    `deepclean.trainer.trainer.train`, but in such a way that
+    `f` can be called from the command line with all of the arguments
+    to `deepclean.trainer.trainer.train`, with the network architecture
+    as a positional parameter and its arguments as additional parameters
+    after that.
+    """
+
+    # initialize our training kwargs now and use them to
+    # create the wrapper network functions. Populate these
+    # args later within our wrapper function in-place
     train_kwargs = {}
-    network_fns = _make_network_fns(train_kwargs)
+    network_fns = get_network_fns(train, train_kwargs)
     train_signature = inspect.signature(train)
 
     def wrapper(*args, **kwargs):
+        # use the passed function `f` to generate data
         data = f(*args, **kwargs)
 
+        # pass any args passed to this wrapper that
+        # `train` needs into the `train_kwargs` dictionary
         for p, v in zip(inspect.signature(f).parameters, args):
             if p in train_signature.parameters:
                 train_kwargs[p] = v
 
+        # do the same for any kwargs that were passed here
         for k, v in kwargs.items():
             if k in train_signature.parameters:
                 train_kwargs[k] = v
 
+        # parse out the data that was returned from
+        # `f`, checking if validation data was included
         if len(data) == 2:
             X, y = data
             valid_X = valid_y = None
@@ -88,11 +86,14 @@ def make_cmd_line_fn(f):
                 )
             )
 
+        # add in the parsed data to our training kwargs
         train_kwargs["X"] = X
         train_kwargs["y"] = y
         if valid_X is not None:
             train_kwargs["valid_data"] = (valid_X, valid_y)
 
+        # allow wrapper functionality to be utilized if
+        # `f` is called with an "arch" parameter
         if "arch" in kwargs:
             try:
                 network_fn = network_fns[kwargs["arch"]]
@@ -101,17 +102,33 @@ def make_cmd_line_fn(f):
                     "No network architecture named " + kwargs["arch"]
                 )
 
+            # grab any architecture-specific parameters from
+            # the arguments passed to `f`
             arch_kwargs = {}
             arch_sig = inspect.signature(network_fn)
             for k, v in kwargs.items():
                 if k in arch_sig.parameters:
                     arch_kwargs[k] = v
 
+            # run the network function, which will implicitly
+            # call deepclean.trainer.trainer.train under the
+            # hood with the arguments we populated into
+            # `train_kwargs`
             result = network_fn(**arch_kwargs)
         else:
+            # otherwise just return the data, equivalent
+            # to running `f` without any wrapper functionality
             result = data
 
         return result
 
+    # create the appropriate signature, name, and documentation
+    # for the wrapper function we just created
     _configure_wrapper(f, wrapper)
+
+    # wrap this wrapper using typeo, so that it
+    # can be called from the command line exposing
+    # all training and architecture arguments. Each
+    # network architecture will be exposed as a
+    # subcommand with its own arguments
     return typeo(wrapper, **network_fns)

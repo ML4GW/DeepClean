@@ -184,7 +184,7 @@ def train(
         sample_rate=sample_rate,
         order=filt_order,
     )
-    witness_pipeline = witness_scaler >> bandpass
+    witness_pipeline = witness_scaler
     witness_pipeline.fit(X)
     witness_pipeline.write(
         os.path.join(output_directory, "witness_pipeline.pkl")

@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "train"
+version = "0.0.1"
+description = "Training DeepClean on archival NDS2 data"
+authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+# readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8,<3.10"
+
+"deepclean.trainer" = {path = "../../libs/trainer", develop = true}
+"deepclean.logging" = {path = "../../libs/logging", develop = true}
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2"
+
+[build-system]
+requires = ["poetry>=1.2"]
+build-backend = "poetry.masonry.api"
+
+[tool.isort]
+known_first_party = ["train"]

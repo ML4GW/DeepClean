@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from train.data_utils import get_data
 
@@ -9,7 +9,7 @@ from deepclean.trainer.wrapper import make_cmd_line_fn
 
 @make_cmd_line_fn
 def main(
-    channels: List[str],
+    channels: Union[str, List[str]],
     output_directory: str,
     sample_rate: float,
     data_directory: Optional[str] = None,

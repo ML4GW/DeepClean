@@ -20,6 +20,7 @@ def main(
     verbose: bool = False,
     **kwargs
 ):
+    os.makedirs(output_directory, exist_ok=True)
     configure_logging(os.path.join(output_directory, "train.log"), verbose)
 
     if valid_frac is not None:

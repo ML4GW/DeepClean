@@ -17,6 +17,3 @@ pytest = "^6.2"
 [build-system]
 requires = ["poetry>=1.2"]
 build-backend = "poetry.masonry.api"
-
-[tool.isort]
-known_first_party = ["train"]

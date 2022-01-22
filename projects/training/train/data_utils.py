@@ -55,7 +55,7 @@ def read(
                         chan, data.attrs["sample_rate"], sample_rate
                     )
                 )
-    return
+    return data
 
 
 def write(

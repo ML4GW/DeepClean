@@ -15,5 +15,5 @@ def configure_logging(
     if filename is not None:
         logger = logging.getLogger()
         logger.addHandler(
-            logging.handlers.FileHandler(filename=filename, mode="w")
+            logging.FileHandler(filename=filename, mode="w")
         )

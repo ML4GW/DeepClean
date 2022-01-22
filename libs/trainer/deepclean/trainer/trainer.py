@@ -1,7 +1,7 @@
 import logging
 import os
 import time
-from typing import List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -43,6 +43,7 @@ def run_train_step(
 
         train_loss += loss.item() * len(witnesses)
         samples_seen += len(witnesses)
+        logging.debug(f"{samples_seen}/{train_data.num_kernels}")
 
     if profiler is not None:
         profiler.stop()
@@ -83,7 +84,7 @@ def run_train_step(
 
 
 def train(
-    architecture: torch.nn.Module,
+    architecture: Callable,
     output_directory: str,
     # data params
     X: np.ndarray,
@@ -172,7 +173,7 @@ def train(
     os.makedirs(output_directory, exist_ok=True)
 
     # Use GPU if available
-    device = "cpu"  # uda:5"  # dc.nn.utils.get_device(device)
+    # device = "cpu"  # uda:5"  # dc.nn.utils.get_device(device)
 
     # Preprocess data
     logging.info("Preprocessing")
@@ -223,7 +224,7 @@ def train(
             kernel_length=kernel_length,
             kernel_stride=kernel_stride,
             sample_rate=sample_rate,
-            batch_size=batch_size * 4,
+            batch_size=batch_size * 2,
             chunk_length=-1,
             shuffle=False,
             device=device,
@@ -244,6 +245,9 @@ def train(
             f"Initializing model weights from checkpoint '{init_weights}'"
         )
         model.load_state_dict(torch.load(init_weights))
+        for X, y in train_data:
+            logging.info(model(X))
+            raise OSError
     logging.info(model)
 
     logging.info("Initializing loss and optimizer")
@@ -257,6 +261,7 @@ def train(
         freq_low=filt_fl,
         freq_high=filt_fh,
     )
+    train_data.plot(os.path.join(output_directory, "train_asds"), criterion.psd_loss.welch)
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=lr, weight_decay=weight_decay

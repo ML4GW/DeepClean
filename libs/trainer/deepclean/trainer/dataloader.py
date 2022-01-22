@@ -1,8 +1,14 @@
 import logging
+import os
 from typing import Tuple
 
 import numpy as np
 import torch
+
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 
 class ChunkedTimeSeriesDataset(torch.utils.data.IterableDataset):
@@ -276,6 +282,43 @@ class ChunkedTimeSeriesDataset(torch.utils.data.IterableDataset):
         self._batch_idx += 1
         return X, y
 
+
+    def plot(self, plot_dir: str, transform):
+        if plt is None:
+            raise RuntimeError("Can't plot, matplotlib not installed")
+        os.makedirs(plot_dir, exist_ok=True)
+
+        X_asd, y_asd = None, None
+        N = 0
+        for X, y in self:
+            batch_size = X.shape[0]
+            X = X.view(-1, X.shape[-1])
+            X_welch = transform(X)
+            X_welch = X_welch.view(batch_size, -1, X_welch.shape[-1])
+            X_welch = X_welch.mean(axis=0)
+
+            y_welch = transform(y).mean(axis=0)
+
+            if X_asd is None:
+                X_asd = X_welch
+                y_asd = y_welch
+            else:
+                X_asd -= (X_asd - X_welch) * len(X) / (N + len(X))
+                y_asd -= (y_asd - y_welch) * len(X) / (N + len(X))
+
+        X_asd = X_asd.cpu().numpy()
+        y_asd = y_asd.cpu().numpy()
+        asds = np.concatenate([y_asd[None], X_asd], axis=0)
+
+        freqs = np.linspace(0, 2048, X_asd.shape[-1])
+        mask = (50 < freqs) & (freqs < 70)
+        for i, asd in enumerate(asds):
+            fig, ax = plt.subplots()
+            ax.set_xlabel("Frequency [Hz]")
+            ax.set_ylabel("ASD Hz$^{-\\frac{1}{2}}$")
+            ax.set_yscale("log")
+            ax.plot(freqs[mask], asd[mask])
+            fig.savefig(os.path.join(plot_dir, f"{i}.png"))
 
 # def ChunkedFrameFileDataset(ChunkedTimeSeriesDataset):
 #     def __init__(

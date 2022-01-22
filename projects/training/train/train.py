@@ -23,17 +23,13 @@ def main(
     os.makedirs(output_directory, exist_ok=True)
     configure_logging(os.path.join(output_directory, "train.log"), verbose)
 
-    if valid_frac is not None:
-        if duration is not None:
-            valid_duration = valid_frac * duration
-            duration = duration - valid_duration
+    valid_t0 = valid_duration = None
+    if valid_frac is not None and duration is not None:
+        valid_duration = valid_frac * duration
+        duration = duration - valid_duration
 
-            if t0 is not None:
-                valid_t0 = t0 + duration
-            else:
-                valid_t0 = None
-    else:
-        valid_duration = valid_t0 = None
+        if t0 is not None:
+            valid_t0 = t0 + duration
 
     if data_directory is not None:
         train_fname = os.path.join(data_directory, "training.h5")

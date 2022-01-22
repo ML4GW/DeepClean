@@ -47,9 +47,10 @@ channels = [
     "H1:ASC-CSOFT_Y_INMON"
 ]
 output_directory = "results/test"
+init_weights = "results/test"
 sample_rate = 4096
 t0 = 1239935251
-duartion = 2000
+duration = 2000
 data_directory = "data/1239935251/2000"
 valid_frac = 0.25
 
@@ -59,19 +60,20 @@ chunk_length = 0
 
 filt_fl = 55.0
 filt_fh = 65.0
-filter_order = 8
+filt_order = 8
 
 batch_size = 256
 max_epochs = 100
-lr = 0.008
-patience = 10
+lr = 0.001
+patience = 5
 early_stop = 25
 
 fftlength = 2
-overlap = 0.5
+overlap = 1
 alpha = 1.0
 
 device = "cuda"
 profile = false
+verbose = false
 
 [tool.typeo.commands.autoencoder]

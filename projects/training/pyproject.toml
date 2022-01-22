@@ -47,7 +47,6 @@ channels = [
     "H1:ASC-CSOFT_Y_INMON"
 ]
 output_directory = "results/test"
-init_weights = "results/test"
 sample_rate = 4096
 t0 = 1239935251
 duration = 2000
@@ -63,7 +62,7 @@ filt_fh = 65.0
 filt_order = 8
 
 batch_size = 256
-max_epochs = 100
+max_epochs = 0
 lr = 0.001
 patience = 5
 early_stop = 25

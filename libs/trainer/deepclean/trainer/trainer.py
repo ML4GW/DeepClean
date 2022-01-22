@@ -245,9 +245,6 @@ def train(
             f"Initializing model weights from checkpoint '{init_weights}'"
         )
         model.load_state_dict(torch.load(init_weights))
-        for X, y in train_data:
-            logging.info(model(X))
-            raise OSError
     logging.info(model)
 
     logging.info("Initializing loss and optimizer")
@@ -261,7 +258,9 @@ def train(
         freq_low=filt_fl,
         freq_high=filt_fh,
     )
-    train_data.plot(os.path.join(output_directory, "train_asds"), criterion.psd_loss.welch)
+    train_data.plot(
+        os.path.join(output_directory, "train_asds"), criterion.psd_loss.welch
+    )
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=lr, weight_decay=weight_decay
@@ -331,5 +330,15 @@ def train(
                         "epochs, halting training early".format(early_stop)
                     )
                     break
+
+    if valid_data is not None:
+        model.load_state_dict(
+            torch.load(os.path.join(output_directory, "weights.pt"))
+        )
+        valid_data.plot(
+            os.path.join(output_directory, "valid_asds"),
+            criterion.psd_loss.welch,
+            model,
+        )
 
     return history

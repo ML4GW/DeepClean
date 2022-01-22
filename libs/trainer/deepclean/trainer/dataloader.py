@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Tuple
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 import torch
@@ -282,34 +282,56 @@ class ChunkedTimeSeriesDataset(torch.utils.data.IterableDataset):
         self._batch_idx += 1
         return X, y
 
-
-    def plot(self, plot_dir: str, transform):
+    def plot(
+        self,
+        plot_dir: str,
+        welch: Callable,
+        model: Optional[torch.nn.Module] = None,
+        postprocessor: Optional[Callable] = None,
+    ):
         if plt is None:
             raise RuntimeError("Can't plot, matplotlib not installed")
         os.makedirs(plot_dir, exist_ok=True)
 
-        X_asd, y_asd = None, None
+        X_asd, y_asd, res_asd = None, None, None
         N = 0
         for X, y in self:
             batch_size = X.shape[0]
             X = X.view(-1, X.shape[-1])
-            X_welch = transform(X)
+            X_welch = welch(X)
             X_welch = X_welch.view(batch_size, -1, X_welch.shape[-1])
             X_welch = X_welch.mean(axis=0)
 
-            y_welch = transform(y).mean(axis=0)
+            if model is not None:
+                pred = model(X)
+                if postprocessor is not None:
+                    pred = postprocessor(pred, inverse=True)
+                residual = y - pred
+                residual_welch = welch(residual).mean(axis=0)
+            else:
+                residual_welch = None
+
+            y_welch = welch(y).mean(axis=0)
 
             if X_asd is None:
                 X_asd = X_welch
                 y_asd = y_welch
+
+                if residual_welch is not None:
+                    res_asd = residual_welch
             else:
-                X_asd -= (X_asd - X_welch) * len(X) / (N + len(X))
-                y_asd -= (y_asd - y_welch) * len(X) / (N + len(X))
+                factor = len(X) / (N + len(X))
+                X_asd -= (X_asd - X_welch) * factor
+                y_asd -= (y_asd - y_welch) * factor
+
+                if res_asd is not None:
+                    res_asd -= (res_asd - residual_welch) * factor
 
         X_asd = X_asd.cpu().numpy()
         y_asd = y_asd.cpu().numpy()
         asds = np.concatenate([y_asd[None], X_asd], axis=0)
 
+        # TODO: don't hardcode these
         freqs = np.linspace(0, 2048, X_asd.shape[-1])
         mask = (50 < freqs) & (freqs < 70)
         for i, asd in enumerate(asds):
@@ -318,7 +340,15 @@ class ChunkedTimeSeriesDataset(torch.utils.data.IterableDataset):
             ax.set_ylabel("ASD Hz$^{-\\frac{1}{2}}$")
             ax.set_yscale("log")
             ax.plot(freqs[mask], asd[mask])
+
+            if res_asd is not None and i == 0:
+                ax.plot(
+                    freqs[mask], res_asd.cpu().numpy()[mask], label="Cleaned"
+                )
+                ax.legend()
+
             fig.savefig(os.path.join(plot_dir, f"{i}.png"))
+
 
 # def ChunkedFrameFileDataset(ChunkedTimeSeriesDataset):
 #     def __init__(

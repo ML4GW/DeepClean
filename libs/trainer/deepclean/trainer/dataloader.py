@@ -296,14 +296,10 @@ class ChunkedTimeSeriesDataset(torch.utils.data.IterableDataset):
         X_asd, y_asd, res_asd = None, None, None
         N = 0
         for X, y in self:
-            batch_size = X.shape[0]
-            X = X.view(-1, X.shape[-1])
-            X_welch = welch(X)
-            X_welch = X_welch.view(batch_size, -1, X_welch.shape[-1])
-            X_welch = X_welch.mean(axis=0)
-
             if model is not None:
-                pred = model(X)
+                model.eval()
+                with torch.no_grad():
+                    pred = model(X)
                 if postprocessor is not None:
                     pred = postprocessor(pred, inverse=True)
                 residual = y - pred
@@ -311,18 +307,24 @@ class ChunkedTimeSeriesDataset(torch.utils.data.IterableDataset):
             else:
                 residual_welch = None
 
-            y_welch = welch(y).mean(axis=0)
+            batch_size = X.shape[0]
+            X = X.view(-1, X.shape[-1])
+            X = welch(X)
+            X = X.view(batch_size, -1, X.shape[-1])
+            X = X.mean(axis=0)
+
+            y = welch(y).mean(axis=0)
 
             if X_asd is None:
-                X_asd = X_welch
-                y_asd = y_welch
+                X_asd = X
+                y_asd = y
 
                 if residual_welch is not None:
                     res_asd = residual_welch
             else:
                 factor = len(X) / (N + len(X))
-                X_asd -= (X_asd - X_welch) * factor
-                y_asd -= (y_asd - y_welch) * factor
+                X_asd -= (X_asd - X) * factor
+                y_asd -= (y_asd - y) * factor
 
                 if res_asd is not None:
                     res_asd -= (res_asd - residual_welch) * factor

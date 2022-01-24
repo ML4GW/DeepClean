@@ -36,7 +36,10 @@ def fetch(
 
 
 def read(
-    fname: str, channels: List[str], sample_rate: Optional[float]
+    fname: str,
+    channels: List[str],
+    sample_rate: Optional[float],
+    duration: Optional[float] = None,
 ) -> Dict[str, np.ndarray]:
     logging.info(f"Reading data from '{fname}'")
     data = {}
@@ -44,7 +47,6 @@ def read(
         for chan, x in f.items():
             if chan not in channels:
                 continue
-            data[chan] = x[:]
 
             if sample_rate is None:
                 sample_rate = x.attrs["sample_rate"]
@@ -55,6 +57,11 @@ def read(
                         chan, data.attrs["sample_rate"], sample_rate
                     )
                 )
+
+            if duration is not None:
+                data[chan] = x[: int(sample_rate * duration)]
+            else:
+                data[chan] = x[:]
     return data
 
 
@@ -109,7 +116,7 @@ def get_data(
             )
 
         # read from the indicated file
-        data = read(fname, channels, sample_rate)
+        data = read(fname, channels, sample_rate, duration)
     elif fname is not None:
         # we indicated a file, but also a t0 and duration
         if not os.path.exists(fname) or force_download:
@@ -123,7 +130,7 @@ def get_data(
             write(data, fname, sample_rate, t0)
         else:
             # otherwise read the existing data
-            data = read(fname, channels, sample_rate)
+            data = read(fname, channels, sample_rate, duration)
     else:
         # we didn't specify a file, but both a t0 and duration,
         # so fetch that stretch of data from nds

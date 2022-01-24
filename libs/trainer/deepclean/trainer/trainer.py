@@ -213,7 +213,7 @@ def train(
         batch_size=batch_size,
         chunk_length=chunk_length,
         num_chunks=num_chunks,
-        shuffle=False,
+        shuffle=True,
         device=device,
     )
 

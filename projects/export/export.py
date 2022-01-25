@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 from typing import Callable, List, Optional, Union
@@ -6,7 +7,7 @@ import hermes.quiver as qv
 import torch
 from hermes.typeo import typeo
 
-from deepclean.logging import configure_logger
+from deepclean.logging import configure_logging
 from deepclean.networks import get_network_fns
 
 
@@ -30,7 +31,7 @@ def make_ensemble(
 
         if snapshotter is None:
             # there's no snapshotter, so make one
-            ensemble.add_streaming_input(
+            ensemble.add_streaming_inputs(
                 inputs=[deepclean.inputs["witness"]],
                 stream_size=stream_size,
                 name="snapshotter",
@@ -60,7 +61,7 @@ def make_ensemble(
 
     # add a streaming output to the model if it
     # doesn't already have one
-    if len(ensemble.config.outputs == 0):
+    if len(ensemble.config.output) == 0:
         if ensemble_name == "deepclean-stream":
             name = "aggregator"
         else:
@@ -98,7 +99,7 @@ def export(
         weights = os.path.join(output_directory, "weights.pt")
     else:
         output_directory = os.path.dirname(weights)
-    configure_logger(os.path.join(output_directory, "export.log"), verbose)
+    configure_logging(os.path.join(output_directory, "export.log"), verbose)
 
     logging.info(f"Creating model and loading weights from {weights}")
     nn = architecture(len(channels) - 1)
@@ -108,11 +109,12 @@ def export(
     repo = qv.ModelRepository(repository_directory)
     try:
         model = repo.models["deepclean"]
+        if instances is not None:
+            model.config.scale_instance_group(instances)
     except KeyError:
         model = repo.add("deepclean", platform=platform)
-
-    if instances is not None:
-        model.config.scale_instance_group(instances)
+        if instances is not None:
+            model.config.add_instance_group(count=instances)
 
     input_shape = (1, len(channels) - 1, int(kernel_length * sample_rate))
     model.export_version(
@@ -135,7 +137,7 @@ def export(
 
         make_ensemble(
             repo,
-            nn,
+            model,
             name,
             repo.models.get("snapshotter", None),
             stream_size=int(sample_rate * stride_length),
@@ -144,9 +146,19 @@ def export(
         )
 
 
+
 export_kwargs = {}
 network_fns = get_network_fns(export, export_kwargs)
-main = typeo(export, **network_fns)
+
+def wrapper(**kwargs):
+    export_kwargs.update(kwargs)
+
+parameters = [
+   p for p in inspect.signature(export).parameters.values()
+       if p.name != "architecture"
+]
+wrapper.__signature__ = inspect.Signature(parameters)
+main = typeo(wrapper, **network_fns)
 
 if __name__ == "__main__":
     main()

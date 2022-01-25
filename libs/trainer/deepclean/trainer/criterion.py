@@ -133,9 +133,9 @@ class PSDLoss(nn.Module):
                 self.scale += high - low
 
             self.mask = torch.Tensor(mask).to(device)
-            logging.debug(f"Averaging over {self.N} frequency bins")
+            # logging.debug(f"Averaging over {self.N} frequency bins")
         elif freq_low is None and freq_high is None:
-            self.mask = self.N = None
+            self.mask = self.scale = None
         else:
             raise ValueError(
                 "If '{}' is specified, '{}' must be specified as well".format(

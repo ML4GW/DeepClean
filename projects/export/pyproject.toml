@@ -6,19 +6,27 @@ authors = ["Alec Gunny <alec.gunny@gmail.com>"]
 # readme = "README.md"
 
 [tool.poetry.scripts]
-train = "export:main"
+export = "export:main"
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 
-"deepclean.networks" = {path = "../../libs/network", develop = true}
+libclang = {version = "<12.0", optional = true}
+"deepclean.networks" = {path = "../../libs/networks", develop = true}
 "deepclean.logging" = {path = "../../libs/logging", develop = true}
-
-"hermes.quiver" = {path = "../../gw-iaas/libs/hermes/hermes.quiver", develop = true}
 "hermes.typeo" = {path = "../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
+
+[tool.poetry.dependencies."hermes.quiver"]
+path = "../../gw-iaas/libs/hermes/hermes.quiver"
+develop = true
+extras = ["torch", "tensorflow"]
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
+
+[[tool.poetry.source]]
+name = "ngc"
+url = "https://pypi.ngc.nvidia.com"
 
 [build-system]
 requires = ["poetry>=1.2"]
@@ -50,7 +58,7 @@ channels = [
     "H1:ASC-CSOFT_Y_INMON"
 ]
 repository_directory = "../../repo"
-weights = "results/test"
+weights = "../training/results/test"
 kernel_length = 1
 stride_length = 0.001953125
 sample_rate = 4096

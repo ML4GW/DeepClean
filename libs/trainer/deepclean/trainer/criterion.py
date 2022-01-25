@@ -11,7 +11,7 @@ class TorchWelch(nn.Module):
         self,
         sample_rate: float,
         fftlength: float,
-        overlap: int,
+        overlap: Optional[float] = None,
         average: str = "mean",
         asd: bool = False,
         device: str = "cpu",
@@ -168,10 +168,10 @@ class PSDLoss(nn.Module):
         ratio = psd_res / psd_target
 
         if self.mask is not None:
-            ratio *= self.mask
-            loss = torch.sum(ratio) / (self.N * len(pred))
+            ratio[:, ~self.mask.type(torch.bool)] = 0.
+            loss = torch.sum(ratio) / (self.N) #  * len(pred))
         else:
-            loss = torch.mean(ratio)
+            loss = torch.sum(ratio) # mean(ratio)
         return loss
 
 
@@ -195,7 +195,7 @@ class CompositePSDLoss(nn.Module):
         self.alpha = alpha
 
         if alpha > 0:
-            if sample_rate is None or overlap is None:
+            if sample_rate is None or fftlength is None:
                 raise ValueError(
                     "Must specify both 'sample_rate' and "
                     "'fftlength' if alpha > 0"

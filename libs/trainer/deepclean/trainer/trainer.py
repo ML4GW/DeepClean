@@ -28,9 +28,9 @@ def run_train_step(
     for witnesses, strain in train_data:
         optimizer.zero_grad(set_to_none=True)  # reset gradient
         # do forward step in mixed precision
-        with torch.autocast("cuda"):
-            noise_prediction = model(witnesses)
-            loss = criterion(noise_prediction, strain)
+        # with torch.autocast("cuda"):
+        noise_prediction = model(witnesses)
+        loss = criterion(noise_prediction, strain)
 
         # do backwards pass at full precision
         loss.backward()
@@ -41,7 +41,7 @@ def run_train_step(
         if profiler is not None:
             profiler.step()
 
-        train_loss += loss.item() * len(witnesses)
+        train_loss += loss.item() # * len(witnesses)
         samples_seen += len(witnesses)
         logging.debug(f"{samples_seen}/{train_data.num_kernels}")
 
@@ -71,7 +71,7 @@ def run_train_step(
                 noise_prediction = model(witnesses)
                 loss = criterion(noise_prediction, strain)
 
-                valid_loss += loss.item() * len(witnesses)
+                valid_loss += loss.item() # * len(witnesses)
                 samples_seen += len(witnesses)
 
         valid_loss /= samples_seen
@@ -213,7 +213,7 @@ def train(
         batch_size=batch_size,
         chunk_length=chunk_length,
         num_chunks=num_chunks,
-        shuffle=True,
+        shuffle=False,
         device=device,
     )
 
@@ -252,8 +252,8 @@ def train(
         alpha,
         sample_rate,
         fftlength=fftlength,
-        overlap=overlap,
-        asd=True,
+        overlap=None,
+        asd=False,
         device=device,
         freq_low=filt_fl,
         freq_high=filt_fh,

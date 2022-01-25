@@ -48,9 +48,9 @@ channels = [
 ]
 output_directory = "results/test"
 sample_rate = 4096
-t0 = 1239935251
+t0 = 1238292996
 duration = 2000
-data_directory = "data/1239935251/2000"
+data_directory = "data/1238292996/2000"
 valid_frac = 0.25
 
 kernel_length = 8

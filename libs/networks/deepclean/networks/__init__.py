@@ -79,3 +79,24 @@ def get_network_fns(fn, fn_kwargs={}):
         network_fn.__name__ = name
         network_fns[name] = network_fn
     return network_fns
+
+
+def typeo_wrapper(f):
+    # doing the unthinkable and putting this import
+    # here until I decide what I really want to do
+    # with this function
+    from hermes.typeo import typeo
+
+    f_kwargs = {}
+    network_fns = get_network_fns(f, f_kwargs)
+
+    def wrapper(**kwargs):
+        f_kwargs.update(kwargs)
+
+    f_params = inspect.signature(f).parameters.values()
+    parameters = [p for p in f_params if p.name != "architecture"]
+    wrapper.__signature__ = inspect.Signature(parameters)
+    wrapper.__name__ = f.__name__
+    wrapper.__doc__ = f.__doc__
+
+    return typeo(wrapper, **network_fns)

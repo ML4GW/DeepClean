@@ -1,14 +1,12 @@
-import inspect
 import logging
 import os
 from typing import Callable, List, Optional, Union
 
 import hermes.quiver as qv
 import torch
-from hermes.typeo import typeo
 
 from deepclean.logging import configure_logging
-from deepclean.networks import get_network_fns
+from deepclean.networks import typeo_wrapper
 
 
 def make_ensemble(
@@ -80,6 +78,7 @@ def make_ensemble(
     return ensemble
 
 
+@typeo_wrapper
 def export(
     architecture: Callable,
     repository_directory: str,
@@ -146,19 +145,5 @@ def export(
         )
 
 
-
-export_kwargs = {}
-network_fns = get_network_fns(export, export_kwargs)
-
-def wrapper(**kwargs):
-    export_kwargs.update(kwargs)
-
-parameters = [
-   p for p in inspect.signature(export).parameters.values()
-       if p.name != "architecture"
-]
-wrapper.__signature__ = inspect.Signature(parameters)
-main = typeo(wrapper, **network_fns)
-
 if __name__ == "__main__":
-    main()
+    export()

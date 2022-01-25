@@ -6,7 +6,7 @@ authors = ["Alec Gunny <alec.gunny@gmail.com>"]
 # readme = "README.md"
 
 [tool.poetry.scripts]
-export = "export:main"
+export = "export:export"
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"

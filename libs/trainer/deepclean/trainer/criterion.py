@@ -126,12 +126,13 @@ class PSDLoss(nn.Module):
 
             freqs = np.linspace(0.0, sample_rate / 2, self.welch.nfreq)
             mask = np.zeros_like(freqs, dtype=np.int64)
+            self.scale = 0
             for low, high in zip(freq_low, freq_high):
                 in_range = (low <= freqs) & (freqs < high)
                 mask[in_range] = 1
+                self.scale += high - low
 
             self.mask = torch.Tensor(mask).to(device)
-            self.N = mask.sum()
             logging.debug(f"Averaging over {self.N} frequency bins")
         elif freq_low is None and freq_high is None:
             self.mask = self.N = None
@@ -151,7 +152,7 @@ class PSDLoss(nn.Module):
 
         if self.mask is not None:
             ratio *= self.mask
-            loss = torch.sum(ratio) / (self.N * len(pred))
+            loss = torch.sum(ratio) / (self.scale * len(pred))
         else:
             loss = torch.mean(ratio)
         return loss

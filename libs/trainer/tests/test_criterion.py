@@ -122,7 +122,7 @@ def test_psd_loss(
 
     freqs_per_bin = sample_rate / (2 * criterion.welch.nfreq)
     in_range_bins = int(10 * num_ranges / freqs_per_bin)
-    assert criterion.N == in_range_bins
+    assert criterion.mask.sum() == in_range_bins
 
     # make sure that any bins marked as valid in
     # the mask correspond to at least one of the

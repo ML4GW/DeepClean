@@ -16,7 +16,9 @@ class TorchWelch(nn.Module):
         asd: bool = False,
         device: str = "cpu",
     ):
-        if overlap >= fftlength:
+        if overlap is None:
+            overlap = fftlength / 2
+        elif overlap >= fftlength:
             raise ValueError(
                 "Can't have overlap {} longer than fftlength {}".format(
                     overlap, fftlength
@@ -24,6 +26,7 @@ class TorchWelch(nn.Module):
             )
 
         super().__init__()
+
         self.nperseg = int(fftlength * sample_rate)
         self.nfreq = self.nperseg // 2 + 1
         self.noverlap = int(overlap * sample_rate)
@@ -101,8 +104,13 @@ class PSDLoss(nn.Module):
             sample_rate, fftlength, overlap, asd=asd, device=device
         )
         if freq_low is not None and freq_high is not None:
+            # we specified both high and low frequency ranges,
+            # so parse them out
             if isinstance(freq_low, (int, float)):
+                # wrap scalar values in a list for generality
                 freq_low = [freq_low]
+
+                # enforce that freq_high is also a scalar
                 if not isinstance(freq_high, (int, float)):
                     raise ValueError(
                         "'freq_low' and 'freq_high' values {} and {} "
@@ -110,6 +118,8 @@ class PSDLoss(nn.Module):
                     )
                 freq_high = [freq_high]
             else:
+                # freq_low is an iterable, so verify
+                # that freq_high is also iterable
                 try:
                     if not len(freq_low) == len(freq_high):
                         raise ValueError(
@@ -119,24 +129,31 @@ class PSDLoss(nn.Module):
                             )
                         )
                 except TypeError:
+                    # one of the two above couldn't have its
+                    # __len__ evaluated, so there's some incompatibility
                     raise ValueError(
                         "'freq_low' and 'freq_high' values {} and {} "
                         "are incompatible.".format(freq_low, freq_high)
                     )
 
+            # since we specified frequency ranges, build a mask
+            # to zero out the frequencies we don't care about
             freqs = np.linspace(0.0, sample_rate / 2, self.welch.nfreq)
             mask = np.zeros_like(freqs, dtype=np.int64)
-            self.scale = 0
             for low, high in zip(freq_low, freq_high):
                 in_range = (low <= freqs) & (freqs < high)
                 mask[in_range] = 1
-                self.scale += high - low
 
             self.mask = torch.Tensor(mask).to(device)
-            # logging.debug(f"Averaging over {self.N} frequency bins")
+            self.N = self.mask.sum()
+            logging.debug(f"Averaging over {self.N} frequency bins")
         elif freq_low is None and freq_high is None:
+            # no frequencies were specified, so ignore the mask
             self.mask = self.scale = None
         else:
+            # one was specified and the other wasn't, so build
+            # a generic error that will populate with the
+            # appropriate values at error-time
             raise ValueError(
                 "If '{}' is specified, '{}' must be specified as well".format(
                     "freq_high" if freq_low is None else "freq_low",
@@ -152,7 +169,7 @@ class PSDLoss(nn.Module):
 
         if self.mask is not None:
             ratio *= self.mask
-            loss = torch.sum(ratio) / (self.scale * len(pred))
+            loss = torch.sum(ratio) / (self.N * len(pred))
         else:
             loss = torch.mean(ratio)
         return loss
@@ -174,14 +191,14 @@ class CompositePSDLoss(nn.Module):
     ):
         super().__init__()
         if not 0 <= alpha <= 1:
-            raise ValueError("Alpha value {} out of range".format(alpha))
+            raise ValueError("Alpha value '{}' out of range".format(alpha))
         self.alpha = alpha
 
         if alpha > 0:
-            if any([i is None for i in [sample_rate, fftlength, overlap]]):
+            if sample_rate is None or overlap is None:
                 raise ValueError(
-                    "Must specify all of 'sample_rate', 'fftlength', "
-                    "and 'overlap' if alpha > 0"
+                    "Must specify both 'sample_rate' and "
+                    "'fftlength' if alpha > 0"
                 )
 
             self.psd_loss = PSDLoss(

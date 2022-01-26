@@ -183,10 +183,10 @@ optional arguments:
                         (default: False)
 ```
 
-To use the default values saved in the `tool.typeo` section of the [pyproject.toml](./pyproject.toml), run
+To use the default values saved in the `tool.typeo` section of the project directory's [`pyproject.toml`](../pyproject.toml), run
 
 ```console
-train --typeo ::autoencoder
+train --typeo ..:train:autoencoder
 ```
 
 Where here `autoencoder` specifies the network architecture that we'd like to train with (it's the only one for now).

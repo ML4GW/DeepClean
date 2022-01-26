@@ -9,11 +9,10 @@ import torch
 from deepclean.signal import BandpassFilter, StandardScaler
 from deepclean.trainer import ChunkedTimeSeriesDataset, CompositePSDLoss
 
-# Default tensor type
 torch.set_default_tensor_type(torch.FloatTensor)
 
 
-def run_train_step(
+def train_for_one_epoch(
     model: torch.nn.Module,
     optimizer: torch.optim.Optimizer,
     criterion: torch.nn.Module,
@@ -21,6 +20,8 @@ def run_train_step(
     valid_data: Optional[ChunkedTimeSeriesDataset] = None,
     profiler: Optional[torch.profiler.profile] = None,
 ):
+    """Run a single epoch of training"""
+
     train_loss = 0
     samples_seen = 0
     start_time = time.time()
@@ -92,8 +93,8 @@ def train(
     kernel_length: float,
     kernel_stride: float,
     sample_rate: float,
-    chunk_length: float = 0.05,
-    num_chunks: int = 4,
+    chunk_length: float = 0,
+    num_chunks: int = 1,
     valid_data: Optional[Tuple[np.ndarray, np.ndarray]] = None,
     # preproc params
     filt_fl: Union[float, List[float]] = 55.0,
@@ -116,56 +117,112 @@ def train(
     device: Optional[str] = None,
     profile: bool = False,
 ) -> float:
-    """Train a DeepClean model on a stretch of data
-
-    If no training data is availble locally, it will be
-    downloaded from the NDS2 server, so ensure that you
-    have appropriate credentials for this first.
+    """Train a DeepClean model on in-memory data
 
     Args:
-        chanslist:
-            File containing the channels to use for training separated
-            by newlines, with the target channel in the first row
+        architecture:
+            A callable which takes as its only input the number
+            of witness channels, and returns an initialized torch
+            Module
+        output_directory:
+            Location to save training artifacts like optimized
+            weights, preprocessing objects, and visualizations
+        X:
+            Array containing witness timeseries data
+        y:
+            Array contain strain timeseries data
+        kernel_length:
+            Lenght of the input to DeepClean in seconds
+        kernel_stride:
+            Distance between subsequent samples of kernels from
+            `X` and `y` in seconds. The total number of samples
+            used for training will then be
+            `(X.shape[-1] / sample_rate - kernel_length) // kernel_stride + 1`
+        sample_rate:
+            The rate at which the timeseries contained in `X`
+            and `y` were sampled
+        chunk_length:
+            Dataloading parameter which dictates how many kernels
+            to unroll at once in GPU memory. Default value of `0`
+            means that kernels will be sampled at batch-generation
+            time instead of pre-computed, which will be slower but
+            have a lower memory footprint. Higher values will break
+            `X` up into `chunk_length` chunks which will be unrolled
+            into kernels in-bulk before iterating through them.
+        num_chunks:
+            Dataloading parameter which dictates how many chunks
+            to unroll at once. Ignored if `chunk_length` is 0. If
+            `chunk_length > 0`, indicates that `num_chunks * chunk_length`
+            data will be unrolled into kernels in-bulk. Higher values
+            can have a larger memory footprint but better randomness
+            and higher throughput.
+        valid_data:
+            Witness and strain timeseries for validating model
+            performance at the end of each epoch. If left
+            as `None`, validation won't be performed.
         filt_fl:
-            Lower limit of frequency range over which to optimize
+            Lower limit(s) of frequency range(s) over which to optimize
             PSD loss, in Hz. Specify multiple to optimize over
             multiple ranges. In this case, must be same length
             as `filt_fh`.
         filt_fh:
-            Upper limit of frequency range over which to optimize
+            Upper limit(s) of frequency range(s) over which to optimize
             PSD loss, in Hz. Specify multiple to optimize over
             multiple ranges. In this case, must be same length
             as `filt_fl`.
         filt_order:
             Order of bandpass filter to apply to strain channel
             before training.
-        train_kernel:
-            Length of time dimension of input to network, in seconds.
-            I.e. the last dimension of the network input will have
-            size `int(fs * train_kernel)`.
-        train_stride:
-            Length in seconds between frames that can be sampled
-            for training.
-        pad_mode:
-            Deprecated.
         batch_size:
             Sizes of batches to use during training. Validation
             batches will be four times this large.
         max_epochs:
             Maximum number of epochs over which to train.
+        init_weights:
+            Path to weights with which to initialize network. If
+            left as `None`, network will be randomly initialized.
+            If `init_weights` is a directory, it will be assumed
+            that this directory contains a file called `weights.pt`.
         lr:
             Learning rate to use during training.
         weight_decay:
-            Amount of regularization to apply during training
+            Amount of regularization to apply during training.
+        patience:
+            Number of epochs without improvement in validation
+            loss before learning rate is reduced. If left as
+            `None`, learning rate won't be scheduled. Ignored
+            if `valid_data is None`
+        factor:
+            Factor by which to reduce the learning rate after
+            `patience` epochs without improvement in validation
+            loss. Ignored if `valid_data is None` or
+            `patience is None`.
+        early_stop:
+            Number of epochs without improvement in validation
+            loss before training terminates altogether. Ignored
+            if `valid_data is None`.
         fftlength:
-            The size of the FFT to use to compute the PSD
-            for the PSD loss
+            The length of FFT windows in seconds over which to
+            compute the PSD estimate for the PSD loss.
+        overlap:
+            The overlap between FFT windows in seconds over which
+            to compute the PSD estimate for the PSD loss. If left
+            as `None`, the overlap will be `fftlength / 2`.
         alpha:
             The relative amount of PSD loss compared to
             MSE loss, scaled from 0. to 1. The loss function
             is computed as `alpha * psd_loss + (1 - alpha) * mse_loss`.
-        log_file:
-            Name of the file in `train_dir` to which to write logs
+        device:
+            Indicating which device (i.e. cpu or gpu) to run on. Use
+            `"cuda"` to use the default GPU available, or `"cuda:{i}`"`,
+            where `i` is a valid GPU index on your machine, to specify
+            a specific GPU (alternatively, consider setting the environment
+            variable `CUDA_VISIBLE_DEVICES=${i}` and using just `"cuda"`
+            here).
+        profile:
+            Whether to generate a tensorboard profile of the
+            training step on the first epoch. This will make
+            this first epoch slower.
     """
 
     if not (0 <= alpha <= 1):
@@ -290,7 +347,7 @@ def train(
             profiler = None
 
         logging.info(f"=== Epoch {epoch + 1}/{max_epochs} ===")
-        train_loss, valid_loss, duration, throughput = run_train_step(
+        train_loss, valid_loss, duration, throughput = train_for_one_epoch(
             model, optimizer, criterion, train_data, valid_data, profiler
         )
         history["train_loss"].append(train_loss)

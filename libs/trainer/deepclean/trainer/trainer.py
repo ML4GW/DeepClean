@@ -41,7 +41,7 @@ def run_train_step(
         if profiler is not None:
             profiler.step()
 
-        train_loss += loss.item() # * len(witnesses)
+        train_loss += loss.item() * len(witnesses)
         samples_seen += len(witnesses)
         logging.debug(f"{samples_seen}/{train_data.num_kernels}")
 
@@ -71,7 +71,7 @@ def run_train_step(
                 noise_prediction = model(witnesses)
                 loss = criterion(noise_prediction, strain)
 
-                valid_loss += loss.item() # * len(witnesses)
+                valid_loss += loss.item() * len(witnesses)
                 samples_seen += len(witnesses)
 
         valid_loss /= samples_seen
@@ -171,9 +171,6 @@ def train(
     if not (0 <= alpha <= 1):
         raise ValueError("Alpha value must be between 0 and 1")
     os.makedirs(output_directory, exist_ok=True)
-
-    # Use GPU if available
-    # device = "cpu"  # uda:5"  # dc.nn.utils.get_device(device)
 
     # Preprocess data
     logging.info("Preprocessing")

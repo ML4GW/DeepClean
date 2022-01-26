@@ -37,6 +37,10 @@ def main(
     else:
         train_fname = valid_fname = None
 
+    if isinstance(channels, str):
+        with open(channels, "r") as f:
+            channels = [i for i in f.read().splitlines() if i]
+
     train_X, train_y = get_data(
         channels, sample_rate, train_fname, t0, duration, force_download
     )

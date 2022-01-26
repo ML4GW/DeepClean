@@ -2,14 +2,16 @@
 name = "deepclean"
 version = "0.0.1"
 description = "End-to-end DeepClean training, inference, and analysis repo"
-authors = ["Alec Gunny <alec.gunny@ligo.org>"]
+authors = [
+    "Alec Gunny <alec.gunny@ligo.org>",
+    "Tri Nguyen"
+]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.10"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^2.16"
-
 
 [tool.black]
 line-length = 79

@@ -168,10 +168,10 @@ class PSDLoss(nn.Module):
         ratio = psd_res / psd_target
 
         if self.mask is not None:
-            ratio[:, ~self.mask.type(torch.bool)] = 0.
-            loss = torch.sum(ratio) / (self.N) #  * len(pred))
+            ratio[:, ~self.mask.type(torch.bool)] = 0.0
+            loss = torch.sum(ratio) / (self.N * len(pred))
         else:
-            loss = torch.sum(ratio) # mean(ratio)
+            loss = torch.mean(ratio)
         return loss
 
 

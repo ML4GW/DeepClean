@@ -11,12 +11,15 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 torch = "^1.0"
-
 "deepclean.signal" = {path = "../signal", develop = true}
 
 # tools for wrapper
-"hermes.typeo" = {version = "^0.1", optional = true}
 "deepclean.networks" = {path = "../networks", develop = true, optional = true}
+matplotlib = "^3.5.1"
+[tool.poetry.dependencies."hermes.typeo"]
+path = "../../gw-iaas/libs/hermes/hermes.typeo"
+develop = true
+optional = true
 
 [tool.poetry.extras]
 wrapper = ["hermes.typeo", "deepclean.networks"]

@@ -8,6 +8,7 @@ import torch
 
 from deepclean.signal import BandpassFilter, StandardScaler
 from deepclean.trainer import ChunkedTimeSeriesDataset, CompositePSDLoss
+from deepclean.trainer.viz import plot_data_asds
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
@@ -312,9 +313,28 @@ def train(
         freq_low=filt_fl,
         freq_high=filt_fh,
     )
-    train_data.plot(
-        os.path.join(output_directory, "train_asds"), criterion.psd_loss.welch
-    )
+
+    if alpha > 0:
+        # if we have a welch transform to work with,
+        # plot the ASDs of training data as they go
+        # into the network so we have a sense for
+        # what the NN is learning from
+        if filt_fl is not None:
+            # zoom in on the frequency range or
+            # ranges we actually care about
+            try:
+                x_range = (0.9 * min(filt_fl), 1.1 * max(filt_fh))
+            except TypeError:
+                x_range = (0.9 * filt_fl, 1.1 * filt_fh)
+
+        plot_data_asds(
+            train_data,
+            sample_rate=sample_rate,
+            write_dir=os.path.join(output_directory, "train_asds"),
+            welch=criterion.psd_loss.welch,
+            channels=range(len(X) + 1),
+            x_range=x_range,
+        )
 
     optimizer = torch.optim.Adam(
         model.parameters(), lr=lr, weight_decay=weight_decay
@@ -385,14 +405,24 @@ def train(
                     )
                     break
 
-    if valid_data is not None:
+    if valid_data is not None and alpha > 0:
+        # if we have validation data and a welch transform,
+        # plot the same ASDs above for the validation data,
+        # this time using our optimized model and postprocessing
+        # pipeline to also plot the residuals against the
+        # strain channel
         model.load_state_dict(
             torch.load(os.path.join(output_directory, "weights.pt"))
         )
-        valid_data.plot(
-            os.path.join(output_directory, "valid_asds"),
-            criterion.psd_loss.welch,
-            model,
+        plot_data_asds(
+            valid_data,
+            sample_rate=sample_rate,
+            write_dir=os.path.join(output_directory, "valid_asds"),
+            welch=criterion.psd_loss.welch,
+            channels=range(len(X) + 1),
+            x_range=x_range,
+            model=model,
+            postprocessor=strain_pipeline,
         )
 
     return history

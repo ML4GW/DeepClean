@@ -1,6 +1,5 @@
 import logging
-import os
-from typing import Callable, Optional, Tuple
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -281,75 +280,6 @@ class ChunkedTimeSeriesDataset(torch.utils.data.IterableDataset):
         y = self.chunk_y[start:stop]
         self._batch_idx += 1
         return X, y
-
-    def plot(
-        self,
-        plot_dir: str,
-        welch: Callable,
-        model: Optional[torch.nn.Module] = None,
-        postprocessor: Optional[Callable] = None,
-    ):
-        if plt is None:
-            raise RuntimeError("Can't plot, matplotlib not installed")
-        os.makedirs(plot_dir, exist_ok=True)
-
-        X_asd, y_asd, res_asd = None, None, None
-        N = 0
-        for X, y in self:
-            if model is not None:
-                model.eval()
-                with torch.no_grad():
-                    pred = model(X)
-                if postprocessor is not None:
-                    pred = postprocessor(pred, inverse=True)
-                residual = y - pred
-                residual_welch = welch(residual).mean(axis=0)
-            else:
-                residual_welch = None
-
-            batch_size = X.shape[0]
-            X = X.view(-1, X.shape[-1])
-            X = welch(X)
-            X = X.view(batch_size, -1, X.shape[-1])
-            X = X.mean(axis=0)
-
-            y = welch(y).mean(axis=0)
-
-            if X_asd is None:
-                X_asd = X
-                y_asd = y
-
-                if residual_welch is not None:
-                    res_asd = residual_welch
-            else:
-                factor = len(X) / (N + len(X))
-                X_asd -= (X_asd - X) * factor
-                y_asd -= (y_asd - y) * factor
-
-                if res_asd is not None:
-                    res_asd -= (res_asd - residual_welch) * factor
-
-        X_asd = X_asd.cpu().numpy()
-        y_asd = y_asd.cpu().numpy()
-        asds = np.concatenate([y_asd[None], X_asd], axis=0)
-
-        # TODO: don't hardcode these
-        freqs = np.linspace(0, 2048, X_asd.shape[-1])
-        mask = (50 < freqs) & (freqs < 70)
-        for i, asd in enumerate(asds):
-            fig, ax = plt.subplots()
-            ax.set_xlabel("Frequency [Hz]")
-            ax.set_ylabel("ASD Hz$^{-\\frac{1}{2}}$")
-            ax.set_yscale("log")
-            ax.plot(freqs[mask], asd[mask])
-
-            if res_asd is not None and i == 0:
-                ax.plot(
-                    freqs[mask], res_asd.cpu().numpy()[mask], label="Cleaned"
-                )
-                ax.legend()
-
-            fig.savefig(os.path.join(plot_dir, f"{i}.png"))
 
 
 # def ChunkedFrameFileDataset(ChunkedTimeSeriesDataset):

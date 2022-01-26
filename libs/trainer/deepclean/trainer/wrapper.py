@@ -1,6 +1,7 @@
 import inspect
 
 from hermes.typeo import typeo
+from hermes.typeo.typeo import _parse_doc, _parse_help
 
 from deepclean.networks import get_network_fns
 from deepclean.trainer.trainer import train
@@ -31,11 +32,21 @@ def _configure_wrapper(f, wrapper):
     wrapper.__signature__ = inspect.Signature(parameters=parameters)
     wrapper.__name__ = f.__name__
 
-    train_doc = train.__doc__.split("Args:")[1]
-    try:
-        wrapper.__doc__ = f.__doc__ + train_doc
-    except TypeError:
-        pass
+    _, train_args = _parse_doc(train)
+    f_doc, f_args = _parse_doc(f)
+
+    wrapper_args = ""
+    for p in parameters:
+        for args in [f_args, train_args]:
+            doc_str = _parse_help(args, p.name)
+            if doc_str:
+                break
+        else:
+            continue
+
+        wrapper_args += "\n" + " " * 8 + p.name + ":\n"
+        wrapper_args += " " * 12 + doc_str
+    wrapper.__doc__ = f_doc + "\n" + " " * 4 + "Args:\n" + wrapper_args
 
 
 def make_cmd_line_fn(f):

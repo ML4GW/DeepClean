@@ -1,0 +1,82 @@
+[tool.typeo.base]
+channels = [
+    "H1:GDS-CALIB_STRAIN",
+    "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
+    "H1:ASC-INP1_P_INMON",
+    "H1:ASC-INP1_Y_INMON",
+    "H1:ASC-MICH_P_INMON",
+    "H1:ASC-MICH_Y_INMON",
+    "H1:ASC-PRC1_P_INMON",
+    "H1:ASC-PRC1_Y_INMON",
+    "H1:ASC-PRC2_P_INMON",
+    "H1:ASC-PRC2_Y_INMON",
+    "H1:ASC-SRC1_P_INMON",
+    "H1:ASC-SRC1_Y_INMON",
+    "H1:ASC-SRC2_P_INMON",
+    "H1:ASC-SRC2_Y_INMON",
+    "H1:ASC-DHARD_P_INMON",
+    "H1:ASC-DHARD_Y_INMON",
+    "H1:ASC-CHARD_P_INMON",
+    "H1:ASC-CHARD_Y_INMON",
+    "H1:ASC-DSOFT_P_INMON",
+    "H1:ASC-DSOFT_Y_INMON",
+    "H1:ASC-CSOFT_P_INMON",
+    "H1:ASC-CSOFT_Y_INMON"
+]
+sample_rate = 4096
+output_directory = "../results/test"
+train_t0 = 1238292996
+train_duration = 2000
+verbose = false
+
+# we can leave the autoencoder args empty because
+# it doesn't take any arguments except input shape
+autoencoder = {}
+
+[tool.typeo.scripts.train]
+channels = "${base.channels}"
+output_directory = "${base.output_directory}"
+sample_rate = "${base.sample_rate}"
+t0 = "${base.train_t0}"
+duration = "${base.train_duration}"
+
+# TODO: add typeo fix which allows multiple wildcards
+# and then replace this 2000 with "${base.train_duration}"
+data_directory = "data/${base.train_duration}/2000"
+valid_frac = 0.25
+
+kernel_length = 8
+kernel_stride = 0.25
+chunk_length = 0
+
+filt_fl = 55.0
+filt_fh = 65.0
+filt_order = 8
+
+batch_size = 32
+max_epochs = 100
+lr = 1e-3
+weight_decay = 1e-5
+patience = 5
+factor = 0.2
+early_stop = 100
+
+fftlength = 2
+overlap = 1
+alpha = 1.0
+
+device = "cuda"
+profile = false
+verbose = "${base.verbose}"
+"commands.autoencoder" = "${base.autoencoder}"
+
+[tool.typeo.scripts.export]
+repository_directory = "../repo
+weights = "${base.output_directory}"
+kernel_length = 1
+stride_length = 0.001953125
+sample_rate = "${base.sample_rate}"
+max_latency = 0.5
+instances = 6
+verbose = "${base.verbose}"
+"commands.autoencoder" = "${base.autoencoder}"

@@ -86,4 +86,4 @@ def plot_data_asds(
             ax.plot(freqs[mask], res_asd[mask], label="Cleaned")
             ax.legend()
         fig.savefig(os.path.join(write_dir, f"{channel}.png"))
-        fig.close()
+        plt.close(fig)

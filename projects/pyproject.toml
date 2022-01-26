@@ -42,7 +42,7 @@ duration = "${base.train_duration}"
 
 # TODO: add typeo fix which allows multiple wildcards
 # and then replace this 2000 with "${base.train_duration}"
-data_directory = "data/${base.train_duration}/2000"
+data_directory = "data/${base.train_t0}/2000"
 valid_frac = 0.25
 
 kernel_length = 8
@@ -55,7 +55,7 @@ filt_order = 8
 
 batch_size = 32
 max_epochs = 100
-lr = 1e-3
+lr = 3.2e-2
 weight_decay = 1e-5
 patience = 5
 factor = 0.2
@@ -68,10 +68,10 @@ alpha = 1.0
 device = "cuda"
 profile = false
 verbose = "${base.verbose}"
-"commands.autoencoder" = "${base.autoencoder}"
+commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.export]
-repository_directory = "../repo
+repository_directory = "../repo"
 weights = "${base.output_directory}"
 kernel_length = 1
 stride_length = 0.001953125
@@ -79,4 +79,4 @@ sample_rate = "${base.sample_rate}"
 max_latency = 0.5
 instances = 6
 verbose = "${base.verbose}"
-"commands.autoencoder" = "${base.autoencoder}"
+commands.autoencoder = "${base.autoencoder}"

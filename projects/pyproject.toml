@@ -29,6 +29,10 @@ train_t0 = 1238292996
 train_duration = 2000
 verbose = false
 
+max_latency = 0.5
+infer_kernel_length = 1
+infer_kernel_stride = 0.001953125
+
 # we can leave the autoencoder args empty because
 # it doesn't take any arguments except input shape
 autoencoder = {}
@@ -73,10 +77,28 @@ commands.autoencoder = "${base.autoencoder}"
 [tool.typeo.scripts.export]
 repository_directory = "../repo"
 weights = "${base.output_directory}"
-kernel_length = 1
-stride_length = 0.001953125
+kernel_length = "${base.infer_kernel_length}"
+stride_length = "${base.infer_kernel_stride}"
 sample_rate = "${base.sample_rate}"
-max_latency = 0.5
+max_latency = "${base.max_latency}"
 instances = 6
 verbose = "${base.verbose}"
 commands.autoencoder = "${base.autoencoder}"
+
+[tool.typeo.scripts.infer]
+url = "localhost:8001"
+model_name = "deepclean-stream"
+train_directory = "${base.output_directory}"
+
+witness_data_dir = "${DATA_DIR}/lldetchar/H1"
+strain_data_dir = "${DATA_DIR}/llhoft/H1"
+channels = "${base.channels}"
+kernel_length = "${base.infer_kernel_length}"
+stride_length = "${base.infer_kernel_stride}"
+
+max_latency = "${base.max_latency}"
+filter_memory = 10
+filter_lead_time = 0.5
+
+sequence_id = 1001
+verbose = true

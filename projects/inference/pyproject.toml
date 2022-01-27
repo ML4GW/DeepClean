@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "infer"
+version = "0.0.1"
+description = "Simple inference script on existing frame files"
+authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+# readme = "README.md"
+
+[tool.poetry.scripts]
+train = "infer:main"
+
+[tool.poetry.dependencies]
+python = "^3.8,<3.10"
+
+"deepclean.logging" = {path = "../../libs/logging", develop = true}
+"deepclean.infer" = {path = "../../libs/infer", develop = true}
+"hermes.typeo" = {path = "../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2"
+
+[[tool.poetry.source]]
+name = "ngc"
+url = "https://pypi.ngc.nvidia.com"
+
+[build-system]
+requires = ["poetry>=1.2"]
+build-backend = "poetry.masonry.api"

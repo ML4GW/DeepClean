@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "deepclean.infer"
+version = "0.0.1"
+description = "DeepClean inference utilities"
+authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+# readme = "README.md"
+packages = [
+    {include = "deepclean"}
+]
+
+[tool.poetry.dependencies]
+python = "^3.8,<3.10"
+numpy = "^1.21"
+tritonclient = {extras = ["all"], version = "^2.5.0", source = "ngc"}
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2"
+
+[[tool.poetry.source]]
+name = "ngc"
+url = "https://pypi.ngc.nvidia.com"
+
+[build-system]
+requires = ["poetry>=1.2"]
+build-backend = "poetry.masonry.api"

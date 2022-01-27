@@ -95,6 +95,7 @@ strain_data_dir = "${DATA_DIR}/llhoft/H1"
 channels = "${base.channels}"
 kernel_length = "${base.infer_kernel_length}"
 stride_length = "${base.infer_kernel_stride}"
+sample_rate = "${base.sample_rate}"
 
 max_latency = "${base.max_latency}"
 filter_memory = 10

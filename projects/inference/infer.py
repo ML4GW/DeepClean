@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import List, Union
+from typing import List, Optional, Union
 
 import numpy as np
 import tritonclient.grpc as triton
@@ -28,6 +28,7 @@ def main(
     filter_lead_time: float,
     sequence_id: int = 1001,
     verbose: bool = False,
+    max_frames: Optional[int] = None
 ):
     configure_logging(os.path.join(train_directory, "infer.log"), verbose)
 
@@ -46,24 +47,28 @@ def main(
 
     witness_fnames = sorted(os.listdir(witness_data_dir))
     strain_fnames = sorted(os.listdir(strain_data_dir))
+    N = min(max_frames or np.inf, len(witness_fnames))
 
     strains = np.array([])
     request_id = 0
     remainder = None
 
     logging.info("Beginning inference request submissions")
-    with infer.begin_inference(
+    infer_ctx = infer.begin_inference(
         client, model_name, max_latency, stride_length
-    ) as (input, callback):
-        for strain_fname, witness_fname in zip(strain_fnames, witness_fnames):
+    )
+    with infer_ctx as (input, callback):
+        for i in range(N):
+            witness_fname = os.path.join(witness_data_dir, witness_fnames[i])
+            strain_fname = os.path.join(strain_data_dir, strain_fnames[i])
             logging.debug(
-                f"Reading frame files {strain_fname} and {witness_fname}"
+                f"Reading frame files '{strain_fname}' and '{witness_fname}'"
             )
 
             X = TimeSeriesDict.read(witness_fname, channels[1:])
             X = X.resample(sample_rate)
             X = np.stack([X[i].value for i in sorted(channels[1:])])
-            X = preprocessor(X)
+            X = preprocessor(X).astype("float32")
             if remainder is not None:
                 X = np.conatenate([remainder, X], axis=-1)
 

@@ -87,7 +87,7 @@ commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.infer]
 url = "localhost:8001"
-model_name = "deepclean-stream"
+model_name = "deepclean-stream-0.5"
 train_directory = "${base.output_directory}"
 
 witness_data_dir = "${DATA_DIR}/lldetchar/H1"
@@ -101,5 +101,6 @@ max_latency = "${base.max_latency}"
 filter_memory = 10
 filter_lead_time = 0.5
 
+max_frames = 100
 sequence_id = 1001
 verbose = true

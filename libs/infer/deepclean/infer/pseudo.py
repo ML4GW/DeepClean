@@ -1,4 +1,5 @@
 import logging
+import time
 from contextlib import contextmanager
 from typing import Callable
 
@@ -43,6 +44,9 @@ class SimpleCallback:
         else:
             self.predictions = np.append(self.predictions, y)
             self.max_id_seen += 1
+        logging.debug("Predicion array now {} samples long".format(
+            len(self.predictions)
+        ))
 
 
 @contextmanager
@@ -61,7 +65,8 @@ def begin_inference(
         shape=metadata.inputs[0].shape,
         datatype=metadata.inputs[0].datatype,
     )
-    with client.start_stream(callback=callback):
+    with client:
+        client.start_stream(callback=callback)
         yield input, callback
 
 
@@ -83,17 +88,18 @@ def submit_for_inference(
 
         request_id = initial_request_id + i
         logging.debug(
-            "Submitting inference request for request id {request_id}"
+            f"Submitting inference request for request id {request_id}"
         )
         client.async_stream_infer(
             model_name,
-            model_version=model_version,
+            model_version=str(model_version),
             inputs=[input],
             sequence_id=sequence_id,
-            request_id=request_id,
+            request_id=str(request_id),
             sequence_start=(initial_request_id == 0) & (i == 0),
             sequence_end=sequence_end & (i == (num_updates - 1)),
         )
+        time.sleep(1.5e-3)
 
     if (i + 1) * stride < X.shape[-1]:
         remainder = X[:, (i + 1) * stride :]

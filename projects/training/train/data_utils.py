@@ -59,7 +59,7 @@ def read(
                 )
 
             if duration is not None:
-                data[chan] = x[: int(sample_rate * duration)]
+                data[chan] = x[-int(sample_rate * duration):]
             else:
                 data[chan] = x[:]
     return data

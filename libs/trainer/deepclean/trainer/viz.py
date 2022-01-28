@@ -32,7 +32,9 @@ def plot_data_asds(
 
             # possibly postprocess the predictions
             if postprocessor is not None:
+                pred = pred.cpu().numpy()
                 pred = postprocessor(pred, inverse=True)
+                pred = torch.tensor(pred, device="cuda")
 
             # now compute the PSD of the residual
             residual = y - pred

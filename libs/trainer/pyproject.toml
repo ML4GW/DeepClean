@@ -2,7 +2,7 @@
 name = "deepclean.trainer"
 version = "0.0.1"
 description = "DeepClean training helper functions"
-authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+authors = ["Alec Gunny <alec.gunny@gmail.com>", "Tri Nguyen"]
 # readme = "README.md"
 packages = [
     {include = "deepclean"}
@@ -11,11 +11,17 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 torch = "^1.0"
+matplotlib = "^3.5.1"
+
+# include signal processing libraries
+# for preprocessing steps
 "deepclean.signal" = {path = "../signal", develop = true}
 
-# tools for wrapper
+# include network architecture libraries
+# if we want to build a wrapper that exposes
+# architecture-specific args
 "deepclean.networks" = {path = "../networks", develop = true, optional = true}
-matplotlib = "^3.5.1"
+
 [tool.poetry.dependencies."hermes.typeo"]
 path = "../../gw-iaas/libs/hermes/hermes.typeo"
 develop = true

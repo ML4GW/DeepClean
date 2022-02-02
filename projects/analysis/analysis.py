@@ -80,7 +80,7 @@ def main(
         y_axis_type="log",
         x_axis_label="Frequency [Hz]",
         y_axis_label="ASD [Hz⁻¹ᐟ²]",
-        tools="",
+        tools="reset",
     )
 
     for i, asd in enumerate(["raw", "clean"]):
@@ -113,7 +113,7 @@ def main(
         x_axis_label="Frequency [Hz]",
         y_axis_label="Ratio",
         tooltips=[("Frequency", "@freqs Hz"), ("ASDR", "@asdr")],
-        tools="",
+        tools="reset",
     )
     p_asdr.line(
         x="freqs",

@@ -105,3 +105,16 @@ filter_lead_time = 0.5
 max_frames = 100
 sequence_id = 1001
 verbose = true
+
+[tool.typeo.scripts.analyze]
+raw_data_dir = "${DATA_DIR}/llhoft/H1"
+clean_data_dir = "${base.output_directory}/cleaned"
+output_directory = "${base.output_directory}"
+channels = "${base.channels}"
+sample_rate = "${base.sample_rate}"
+fflength = 10
+
+# TODO: move the values from training
+# to base and do these there
+freq_low = 55
+freq_high = 65

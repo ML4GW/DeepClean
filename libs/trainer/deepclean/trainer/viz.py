@@ -17,7 +17,6 @@ def plot_data_asds(
     channels: List[str],
     x_range: Optional[Tuple[float]] = None,
     model: Optional[torch.nn.Module] = None,
-    postprocessor: Optional[Callable] = None,
 ):
     os.makedirs(write_dir, exist_ok=True)
 
@@ -29,12 +28,6 @@ def plot_data_asds(
             model.eval()
             with torch.no_grad():
                 pred = model(X)
-
-            # possibly postprocess the predictions
-            if postprocessor is not None:
-                pred = pred.cpu().numpy()
-                pred = postprocessor(pred, inverse=True)
-                pred = torch.tensor(pred, device="cuda")
 
             # now compute the PSD of the residual
             residual = y - pred

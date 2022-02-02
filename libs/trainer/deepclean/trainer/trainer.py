@@ -77,7 +77,7 @@ def train_for_one_epoch(
                 samples_seen += len(witnesses)
 
         valid_loss /= samples_seen
-        msg += f", Valid Loss {valid_loss:.4e}"
+        msg += f", Valid Loss: {valid_loss:.4e}"
     else:
         valid_loss = None
 
@@ -344,7 +344,8 @@ def train(
             optimizer,
             patience=patience,
             factor=factor,
-            min_lr=lr / factor ** 2,
+            min_lr=lr * factor ** 2,
+            verbose=True
         )
 
     # start training
@@ -422,7 +423,6 @@ def train(
             channels=range(len(X) + 1),
             x_range=x_range,
             model=model,
-            postprocessor=strain_pipeline,
         )
 
     return history

@@ -91,7 +91,7 @@ class BandpassFilter(Op):
                 )
             )
 
-    def __call__(self, x):
+    def __call__(self, x, **kwargs):
         output = 0.0
         for sos in self.sos:
             output += signal.sosfiltfilt(sos, x, axis=-1)

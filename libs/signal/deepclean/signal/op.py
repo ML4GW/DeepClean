@@ -38,7 +38,7 @@ class Pipeline(Op):
 
     def __call__(self, x, **kwargs):
         for op in self.ops:
-            x = op(x)
+            x = op(x, **kwargs)
         return x
 
     def fit(self, X, **kwargs):

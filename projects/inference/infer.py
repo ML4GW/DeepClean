@@ -113,7 +113,7 @@ def main(
             # check to see if the server raised an error
             # that got processed by our callback
             if callback.error is not None:
-                raise callback.error
+                raise RuntimeError(callback.error)
 
     # if we did some server-side aggregation, we need to get
     # rid of the first few update steps since they technically
@@ -125,7 +125,7 @@ def main(
     # now clean the processed timeseries in an
     # online fashion and break into frames
     logging.info("Producing cleaned frames from inference outputs")
-    preds, posts, cleaned_frames = infer.online_postprocess(
+    cleaned_frames = infer.online_postprocess(
         callback.predictions[throw_away:],
         strains[:-throw_away],
         frame_length=1,  # TODO: best way to do this?
@@ -141,13 +141,6 @@ def main(
     write_dir = train_directory / "cleaned"
     logging.info(f"Writing cleaned frames to '{write_dir}'")
     write_frames(cleaned_frames, write_dir, strain_fnames, channels[0])
-
-    write_frames(
-        preds, train_directory / "predictions", strain_fnames, channels[0]
-    )
-    write_frames(
-        posts, train_directory / "postprocessed", strain_fnames, channels[0]
-    )
 
 
 if __name__ == "__main__":

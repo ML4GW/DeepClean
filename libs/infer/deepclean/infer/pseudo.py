@@ -120,20 +120,17 @@ def online_postprocess(
     # cut off the last frame because we won't have
     # any lead time for it
     num_frames = (len(predictions) - 1) // frame_size
-    predictions, postprocessed, frames = [], [], []
+    frames = []
     for i in range(num_frames):
         start = max(i * frame_size - memory_size, 0)
         stop = (i + 1) * frame_size + lead_size
 
-        slc = slice(-frame_size - lead_size, -lead_size)
         prediction = predictions[start:stop]
-        predictions.append(prediction[slc])
         prediction = postprocessor(prediction, inverse=True)
-        postprocessed.append(prediction[slc])
 
-        prediction = prediction[slc]
+        prediction = prediction[-frame_size - lead_size: -lead_size]
         target = strain[stop - frame_size - lead_size : stop - lead_size]
 
         clean = target - prediction
         frames.append(clean)
-    return predictions, postprocessed, frames
+    return frames

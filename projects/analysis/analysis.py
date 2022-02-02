@@ -17,7 +17,7 @@ def build_timeseries(fnames: str, channel: str, sample_rate: float):
     # TODO: too many assumptions about length of frames
     h = np.zeros((int(len(fnames) * sample_rate),))
     for i, fname in enumerate(fnames):
-        ts = TimeSeries.read(fname, channel=channel).resample(sample_rate)
+        ts = TimeSeries.read(fname, channel=channel)# .resample(sample_rate)
         h[i * int(sample_rate) : (i + 1) * int(sample_rate)] = ts.value
     return h
 
@@ -61,18 +61,6 @@ def main(
         {"raw": raw_asd, "clean": clean_asd, "freqs": freqs}
     )
 
-    pred_data_dir = clean_data_dir.parent() / "predictions"
-    pred_fnames = [pred_data_dir / f for f in fnames]
-    pred_data = build_timeseries(pred_fnames, channels[0], sample_rate)
-    _, pred_asd = make_asd(pred_data, sample_rate, fftlength, overlap)
-    asd_source.data["noise"] = pred_asd
-
-    pred_data_dir = clean_data_dir.parent() / "postprocessed"
-    pred_fnames = [pred_data_dir / f for f in fnames]
-    pred_data = build_timeseries(pred_fnames, channels[0], sample_rate)
-    _, pred_asd = make_asd(pred_data, sample_rate, fftlength, overlap)
-    asd_source.data["post"] = pred_asd
-
     asdr = clean_asd / raw_asd
     if freq_low is not None and freq_high is not None:
         mask = (freq_low <= freqs) & (freqs <= freq_high)
@@ -94,7 +82,7 @@ def main(
         y_axis_label="ASD [Hz⁻¹]",
     )
 
-    for i, asd in enumerate(["raw", "clean", "noise", "post"]):
+    for i, asd in enumerate(["raw", "clean"]):
         r = p_asd.line(
             x="freqs",
             y=asd,

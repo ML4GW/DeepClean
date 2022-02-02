@@ -8,12 +8,8 @@ import tritonclient.grpc as triton
 
 
 class SimpleCallback:
-    def __init__(self, name: str, max_latency: float, stride_length: float):
+    def __init__(self, name: str):
         self.name = name
-
-        # TODO: there's probably some non-integer logic
-        # that needs to get done here
-        self.throw_away = max_latency // stride_length
 
         self.max_id_seen = -1
         self.predictions = np.array([])
@@ -51,14 +47,11 @@ class SimpleCallback:
 
 @contextmanager
 def begin_inference(
-    client: triton.InferenceServerClient,
-    model_name: str,
-    max_latency: float,
-    stride_length: float,
+    client: triton.InferenceServerClient, model_name: str,
 ):
     metadata = client.get_model_metadata(model_name)
     output_name = metadata.outputs[0].name
-    callback = SimpleCallback(output_name, max_latency, stride_length)
+    callback = SimpleCallback(output_name)
 
     input = triton.InferInput(
         name=metadata.inputs[0].name,
@@ -123,16 +116,23 @@ def online_postprocess(
     memory_size = int(sample_rate * filter_memory)
     lead_size = int(sample_rate * filter_lead_time)
 
-    num_frames = (len(predictions) - 1) // frame_size + 1
+    # cut off the last frame because we won't have
+    # any lead time for it
+    num_frames = (len(predictions) - 1) // frame_size
     frames = []
     for i in range(num_frames):
         start = max(i * frame_size - memory_size, 0)
-        stop = start + frame_size + lead_size
+        stop = (i + 1) * frame_size + lead_size
 
         prediction = predictions[start:stop]
+        print(prediction[-frame_size - lead_size: -lead_size])
         prediction = postprocessor(prediction, inverse=True)
+        print(prediction[-frame_size - lead_size : -lead_size])
 
-        target = strain[start:stop]
+        prediction = prediction[-frame_size - lead_size : -lead_size]
+        target = strain[stop - frame_size - lead_size : stop  - lead_size]
+        print(target)
+
         clean = target - prediction
         frames.append(clean)
     return frames

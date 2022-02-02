@@ -32,8 +32,8 @@ def make_asd(
     overlap = overlap or fftlength / 2
     noverlap = int(overlap * sample_rate)
 
-    psd = welch(data, fs=sample_rate, nperseg=nperseg, noverlap=noverlap)
-    return np.sqrt(psd)
+    f, psd = welch(data, fs=sample_rate, nperseg=nperseg, noverlap=noverlap)
+    return f, np.sqrt(psd)
 
 
 @typeo
@@ -55,11 +55,8 @@ def main(
     raw_data = build_timeseries(raw_fnames, channels[0], sample_rate)
     clean_data = build_timeseries(clean_fnames, channels[0], sample_rate)
 
-    raw_asd = make_asd(raw_data, sample_rate, fftlength, overlap)
-    clean_asd = make_asd(clean_data, sample_rate, fftlength, overlap)
-
-    nperseg = int(fftlength * sample_rate)
-    freqs = np.linspace(0, sample_rate / 2, nperseg // 2 + 1)
+    freqs, raw_asd = make_asd(raw_data, sample_rate, fftlength, overlap)
+    freqs, clean_asd = make_asd(clean_data, sample_rate, fftlength, overlap)
     asd_source = ColumnDataSource(
         {"raw": raw_asd, "clean": clean_asd, "freqs": freqs}
     )
@@ -99,7 +96,7 @@ def main(
         HoverTool(
             renderers=[r],
             tooltips=[
-                ("Frequency", "@freq Hz"),
+                ("Frequency", "@freqs Hz"),
                 ("Power of raw strain", "@raw"),
                 ("Power of clean strain", "@clean"),
             ],
@@ -112,7 +109,7 @@ def main(
         title="Ratio of clean strain to raw strain",
         x_axis_label="Frequency [Hz]",
         y_axis_label="Ratio",
-        tooltips=[("Frequency", "@freq Hz"), ("ASDR", "asdr")],
+        tooltips=[("Frequency", "@freqs Hz"), ("ASDR", "@asdr")],
     )
     p_asdr.line(
         x="freqs",

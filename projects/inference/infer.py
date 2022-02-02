@@ -54,9 +54,7 @@ def main(
     remainder = None
 
     logging.info("Beginning inference request submissions")
-    infer_ctx = infer.begin_inference(
-        client, model_name, max_latency, stride_length
-    )
+    infer_ctx = infer.begin_inference(client, model_name)
     with infer_ctx as (input, callback):
         for i in range(N):
             witness_fname = os.path.join(witness_data_dir, witness_fnames[i])
@@ -91,9 +89,11 @@ def main(
                 raise callback.error
 
     logging.info("Producing cleaned frames from inference outputs")
+    throw_away = int(max_latency // stride_length * sample_rate * stride_length)
+    print(throw_away)
     cleaned_frames = infer.online_postprocess(
-        callback.predictions,
-        strains,
+        callback.predictions[throw_away:],
+        strains[:-throw_away],
         frame_length=1,  # TODO: best way to do this?
         postprocessor=postprocessor,
         filter_memory=filter_memory,

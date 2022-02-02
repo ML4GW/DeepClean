@@ -5,7 +5,7 @@ from typing import List, Optional
 import numpy as np
 from bokeh.io import save
 from bokeh.layouts import row
-from bokeh.models import ColumnDataSource, HoverTool
+from bokeh.models import BoxZoomTool, ColumnDataSource, HoverTool
 from bokeh.palettes import Colorblind8 as palette
 from bokeh.plotting import figure
 from gwpy.timeseries import TimeSeries
@@ -17,7 +17,7 @@ def build_timeseries(fnames: str, channel: str, sample_rate: float):
     # TODO: too many assumptions about length of frames
     h = np.zeros((int(len(fnames) * sample_rate),))
     for i, fname in enumerate(fnames):
-        ts = TimeSeries.read(fname, channel=channel)# .resample(sample_rate)
+        ts = TimeSeries.read(fname, channel=channel).resample(sample_rate)
         h[i * int(sample_rate) : (i + 1) * int(sample_rate)] = ts.value
     return h
 
@@ -76,10 +76,11 @@ def main(
     p_asd = figure(
         height=600,
         width=600,
-        title="ASD of Raw and Clean Strains",
+        title=f"ASD of Raw and Clean Strains from {len(raw_fnames)} frames",
         y_axis_type="log",
         x_axis_label="Frequency [Hz]",
-        y_axis_label="ASD [Hz⁻¹]",
+        y_axis_label="ASD [Hz⁻¹ᐟ²]",
+        tools="",
     )
 
     for i, asd in enumerate(["raw", "clean"]):
@@ -100,7 +101,8 @@ def main(
                 ("Power of raw strain", "@raw"),
                 ("Power of clean strain", "@clean"),
             ],
-        )
+        ),
+        BoxZoomTool(dimensions="width"),
     )
     p_asd.legend.click_policy = "hide"
 
@@ -111,6 +113,7 @@ def main(
         x_axis_label="Frequency [Hz]",
         y_axis_label="Ratio",
         tooltips=[("Frequency", "@freqs Hz"), ("ASDR", "@asdr")],
+        tools="",
     )
     p_asdr.line(
         x="freqs",
@@ -120,6 +123,7 @@ def main(
         line_alpha=0.8,
         source=asdr_source,
     )
+    p_asdr.add_tools(BoxZoomTool(dimensions="width"))
 
     layout = row(p_asd, p_asdr)
     save(layout, filename=output_directory / "analysis.html")

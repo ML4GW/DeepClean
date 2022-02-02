@@ -61,6 +61,18 @@ def main(
         {"raw": raw_asd, "clean": clean_asd, "freqs": freqs}
     )
 
+    pred_data_dir = clean_data_dir.parent() / "predictions"
+    pred_fnames = [pred_data_dir / f for f in fnames]
+    pred_data = build_timeseries(pred_fnames, channels[0], sample_rate)
+    _, pred_asd = make_asd(pred_data, sample_rate, fftlength, overlap)
+    asd_source.data["noise"] = pred_asd
+
+    pred_data_dir = clean_data_dir.parent() / "postprocessed"
+    pred_fnames = [pred_data_dir / f for f in fnames]
+    pred_data = build_timeseries(pred_fnames, channels[0], sample_rate)
+    _, pred_asd = make_asd(pred_data, sample_rate, fftlength, overlap)
+    asd_source.data["post"] = pred_asd
+
     asdr = clean_asd / raw_asd
     if freq_low is not None and freq_high is not None:
         mask = (freq_low <= freqs) & (freqs <= freq_high)
@@ -82,7 +94,7 @@ def main(
         y_axis_label="ASD [Hz⁻¹]",
     )
 
-    for i, asd in enumerate(["raw", "clean"]):
+    for i, asd in enumerate(["raw", "clean", "noise", "post"]):
         r = p_asd.line(
             x="freqs",
             y=asd,
@@ -102,6 +114,7 @@ def main(
             ],
         )
     )
+    p_asd.legend.click_policy = "hide"
 
     p_asdr = figure(
         height=600,

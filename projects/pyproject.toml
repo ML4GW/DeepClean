@@ -102,7 +102,7 @@ max_latency = "${base.max_latency}"
 filter_memory = 10
 filter_lead_time = 0.5
 
-max_frames = 10
+max_frames = 50
 sequence_id = 1001
 verbose = true
 

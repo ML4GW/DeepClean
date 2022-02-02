@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
@@ -12,13 +13,25 @@ from deepclean.logging import configure_logging
 from deepclean.signal import Pipeline
 
 
+def write_frames(frames, write_dir: Path, fnames: str, channel: str):
+    os.makedirs(write_dir, exist_ok=True)
+    for fname, frame in zip(fnames, frames):
+        # use the filename and channel name from the
+        # strain data for the cleaned frame. TODO:
+        # should we introduce "DC" somewhere?
+        fname = write_dir / fname
+        ts = TimeSeries(frame, channel=channel)
+        ts.write(fname)
+        logging.debug(f"Wrote frame file '{fname}'")
+
+
 @typeo
 def main(
     url: str,
     model_name: str,
-    train_directory: str,
-    witness_data_dir: str,
-    strain_data_dir: str,
+    train_directory: Path,
+    witness_data_dir: Path,
+    strain_data_dir: Path,
     channels: Union[str, List[str]],
     kernel_length: float,
     stride_length: float,
@@ -28,22 +41,22 @@ def main(
     filter_lead_time: float,
     sequence_id: int = 1001,
     verbose: bool = False,
-    max_frames: Optional[int] = None
+    max_frames: Optional[int] = None,
 ):
-    configure_logging(os.path.join(train_directory, "infer.log"), verbose)
+    configure_logging(train_directory / "infer.log", verbose)
 
+    # connect to the server at the given
+    # url and make sure it's running and
+    # has the desired model online
     client = triton.InferenceServerClient(url)
     if not client.is_server_live():
         raise RuntimeError(f"No server running at url {url}")
     elif not client.is_model_ready(model_name):
         raise RuntimeError(f"Model {model_name} not ready for inference")
 
-    preprocessor = Pipeline.load(
-        os.path.join(train_directory, "witness_pipeline.pkl")
-    )
-    postprocessor = Pipeline.load(
-        os.path.join(train_directory, "strain_pipeline.pkl")
-    )
+    # load in our pre- and postprocessing objects
+    preprocessor = Pipeline.load(train_directory / "witness_pipeline.pkl")
+    postprocessor = Pipeline.load(train_directory / "strain_pipeline.pkl")
 
     witness_fnames = sorted(os.listdir(witness_data_dir))
     strain_fnames = sorted(os.listdir(strain_data_dir))
@@ -54,26 +67,38 @@ def main(
     remainder = None
 
     logging.info("Beginning inference request submissions")
-    infer_ctx = infer.begin_inference(client, model_name)
-    with infer_ctx as (input, callback):
+    with infer.begin_inference(client, model_name) as (input, callback):
         for i in range(N):
-            witness_fname = os.path.join(witness_data_dir, witness_fnames[i])
-            strain_fname = os.path.join(strain_data_dir, strain_fnames[i])
+            # grab the ith filenames for processing
+            witness_fname = witness_data_dir / witness_fnames[i]
+            strain_fname = strain_data_dir / strain_fnames[i]
             logging.debug(
-                f"Reading frame files '{strain_fname}' and '{witness_fname}'"
+                "Reading frames '{}' and '{}'".format(
+                    strain_fname, witness_fname
+                )
             )
 
+            # load in and preprocess the witnesses
             X = TimeSeriesDict.read(witness_fname, channels[1:])
             X = X.resample(sample_rate)
             X = np.stack([X[i].value for i in sorted(channels[1:])])
             X = preprocessor(X).astype("float32")
+
+            # tack on any leftover witnesses from the last
+            # frame that weren't sufficiently long to make
+            # an inference request
             if remainder is not None:
                 X = np.conatenate([remainder, X], axis=-1)
 
+            # load in the corresponding strain data
+            # and tack it on to our running array
             y = TimeSeries.read(strain_fname, channels[0])
             y = y.resample(sample_rate)
             strains = np.append(strains, y)
 
+            # make a series of inference requests using the
+            # the witnesses. The outputs will be tacked on
+            # to the `predictions` attribute of our `callback`
             remainder, request_id = infer.submit_for_inference(
                 client=client,
                 input=input,
@@ -85,13 +110,22 @@ def main(
                 sequence_end=False,  # TODO: best way to do this?
             )
 
+            # check to see if the server raised an error
+            # that got processed by our callback
             if callback.error is not None:
                 raise callback.error
 
+    # if we did some server-side aggregation, we need to get
+    # rid of the first few update steps since they technically
+    # correspond to times _before_ the input data began
+    update_steps = max_latency // stride_length
+    stride_size = sample_rate * stride_length
+    throw_away = int(update_steps * stride_size)
+
+    # now clean the processed timeseries in an
+    # online fashion and break into frames
     logging.info("Producing cleaned frames from inference outputs")
-    throw_away = int(max_latency // stride_length * sample_rate * stride_length)
-    print(throw_away)
-    cleaned_frames = infer.online_postprocess(
+    preds, posts, cleaned_frames = infer.online_postprocess(
         callback.predictions[throw_away:],
         strains[:-throw_away],
         frame_length=1,  # TODO: best way to do this?
@@ -101,16 +135,19 @@ def main(
         sample_rate=sample_rate,
     )
 
-    write_dir = os.path.join(train_directory, "cleaned")
-    os.makedirs(write_dir, exist_ok=True)
+    # now write these frames to the directory where
+    # all our training outputs go. TODO: should this
+    # be an optional param that defaults to this value?
+    write_dir = train_directory / "cleaned"
     logging.info(f"Writing cleaned frames to '{write_dir}'")
-    for fname, frame in zip(strain_fnames, cleaned_frames):
-        fname = os.path.basename(fname)
-        fname = os.path.join(write_dir, fname)
+    write_frames(cleaned_frames, write_dir, strain_fnames, channels[0])
 
-        ts = TimeSeries(frame, channel=channels[0])
-        ts.write(fname)
-        logging.debug(f"Wrote frame file {fname}")
+    write_frames(
+        preds, train_directory / "predictions", strain_fnames, channels[0]
+    )
+    write_frames(
+        posts, train_directory / "postprocessed", strain_fnames, channels[0]
+    )
 
 
 if __name__ == "__main__":

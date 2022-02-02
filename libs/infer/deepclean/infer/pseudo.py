@@ -40,14 +40,15 @@ class SimpleCallback:
         else:
             self.predictions = np.append(self.predictions, y)
             self.max_id_seen += 1
-        logging.debug("Predicion array now {} samples long".format(
-            len(self.predictions)
-        ))
+        logging.debug(
+            "Predicion array now {} samples long".format(len(self.predictions))
+        )
 
 
 @contextmanager
 def begin_inference(
-    client: triton.InferenceServerClient, model_name: str,
+    client: triton.InferenceServerClient,
+    model_name: str,
 ):
     metadata = client.get_model_metadata(model_name)
     output_name = metadata.outputs[0].name
@@ -119,20 +120,20 @@ def online_postprocess(
     # cut off the last frame because we won't have
     # any lead time for it
     num_frames = (len(predictions) - 1) // frame_size
-    frames = []
+    predictions, postprocessed, frames = [], [], []
     for i in range(num_frames):
         start = max(i * frame_size - memory_size, 0)
         stop = (i + 1) * frame_size + lead_size
 
+        slc = slice(-frame_size - lead_size, -lead_size)
         prediction = predictions[start:stop]
-        print(prediction[-frame_size - lead_size: -lead_size])
+        predictions.append(prediction[slc])
         prediction = postprocessor(prediction, inverse=True)
-        print(prediction[-frame_size - lead_size : -lead_size])
+        postprocessed.append(prediction[slc])
 
-        prediction = prediction[-frame_size - lead_size : -lead_size]
-        target = strain[stop - frame_size - lead_size : stop  - lead_size]
-        print(target)
+        prediction = prediction[slc]
+        target = strain[stop - frame_size - lead_size : stop - lead_size]
 
         clean = target - prediction
         frames.append(clean)
-    return frames
+    return predictions, postprocessed, frames

@@ -1,6 +1,8 @@
 # Contributing to DeepClean
 
-Thanks for taking the time to contribute! Here are some guidelines on how code in this repo should be structured, as well as best practices for making contributions to it.
+Thanks for taking the time to contribute! While we appreciate all who wish to contribute, at the moment we're prioritizing contributions from IGWN scientists.
+
+Here are some guidelines on how code in this repo should be structured, as well as best practices for making contributions to it.
 
 ## Getting started
 To start contributing, create a [fork](https://docs.github.com/en/get-started/quickstart/fork-a-repo) of this repository. You can then either clone your fork

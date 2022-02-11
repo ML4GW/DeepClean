@@ -1,4 +1,6 @@
 [tool.typeo.base]
+project_directory = "${PROJECT_DIRECTORY}"
+
 channels = [
     "H1:GDS-CALIB_STRAIN",
     "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
@@ -24,7 +26,6 @@ channels = [
     "H1:ASC-CSOFT_Y_INMON"
 ]
 sample_rate = 4096
-output_directory = "../results/test"
 train_t0 = 1238292996
 train_duration = 2000
 verbose = false
@@ -33,13 +34,16 @@ max_latency = 0.5
 infer_kernel_length = 1
 infer_kernel_stride = 0.001953125
 
+freq_low = 55
+freq_high = 65
+
 # we can leave the autoencoder args empty because
 # it doesn't take any arguments except input shape
 autoencoder = {}
 
 [tool.typeo.scripts.train]
 channels = "${base.channels}"
-output_directory = "${base.output_directory}"
+output_directory = "${base.project_directory}"
 sample_rate = "${base.sample_rate}"
 t0 = "${base.train_t0}"
 duration = "${base.train_duration}"
@@ -53,8 +57,8 @@ kernel_length = 8
 kernel_stride = 0.25
 chunk_length = 0
 
-filt_fl = 55.0
-filt_fh = 65.0
+filt_fl = "${base.freq_low}"
+filt_fh = "${base.freq_high}"
 filt_order = 8
 
 batch_size = 32
@@ -75,9 +79,9 @@ verbose = "${base.verbose}"
 commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.export]
-repository_directory = "../repo"
+repository_directory = "${MODEL_REPOSITORY}"
 channels = "${base.channels}"
-weights = "${base.output_directory}"
+weights = "${base.project_directory}"
 kernel_length = "${base.infer_kernel_length}"
 stride_length = "${base.infer_kernel_stride}"
 sample_rate = "${base.sample_rate}"
@@ -89,7 +93,7 @@ commands.autoencoder = "${base.autoencoder}"
 [tool.typeo.scripts.infer]
 url = "localhost:8001"
 model_name = "deepclean-stream-0.5"
-train_directory = "${base.output_directory}"
+train_directory = "${base.project_directory}"
 
 witness_data_dir = "${DATA_DIR}/lldetchar/H1"
 strain_data_dir = "${DATA_DIR}/llhoft/H1"
@@ -108,13 +112,11 @@ verbose = true
 
 [tool.typeo.scripts.analyze]
 raw_data_dir = "${DATA_DIR}/llhoft/H1"
-clean_data_dir = "${base.output_directory}/cleaned"
-output_directory = "${base.output_directory}"
+clean_data_dir = "${base.project_directory}/cleaned"
+output_directory = "${base.project_directory}"
 channels = "${base.channels}"
 sample_rate = "${base.sample_rate}"
 fftlength = 10
 
-# TODO: move the values from training
-# to base and do these there
-freq_low = 55
-freq_high = 65
+freq_low = "${base.freq_low}"
+freq_high = "${base.freq_high}"

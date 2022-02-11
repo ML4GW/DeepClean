@@ -53,8 +53,6 @@ class Pipeline(Op):
             pipeline = Pipeline(self.ops + [other])
         else:
             raise TypeError(
-                "Can't pipe output of Pipeline to type {}".format(
-                    type(other)
-                )
+                "Can't pipe output of Pipeline to type {}".format(type(other))
             )
         return pipeline

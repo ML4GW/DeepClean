@@ -1,8 +1,13 @@
 #! /bin/bash -e
 
 PROJECT_ROOT=$PWD
-DEFAULT_DIR=$PROJECT_ROOT/results/$(git rev-parse --short=8 HEAD)
-PROJECT_DIRECTORY=${PROJECT_DIRECTORY:-$DEFAULT_DIR}
+GIT_HASH=$(git rev-parse --short=8 HEAD)
+
+PROJECT_DIRECTORY=${PROJECT_DIRECTORY:-$PROJECT_ROOT/results/$GIT_HASH}
+REPO_DIRECTORY=${REPO_DIRECTORY:-$PROJECT_DIRECTORY/repo}
+
+SERVER_IMAGE=alec.gunny/deepclean-prod\:server-20.07
+
 
 get_cmd() {
     cmd="PROJECT_DIRECTORY=${PROJECT_DIRECTORY} $1 --typeo ..:$1"
@@ -40,7 +45,21 @@ run() {
         exit 1
 }
 
+# train an autoencoder model then export it for inference
 run train autoencoder conda
 run export autoencoder
+
+# launch the triton server in the background
+singularity instance start /cvmfs/singularity.opensciencegrid.org/$SERVER_IMAGE tritonserver
+singularity exec instance://tritonserver /opt/tritonserver/bin/tritonserver \
+    --model-repository $REPO_DIR > $(PROJECT_DIRECTORY)/server.log 2>&1 &
+
+# compute inference on some frames using the
+# triton server instance
 run infer conda
+
+# stop the triton server
+singularity instance stop tritonserver
+
+# build an analysis document on the cleaned frames
 run analyze conda

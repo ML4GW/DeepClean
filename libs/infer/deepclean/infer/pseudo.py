@@ -128,7 +128,7 @@ def online_postprocess(
         prediction = predictions[start:stop]
         prediction = postprocessor(prediction, inverse=True)
 
-        prediction = prediction[-frame_size - lead_size: -lead_size]
+        prediction = prediction[-frame_size - lead_size : -lead_size]
         target = strain[stop - frame_size - lead_size : stop - lead_size]
 
         clean = target - prediction

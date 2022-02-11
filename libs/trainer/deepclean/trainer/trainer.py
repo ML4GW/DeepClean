@@ -345,7 +345,7 @@ def train(
             patience=patience,
             factor=factor,
             min_lr=lr * factor ** 2,
-            verbose=True
+            verbose=True,
         )
 
     # start training

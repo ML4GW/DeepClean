@@ -13,7 +13,7 @@ class ConvBlock(nn.Module):
         padding: int,
         transpose: bool,
         output_padding: Optional[int] = None,
-        activation: nn.Module = nn.Tanh
+        activation: nn.Module = nn.Tanh,
     ) -> None:
         super().__init__()
 
@@ -33,7 +33,7 @@ class ConvBlock(nn.Module):
             kernel_size=kernel_size,
             stride=stride,
             padding=padding,
-            **kwargs
+            **kwargs,
         )
         self.bn = nn.BatchNorm1d(out_channels)
         self.activation = activation()
@@ -43,6 +43,7 @@ class ConvBlock(nn.Module):
         x = self.bn(x)
         x = self.activation(x)
         return x
+
 
 class DeepCleanAE(nn.Module):
     def __init__(self, in_channels):
@@ -55,7 +56,7 @@ class DeepCleanAE(nn.Module):
             kernel_size=7,
             stride=1,
             padding=3,
-            transpose=False
+            transpose=False,
         )
 
         self.downsampler = nn.Sequential()
@@ -66,7 +67,7 @@ class DeepCleanAE(nn.Module):
                 kernel_size=7,
                 stride=2,
                 padding=3,
-                transpose=False
+                transpose=False,
             )
             self.downsampler.add_module(f"CONV_{i+1}", conv_block)
             in_channels = out_channels
@@ -80,12 +81,14 @@ class DeepCleanAE(nn.Module):
                 stride=2,
                 padding=3,
                 output_padding=1,
-                transpose=True
+                transpose=True,
             )
             self.upsampler.add_module(f"CONVTRANS_{i+1}", conv_block)
             in_channels = out_channels
 
-        self.output_conv = nn.Conv1d(in_channels, 1, kernel_size=7, stride=1, padding=3)
+        self.output_conv = nn.Conv1d(
+            in_channels, 1, kernel_size=7, stride=1, padding=3
+        )
 
     def forward(self, x):
         x = self.input_conv(x)

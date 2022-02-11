@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "analysis"
+name = "analyze"
 version = "0.0.1"
 description = "Create HTML file with analysis of DeepClean outputs"
 authors = ["Alec Gunny <alec.gunny@gmail.com>"]
 # readme = "README.md"
 
 [tool.poetry.scripts]
-analyze = "analysis:main"
+analyze = "analyze:main"
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"

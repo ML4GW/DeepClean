@@ -1,3 +1,6 @@
+[tool.runner]
+steps = []
+
 [tool.typeo.base]
 project_directory = "${PROJECT_DIRECTORY}"
 

@@ -1,3 +1,4 @@
+import argparse
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -18,9 +19,11 @@ class Pipeline:
     def config(self):
         return self._config.copy()
 
+    @property
     def steps(self):
         return self._config["tool"]["runner"]["steps"]
 
+    @property
     def typeo_config(self):
         return self._config["tool"]["typeo"]
 
@@ -141,3 +144,10 @@ def main(pipeline: str):
 
         project = Project(component)
         project.execute(command, subcommand)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("pipeline", type=str, help="Pipeline to run")
+    args = parser.parse_args()
+    main(args.pipeline)

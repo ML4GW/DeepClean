@@ -11,12 +11,12 @@ export = "export:export"
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 
-"deepclean.networks" = {path = "../../libs/networks", develop = true}
-"deepclean.logging" = {path = "../../libs/logging", develop = true}
-"hermes.typeo" = {path = "../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
+"deepclean.networks" = {path = "../../../libs/networks", develop = true}
+"deepclean.logging" = {path = "../../../libs/logging", develop = true}
+"hermes.typeo" = {path = "../../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
 
 [tool.poetry.dependencies."hermes.quiver"]
-path = "../../gw-iaas/libs/hermes/hermes.quiver"
+path = "../../../gw-iaas/libs/hermes/hermes.quiver"
 develop = true
 extras = ["torch", "tensorflow"]
 

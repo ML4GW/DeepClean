@@ -82,7 +82,7 @@ class Project:
             return False
         else:
             try:
-                return not poetry_config["virtualens"]["create"]
+                return not poetry_config["virtualenvs"]["create"]
             except KeyError:
                 return False
 
@@ -98,7 +98,7 @@ class Project:
             )
 
     def execute(self, command: str, subcommand: Optional[str] = None):
-        typeo_arg = self.pipeline.path
+        typeo_arg = str(self.pipeline.path)
         try:
             if command in self.pipeline.typeo_config["scripts"]:
                 typeo_arg += ":" + command

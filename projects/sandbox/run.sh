@@ -6,6 +6,9 @@ GIT_HASH=$(git rev-parse --short=8 HEAD)
 PROJECT_DIRECTORY=${PROJECT_DIRECTORY:-$PROJECT_ROOT/results/$GIT_HASH}
 REPO_DIRECTORY=${REPO_DIRECTORY:-$PROJECT_DIRECTORY/repo}
 
+echo "Writing pipeline outputs to $PROJECT_DIRECTORY"
+echo "Writing model repository to $REPO_DIRECTORY"
+
 SERVER_IMAGE=alec.gunny/deepclean-prod\:server-20.07
 
 

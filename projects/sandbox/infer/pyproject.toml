@@ -11,9 +11,9 @@ infer = "infer:main"
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 
-"deepclean.logging" = {path = "../../libs/logging", develop = true}
-"deepclean.infer" = {path = "../../libs/infer", develop = true}
-"hermes.typeo" = {path = "../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
+"deepclean.logging" = {path = "../../../libs/logging", develop = true}
+"deepclean.infer" = {path = "../../../libs/infer", develop = true}
+"hermes.typeo" = {path = "../../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

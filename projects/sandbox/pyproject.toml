@@ -1,9 +1,13 @@
 [tool.runner]
-steps = []
+steps = [
+    "train:train:autoencoder",
+    "export:export:autoencoder",
+    "server:serve",
+    "infer:infer",
+    "analyze:analyze"
+]
 
 [tool.typeo.base]
-project_directory = "${PROJECT_DIRECTORY}"
-
 channels = [
     "H1:GDS-CALIB_STRAIN",
     "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
@@ -46,7 +50,7 @@ autoencoder = {}
 
 [tool.typeo.scripts.train]
 channels = "${base.channels}"
-output_directory = "${base.project_directory}"
+output_directory = "${PROJECT_DIRECTORY}"
 sample_rate = "${base.sample_rate}"
 t0 = "${base.train_t0}"
 duration = "${base.train_duration}"
@@ -84,7 +88,7 @@ commands.autoencoder = "${base.autoencoder}"
 [tool.typeo.scripts.export]
 repository_directory = "${MODEL_REPOSITORY}"
 channels = "${base.channels}"
-weights = "${base.project_directory}"
+weights = "${PROJECT_DIRECTORY}"
 kernel_length = "${base.infer_kernel_length}"
 stride_length = "${base.infer_kernel_stride}"
 sample_rate = "${base.sample_rate}"
@@ -96,7 +100,7 @@ commands.autoencoder = "${base.autoencoder}"
 [tool.typeo.scripts.infer]
 url = "localhost:8001"
 model_name = "deepclean-stream-0.5"
-train_directory = "${base.project_directory}"
+train_directory = "${PROJECT_DIRECTORY}"
 
 witness_data_dir = "${DATA_DIR}/lldetchar/H1"
 strain_data_dir = "${DATA_DIR}/llhoft/H1"
@@ -115,8 +119,8 @@ verbose = true
 
 [tool.typeo.scripts.analyze]
 raw_data_dir = "${DATA_DIR}/llhoft/H1"
-clean_data_dir = "${base.project_directory}/cleaned"
-output_directory = "${base.project_directory}"
+clean_data_dir = "${PROJECT_DIRECTORY}/cleaned"
+output_directory = "${PROJECT_DIRECTORY}"
 channels = "${base.channels}"
 sample_rate = "${base.sample_rate}"
 fftlength = 10

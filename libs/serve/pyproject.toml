@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "deepclean.serve"
+version = "0.0.1"
+description = "DeepClean inference server running utilities"
+authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+# readme = "README.md"
+packages = [
+    {include = "deepclean"}
+]
+
+[tool.poetry.dependencies]
+python = "^3.8,<3.10"
+spython = "^0.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2"
+
+[build-system]
+requires = ["poetry>=1.2"]
+build-backend = "poetry.masonry.api"

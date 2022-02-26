@@ -31,14 +31,12 @@ def serve(
     if server_args is not None:
         cmd += " ".join(server_args)
 
+    if log_file is not None:
+        cmd += f"> {log_file} 2>&1"
     logging.debug(
         f"Executing command '{cmd}' in singularity instance {instance.name}"
     )
-
     cmd = ["/bin/bash", "-c", cmd]
-    if log_file is not None:
-        logging.debug(f"Routing server logs to file {log_file}")
-        cmd += [">", log_file, "2&>1"]
 
     thread = Thread(target=SingularityClient.execute, args=[instance, cmd])
     thread.start()

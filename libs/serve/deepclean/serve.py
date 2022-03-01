@@ -1,4 +1,5 @@
 import logging
+import time
 from collections.abc import Iterable
 from contextlib import contextmanager
 from threading import Thread
@@ -42,7 +43,7 @@ def serve(
     # if we specified a log file, reroute stdout and stderr
     # to that file (triton primarily uses stderr)
     if log_file is not None:
-        cmd += f"> {log_file} 2>&1"
+        cmd += f" > {log_file} 2>&1"
 
     # execute the command inside the running container
     # instance, wrapping with /bin/bash so that the
@@ -57,6 +58,7 @@ def serve(
     thread.start()
 
     try:
+        time.sleep(10)
         yield
     finally:
         # stop the instance and wait for its thread to terminate

@@ -75,7 +75,7 @@ def submit_for_inference(
     model_name: str = "deepclean-stream",
     model_version: int = 1,
     sequence_end: bool = False,
-    warm_up: bool = False
+    warm_up: bool = False,
 ) -> None:
     num_updates = (X.shape[-1] - 1) // stride + 1
     for i in range(num_updates):
@@ -95,9 +95,16 @@ def submit_for_inference(
             sequence_start=(initial_request_id == 0) & (i == 0),
             sequence_end=sequence_end & (i == (num_updates - 1)),
         )
+
+        # if this is the very first request made to
+        # the model, the snapshotter may require some
+        # warmp up. In that case, sleep for longer than
+        # normal to avoid overloading the server with
+        # requests before it can start handling them
         if warm_up and (initial_request_id == 0) and (i == 0):
             time.sleep(10)
         else:
+            # otherwise adopt an average request rate of ~1000 inf/s
             time.sleep(1e-3)
 
     if (i + 1) * stride < X.shape[-1]:

@@ -1,11 +1,20 @@
 import os
+import re
 from pathlib import Path
 from typing import List, Optional
 
 import numpy as np
 from bokeh.io import save
-from bokeh.layouts import row
-from bokeh.models import BoxZoomTool, ColumnDataSource, HoverTool
+from bokeh.layouts import column, row
+from bokeh.models import (
+    BoxZoomTool,
+    ColumnDataSource,
+    Div,
+    HoverTool,
+    Panel,
+    PreText,
+    Tabs,
+)
 from bokeh.palettes import Colorblind8 as palette
 from bokeh.plotting import figure
 from gwpy.timeseries import TimeSeries
@@ -36,8 +45,83 @@ def make_asd(
     return f, np.sqrt(psd)
 
 
-@typeo
-def main(
+def get_training_curves(output_directory: Path):
+    with open(output_directory / "train.log", "r") as f:
+        train_log = f.read()
+
+    epoch_re = re.compile("(?<==== Epoch )[0-9]{1,4}")
+    train_loss_re = re.compile("(?<=Train Loss: )[0-9.e-]{1,6}")
+    valid_loss_re = re.compile("(?<=Valid Loss: )[0-9.e-]{1,6}")
+
+    source = ColumnDataSource(
+        dict(
+            epoch=map(int, epoch_re.find_all(train_log)),
+            train=map(float, train_loss_re.find_all(train_log)),
+            valid=map(float, valid_loss_re.find_all(train_log)),
+        )
+    )
+
+    p = figure(
+        height=300,
+        width=600,
+        sizing_mode="scale_width",
+        title="Training curves",
+        x_axis_label="Epoch",
+        y_axis_label="ASDR",
+        tools="reset",
+    )
+
+    r = p.line(
+        "epoch",
+        "train",
+        line_width=2.3,
+        line_color=palette[-1],
+        line_alpha=0.8,
+        legend_label="Train Loss",
+        source=source,
+    )
+    p.line(
+        "epoch",
+        "valid",
+        line_width=2.3,
+        line_color=palette[-2],
+        line_alpha=0.8,
+        legend_label="Valid Loss",
+        source=source,
+    )
+
+    p.add_tools(
+        HoverTool(
+            mode="vline",
+            line_policy="nearest",
+            point_polity="snap_to_data",
+            renderers=[r],
+            tooltips=[
+                ("Epoch", "@epoch"),
+                ("Train ASDR", "@train"),
+                ("Valid ASDR", "@valid"),
+            ],
+        )
+    )
+    return p
+
+
+def get_logs_box(output_directory):
+    with open(Path(__file__).parent / ".." / "pyproject.toml", "r") as f:
+        text_box = PreText(f.read(), height=300, width=600)
+    panels = [Panel(child=text_box, title="Config")]
+
+    for fname in os.listdir(output_directory):
+        if fname.endswith(".log"):
+            with open(fname, "r") as f:
+                text_box = PreText(f.read(), height=300, width=600)
+            panel = Panel(child=text_box, title=fname.split(".")[0].title())
+            panels.append(panel)
+
+    return Tabs(tabs=panels)
+
+
+def analyze_test_data(
     raw_data_dir: Path,
     clean_data_dir: Path,
     output_directory: Path,
@@ -47,7 +131,7 @@ def main(
     freq_low: Optional[float] = None,
     freq_high: Optional[float] = None,
     overlap: Optional[float] = None,
-) -> None:
+):
     fnames = sorted(os.listdir(clean_data_dir))
     raw_fnames = [raw_data_dir / f for f in fnames]
     clean_fnames = [clean_data_dir / f for f in fnames]
@@ -74,12 +158,13 @@ def main(
     asdr_source = ColumnDataSource({"asdr": asdr, "freqs": freqs})
 
     p_asd = figure(
-        height=600,
+        height=300,
         width=600,
-        title=f"ASD of Raw and Clean Strains from {len(raw_fnames)} frames",
+        title="ASD of Raw and Clean Strains",
         y_axis_type="log",
         x_axis_label="Frequency [Hz]",
         y_axis_label="ASD [Hz⁻¹ᐟ²]",
+        sizing_mode="scale_width",
         tools="reset",
     )
 
@@ -107,12 +192,13 @@ def main(
     p_asd.legend.click_policy = "hide"
 
     p_asdr = figure(
-        height=600,
+        height=300,
         width=600,
         title="Ratio of clean strain to raw strain",
         x_axis_label="Frequency [Hz]",
         y_axis_label="Ratio",
         tooltips=[("Frequency", "@freqs Hz"), ("ASDR", "@asdr")],
+        sizing_mode="scale_width",
         tools="reset",
     )
     p_asdr.line(
@@ -125,7 +211,44 @@ def main(
     )
     p_asdr.add_tools(BoxZoomTool(dimensions="width"))
 
-    layout = row(p_asd, p_asdr)
+    return row(p_asd, p_asdr), len(raw_fnames)
+
+
+@typeo
+def main(
+    raw_data_dir: Path,
+    clean_data_dir: Path,
+    output_directory: Path,
+    channels: List[str],
+    sample_rate: float,
+    fftlength: float,
+    freq_low: Optional[float] = None,
+    freq_high: Optional[float] = None,
+    overlap: Optional[float] = None,
+) -> None:
+    asdr_plots, num_frames = analyze_test_data(
+        raw_data_dir,
+        clean_data_dir,
+        output_directory,
+        channels,
+        sample_rate,
+        fftlength,
+        freq_low,
+        freq_high,
+        overlap,
+    )
+
+    header = Div(
+        f"""
+        <h1>DeepClean Sandbox Experiment Results</h1>
+        <h2>Analysis on {num_frames} frames of test data</h2>
+    """
+    )
+
+    train_curves = get_training_curves(output_directory)
+    tabs = get_logs_box(output_directory)
+    metadata = row(train_curves, tabs)
+    layout = column(header, metadata, asdr_plots)
     save(layout, filename=output_directory / "analysis.html")
 
 

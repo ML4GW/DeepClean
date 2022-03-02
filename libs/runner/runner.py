@@ -9,6 +9,7 @@ import toml
 from clikit.io.console_io import ConsoleIO
 from conda.cli import python_api as conda
 from poetry.factory import Factory
+from poetry.installation.installer import Installer
 from poetry.utils.env import EnvManager
 
 
@@ -76,7 +77,19 @@ class PoetryEnvironment:
 
     def contains(self, project):
         name = project.name.replace("-", "_")
-        return self._venv.site_packages.find_distribution(name) is None
+        return self._venv.site_packages.find_distribution(name) is not None
+
+    def install(self):
+        installer = Installer(
+            self._venv._io,
+            self._venv,
+            self._poetry.package,
+            self._poetry.locker,
+            self._poetry.pool,
+            self._poetry.config,
+        )
+        installer.update(True)
+        installer.run()
 
     def run(self, *args):
         try:
@@ -127,6 +140,14 @@ class CondaEnvironment:
             conda.Commands.CREATE, "-n", self.name, "--clone", "deepclean-base"
         )
         logging.info(stdout)
+
+    def contains(self, project):
+        # TODO: implement
+        raise NotImplementedError
+
+    def install(self, project):
+        # TODO: implement
+        raise NotImplementedError
 
     def run(self, *args):
         return self.run_command(conda.Commands.RUN, "-n", self.name, *args)
@@ -186,10 +207,16 @@ class Project:
         else:
             venv = PoetryEnvironment(self)
 
-        # TODO: ensure environment has this project
+        # ensure environment has this project
         # installed somewhere
-        # if not venv.contains(self):
-        #    venv.install()
+        # TODO: this won't work for conda environments
+        # at the moment
+        if not venv.contains(self):
+            logging.info(
+                f"Installing project '{self.name}' into "
+                f"virtual environment '{venv.name}'"
+            )
+            venv.install()
         return venv
 
     def execute(self, command: str, subcommand: Optional[str] = None):

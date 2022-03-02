@@ -22,6 +22,7 @@ class SimpleCallback:
             self.stopped = True
             self.error = str(error)
             logging.exception(f"Encountered error in callback: {error}")
+            return
         elif self.stopped:
             return
 
@@ -74,6 +75,7 @@ def submit_for_inference(
     model_name: str = "deepclean-stream",
     model_version: int = 1,
     sequence_end: bool = False,
+    warm_up: bool = False
 ) -> None:
     num_updates = (X.shape[-1] - 1) // stride + 1
     for i in range(num_updates):
@@ -93,7 +95,10 @@ def submit_for_inference(
             sequence_start=(initial_request_id == 0) & (i == 0),
             sequence_end=sequence_end & (i == (num_updates - 1)),
         )
-        time.sleep(1.5e-3)
+        if warm_up and (initial_request_id == 0) and (i == 0):
+            time.sleep(10)
+        else:
+            time.sleep(1e-3)
 
     if (i + 1) * stride < X.shape[-1]:
         remainder = X[:, (i + 1) * stride :]

@@ -96,6 +96,7 @@ develop = true
 
 [package.dependencies]
 spython = "^0.1"
+tritonclient = {version = "^2.5.0", extras = ["all"]}
 
 [package.source]
 type = "directory"

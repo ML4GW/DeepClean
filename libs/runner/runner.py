@@ -221,7 +221,7 @@ def run(pipeline: str):
             except ValueError:
                 raise ValueError(f"Can't parse pipeline step '{step}'")
 
-        project = Project(component)
+        project = Project(component, pipeline)
         stdout = project.execute(command, subcommand)
         logging.info(stdout)
 

@@ -344,6 +344,7 @@ def train(
             optimizer,
             patience=patience,
             factor=factor,
+            threshold=0.001,
             min_lr=lr * factor ** 2,
             verbose=True,
         )

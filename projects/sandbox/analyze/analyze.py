@@ -50,25 +50,25 @@ def get_training_curves(output_directory: Path):
         train_log = f.read()
 
     epoch_re = re.compile("(?<==== Epoch )[0-9]{1,4}")
-    train_loss_re = re.compile("(?<=Train Loss: )[0-9.e-]{1,6}")
-    valid_loss_re = re.compile("(?<=Valid Loss: )[0-9.e-]{1,6}")
+    train_loss_re = re.compile("(?<=Train Loss: )[0-9.e\-+]+")
+    valid_loss_re = re.compile("(?<=Valid Loss: )[0-9.e\-+]+")
 
     source = ColumnDataSource(
         dict(
-            epoch=map(int, epoch_re.find_all(train_log)),
-            train=map(float, train_loss_re.find_all(train_log)),
-            valid=map(float, valid_loss_re.find_all(train_log)),
+            epoch=list(map(int, epoch_re.findall(train_log))),
+            train=list(map(float, train_loss_re.findall(train_log))),
+            valid=list(map(float, valid_loss_re.findall(train_log))),
         )
     )
 
     p = figure(
         height=300,
         width=600,
-        sizing_mode="scale_width",
+        # sizing_mode="scale_width",
         title="Training curves",
         x_axis_label="Epoch",
         y_axis_label="ASDR",
-        tools="reset",
+        tools="reset,box_zoom",
     )
 
     r = p.line(
@@ -94,7 +94,7 @@ def get_training_curves(output_directory: Path):
         HoverTool(
             mode="vline",
             line_policy="nearest",
-            point_polity="snap_to_data",
+            point_policy="snap_to_data",
             renderers=[r],
             tooltips=[
                 ("Epoch", "@epoch"),
@@ -108,13 +108,33 @@ def get_training_curves(output_directory: Path):
 
 def get_logs_box(output_directory):
     with open(Path(__file__).parent / ".." / "pyproject.toml", "r") as f:
-        text_box = PreText(f.read(), height=300, width=600)
+        text_box = PreText(
+            text=f.read(),
+            height=1,
+            width=1,
+            style={
+                'overflow-y':'scroll',
+                'height':'300px',
+                'overflow-x': 'scroll',
+                'width': '600px'
+            }
+        )
     panels = [Panel(child=text_box, title="Config")]
 
     for fname in os.listdir(output_directory):
         if fname.endswith(".log"):
-            with open(fname, "r") as f:
-                text_box = PreText(f.read(), height=300, width=600)
+            with open(output_directory / fname, "r") as f:
+                text_box = PreText(
+                    text=f.read(),
+                    height=1,
+                    width=1,
+                    style={
+                        'overflow-y':'scroll',
+                        'height':'300px',
+                        'overflow-x': 'scroll',
+                        'width': '600px'
+                    }
+                )
             panel = Panel(child=text_box, title=fname.split(".")[0].title())
             panels.append(panel)
 
@@ -239,7 +259,7 @@ def main(
     )
 
     header = Div(
-        f"""
+        text=f"""
         <h1>DeepClean Sandbox Experiment Results</h1>
         <h2>Analysis on {num_frames} frames of test data</h2>
     """

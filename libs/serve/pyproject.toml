@@ -11,6 +11,11 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 spython = "^0.1"
+tritonclient = {extras = ["all"], version = "^2.5.0", source = "ngc"}
+
+[[tool.poetry.source]]
+name = "ngc"
+url = "https://pypi.ngc.nvidia.com"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

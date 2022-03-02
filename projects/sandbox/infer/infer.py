@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -8,7 +7,6 @@ import numpy as np
 from gwpy.timeseries import TimeSeries, TimeSeriesDict
 from hermes.typeo import typeo
 from tritonclient import grpc as triton
-from tritonclient.utils import InferenceServerException
 
 import deepclean.infer.pseudo as infer
 from deepclean.logging import configure_logging
@@ -26,35 +24,6 @@ def write_frames(frames, write_dir: Path, fnames: str, channel: str):
         ts = TimeSeries(frame, channel=channel)
         ts.write(fname)
         logging.debug(f"Wrote frame file '{fname}'")
-
-
-def get_client(url: str, model_name: str) -> triton.InferenceServerClient:
-    client = triton.InferenceServerClient(url)
-    start_time = time.time()
-    interval = 10
-
-    logging.info(f"Connecting to server at address {url}")
-    while True:
-        try:
-            if client.is_server_live():
-                break
-        except InferenceServerException:
-            raise ValueError(f"No server live at address {url}")
-        else:
-            time_since = time.time() - start_time
-            if time_since > interval:
-                logging.info(
-                    f"Waiting for server to come online for {time_since}s"
-                )
-                interval += 10
-            time.sleep(1e-3)
-
-    if not client.is_model_ready(model_name):
-        ValueError(
-            "Server at address {} is online but is not "
-            "currently hosting model {} for inference".format(url, model_name)
-        )
-    return client
 
 
 @typeo
@@ -79,12 +48,15 @@ def main(
 ):
     configure_logging(train_directory / "infer.log", verbose)
     with serve(
-        model_repo_dir, gpus=gpus, log_file=train_directory / "server.log"
+        model_repo_dir,
+        gpus=gpus,
+        log_file=train_directory / "server.log",
+        wait=True,
     ):
         # connect to the server at the given
         # url and make sure it's running and
         # has the desired model online
-        client = get_client(url, model_name)
+        client = triton.InferenceServerClient(url)
 
         # load in our pre- and postprocessing objects
         preprocessor = Pipeline.load(train_directory / "witness_pipeline.pkl")

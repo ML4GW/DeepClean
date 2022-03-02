@@ -208,7 +208,7 @@ class Project:
         venv.run(command, "--typeo", typeo_arg)
 
 
-def main(pipeline: str):
+def run(pipeline: str):
     pipeline = Pipeline(pipeline)
 
     for step in pipeline.steps:
@@ -226,11 +226,15 @@ def main(pipeline: str):
         logging.info(stdout)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("pipeline", type=str, help="Pipeline to run")
     parser.add_argument("--log-file", type=str, help="Path to write logs to")
     parser.add_argument("--verbose", action="store_true", help="Log verbosity")
+
+    subparsers = parser.add_subparsers(dest="subcommand")
+    subparser = subparsers.add_parser("run")
+    subparser.add_argument("pipeline", type=str, help="Pipeline to run")
+
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -239,5 +243,11 @@ if __name__ == "__main__":
     )
     if args.log_file is not None:
         handler = logging.FileHandler(filename=args.log_file, mode="w")
+        logging.getLogger().addHandler(handler)
 
-    main(args.pipeline)
+    if args.subcommand == "run":
+        run(args.pipeline)
+
+
+if __name__ == "__main__":
+    main()

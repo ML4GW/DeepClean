@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "runner"
+version = "0.0.1"
+description = "DeepClean command line utility"
+authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+# readme = "README.md"
+
+[tool.poetry.scripts]
+deepclean = "runner:main"
+
+[tool.poetry.dependencies]
+python = "^3.8,<3.10"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2"
+
+[build-system]
+requires = ["poetry>=1.2", "conda>4.2"]
+build-backend = "poetry.masonry.api"

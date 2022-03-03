@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 from pathlib import Path
 from typing import List, Optional, Union
 
@@ -117,7 +116,7 @@ def main(
                     sequence_id=sequence_id,
                     model_name=model_name,
                     sequence_end=False,  # TODO: best way to do this?
-                    warm_up=True
+                    warm_up=True,
                 )
 
                 # check to see if the server raised an error

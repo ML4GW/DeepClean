@@ -39,7 +39,9 @@ def main():
 
     subparser = subparsers.add_parser("build", description="Build a project")
     subparser.add_argument("project", type=str, help="Project to build")
-    subparser.add_argument("-f", "--force", action="store_true", help="Force rebuild")
+    subparser.add_argument(
+        "-f", "--force", action="store_true", help="Force rebuild"
+    )
 
     args = parser.parse_args()
 

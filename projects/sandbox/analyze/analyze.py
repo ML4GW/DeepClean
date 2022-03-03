@@ -50,8 +50,8 @@ def get_training_curves(output_directory: Path):
         train_log = f.read()
 
     epoch_re = re.compile("(?<==== Epoch )[0-9]{1,4}")
-    train_loss_re = re.compile("(?<=Train Loss: )[0-9.e\-+]+")
-    valid_loss_re = re.compile("(?<=Valid Loss: )[0-9.e\-+]+")
+    train_loss_re = re.compile(r"(?<=Train Loss: )[0-9.e\-+]+")
+    valid_loss_re = re.compile(r"(?<=Valid Loss: )[0-9.e\-+]+")
 
     source = ColumnDataSource(
         dict(

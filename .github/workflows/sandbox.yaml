@@ -27,6 +27,7 @@ jobs:
     -
       name: Copy results
       run: |
+        ssh-add - <<< "$PRIVATE_KEY"
         scp ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/home/${{ secrets.USERNAME }}/deepclean-sandbox/results/analysis.html index.html
     -
       name: Publish page

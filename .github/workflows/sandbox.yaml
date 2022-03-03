@@ -23,7 +23,7 @@ jobs:
         ssh -o StrictHostKeyChecking=no
         ${{ secrets.USERNAME }}@${{ secrets.HOST }}
         /bin/bash -c
-        "echo hey! && PROJECT_DIRECTORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/$GITHUB_SHA
+        "echo hey! && PROJECT_DIRECTORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/$GITHUB_SHA/results
         DATA_DIRECTORY=${{ secrets.DATA_DIRECTORY }}
         MODEL_REPOSITORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/$GITHUB_SHA/repo
         deepclean --verbose run /home/${{ secrets.USERNAME }}/projects/deepclean-monorepo/projects/sandbox"

@@ -12,25 +12,22 @@ jobs:
     environment: ldg-dgx
     steps:
     - uses: actions/checkout@master
-    -
-      name: Run experiment remotely
-      uses: appleboy/ssh-action@master
-      env:
-        PROJECT_DIRECTORY: /home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}
-        DATA_DIRECTORY: ${{ secrets.DATA_DIRECTORY }}
-        MODEL_REPOSITORY: /home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}/repo
-      with:
-        host: ${{ secrets.HOST }}
-        username: ${{ secrets.USERNAME }}
-        key: ${{ secrets.PRIVATE_KEY }}
-        envs: PROJECT_DIRECTORY,DATA_DIRECTORY,MODEL_REPOSITORY
-        script: |
-          /bin/bash -c 'PROJECT_DIRECTORY=${PROJECT_DIRECTORY} DATA_DIRECTORY=${DATA_DIRECTORY} MODEL_REPOSITORY=${MODEL_REPOSITORY} deepclean --verbose run /home/${{ secrets.USERNAME }}/projects/deepclean-monorepo/projects/sandbox'
     - 
       name: set up ssh keys
       uses: webfactory/ssh-agent@v0.5.4
       with:
           ssh-private-key: ${{ secrets.PRIVATE_KEY }}
+    -
+      name: Run experiment remotely
+      run: >
+        ssh -o StrictHostKeyChecking=no
+          ${{ secrets.USERNAME }}@${{ secrets.HOST }}
+          /bin/bash -c "
+            PROJECT_DIRECTORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}
+            DATA_DIRECTORY=${{ secrets.DATA_DIRECTORY }}
+            MODEL_REPOSITORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}/repo
+            deepclean --verbose run /home/${{ secrets.USERNAME }}/projects/deepclean-monorepo/projects/sandbox
+          "
     -
       name: Copy results
       run: |

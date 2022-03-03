@@ -24,7 +24,7 @@ jobs:
           DATA_DIRECTORY=${{ secrets.DATA_DIRECTORY }}
           MODEL_REPOSITORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}/repo
         script: |
-          deepclean --verbose run /home/${{ secrets.USERNAME }}/deepclean-monorepo/projects/sandbox
+          deepclean --verbose run /home/${{ secrets.USERNAME }}/projects/deepclean-monorepo/projects/sandbox
     - 
       name: set up ssh keys
       uses: webfactory/ssh-agent@v0.5.4

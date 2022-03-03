@@ -32,7 +32,7 @@ jobs:
           ssh-private-key: ${{ secrets.PRIVATE_KEY }}
     -
       name: Copy results
-      runs: |
+      run: |
         scp ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/home/${{ secrets.USERNAME }}/deepclean-sandbox/results/analysis.html
     -
       name: Publish page

@@ -47,6 +47,10 @@ def main(
     gpus: Optional[List[int]] = None,
     max_frames: Optional[int] = None,
 ):
+    if len(channels) == 1:
+        with open(channels[0], "r") as f:
+            channels = [i for i in f.read().splitlines() if i]
+
     configure_logging(train_directory / "infer.log", verbose)
     with serve(
         model_repo_dir,

@@ -113,11 +113,11 @@ def get_logs_box(output_directory):
             height=1,
             width=1,
             style={
-                'overflow-y':'scroll',
-                'height':'250px',
-                'overflow-x': 'scroll',
-                'width': '600px',
-            }
+                "overflow-y": "scroll",
+                "height": "250px",
+                "overflow-x": "scroll",
+                "width": "600px",
+            },
         )
     panels = [Panel(child=text_box, title="Config")]
 
@@ -129,11 +129,11 @@ def get_logs_box(output_directory):
                     height=1,
                     width=1,
                     style={
-                        'overflow-y':'scroll',
-                        'height':'250px',
-                        'overflow-x': 'scroll',
-                        'width': '600px',
-                    }
+                        "overflow-y": "scroll",
+                        "height": "250px",
+                        "overflow-x": "scroll",
+                        "width": "600px",
+                    },
                 )
             panel = Panel(child=text_box, title=fname.split(".")[0].title())
             panels.append(panel)
@@ -272,7 +272,7 @@ def main(
     save(
         layout,
         filename=output_directory / "analysis.html",
-        title="DeepClean Results"
+        title="DeepClean Results",
     )
 
 

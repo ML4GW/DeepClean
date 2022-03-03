@@ -6,7 +6,7 @@ authors = ["Alec Gunny <alec.gunny@gmail.com>"]
 # readme = "README.md"
 
 [tool.poetry.scripts]
-deepclean = "runner:main"
+deepclean = "runner.cli:main"
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"

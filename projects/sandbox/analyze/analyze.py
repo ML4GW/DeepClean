@@ -114,9 +114,9 @@ def get_logs_box(output_directory):
             width=1,
             style={
                 'overflow-y':'scroll',
-                'height':'300px',
+                'height':'250px',
                 'overflow-x': 'scroll',
-                'width': '600px'
+                'width': '600px',
             }
         )
     panels = [Panel(child=text_box, title="Config")]
@@ -130,9 +130,9 @@ def get_logs_box(output_directory):
                     width=1,
                     style={
                         'overflow-y':'scroll',
-                        'height':'300px',
+                        'height':'250px',
                         'overflow-x': 'scroll',
-                        'width': '600px'
+                        'width': '600px',
                     }
                 )
             panel = Panel(child=text_box, title=fname.split(".")[0].title())
@@ -269,7 +269,11 @@ def main(
     tabs = get_logs_box(output_directory)
     metadata = row(train_curves, tabs)
     layout = column(header, metadata, asdr_plots)
-    save(layout, filename=output_directory / "analysis.html")
+    save(
+        layout,
+        filename=output_directory / "analysis.html",
+        title="DeepClean Results"
+    )
 
 
 if __name__ == "__main__":

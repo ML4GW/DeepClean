@@ -15,14 +15,15 @@ jobs:
     -
       name: Run experiment remotely
       uses: appleboy/ssh-action@master
+      env:
+        PROJECT_DIRECTORY: /home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}
+        DATA_DIRECTORY: ${{ secrets.DATA_DIRECTORY }}
+        MODEL_REPOSITORY: /home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}/repo
       with:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.USERNAME }}
         key: ${{ secrets.PRIVATE_KEY }}
-        envs: |
-          PROJECT_DIRECTORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}
-          DATA_DIRECTORY=${{ secrets.DATA_DIRECTORY }}
-          MODEL_REPOSITORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}/repo
+        envs: PROJECT_DIRECTORY,DATA_DIRECTORY,MODEL_REPOSITORY
         script: |
           deepclean --verbose run /home/${{ secrets.USERNAME }}/projects/deepclean-monorepo/projects/sandbox
     - 

@@ -12,19 +12,19 @@ jobs:
     environment: ldg-dgx
     steps:
     - uses: actions/checkout@master
-    # -
-    #   name: Run experiment remotely
-    #   uses: appleboy/ssh-action@master
-    #   with:
-    #     host: ${{ secrets.HOST }}
-    #     username: ${{ secrets.USERNAME }}
-    #     key: ${{ secrets.KEY }}
-    #     envs:
-    #       - PROJECT_DIRECTORY=${{ secrets.HOME_DIR }}/deepclean-sandbox/${GITHUB_SHA}
-    #       - DATA_DIRECTORY=${{ secrets.DATA_DIRECTORY }}
-    #       - MODEL_REPOSITORY=${{ secrets.HOME_DIR }}/deepclean-sandbox/${GITHUB_SHA}/repo
-    #     script: |
-    #       deepclean --verbose run ${{ secrets.EXEC_DIR }}/projects/sandbox
+    -
+      name: Run experiment remotely
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.KEY }}
+        envs:
+          - PROJECT_DIRECTORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}
+          - DATA_DIRECTORY=${{ secrets.DATA_DIRECTORY }}
+          - MODEL_REPOSITORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}/repo
+        script: |
+          deepclean --verbose run /home/${{ secrets.USERNAME }}/deepclean-monorepo/projects/sandbox
     - 
       name: set up ssh keys
       uses: webfactory/ssh-agent@v0.5.4

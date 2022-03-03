@@ -1,26 +1,24 @@
 import argparse
 import logging
+import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 import toml
-from clikit.io.console_io import ConsoleIO
+from cleo.application import Application
 from conda.cli import python_api as conda
 from poetry.factory import Factory
 from poetry.installation.installer import Installer
+from poetry.masonry.builders import EditableBuilder
 from poetry.utils.env import EnvManager
 
 
 @dataclass
 class Pipeline:
-    name: str
-
-    @property
-    def path(self):
-        return Path(".").resolve() / self.name
-
+    path: str
+ 
     @property
     def config(self):
         return self._config.copy()
@@ -34,14 +32,14 @@ class Pipeline:
         return self._config["tool"]["typeo"]
 
     def __post_init__(self):
+        self.path = Path(os.path.abspath(self.path))
         config_path = self.path / "pyproject.toml"
         try:
             with open(self.path / "pyproject.toml", "r") as f:
                 self._config = toml.load(f)
         except FileNotFoundError:
             raise ValueError(
-                "Pipeline {} has no associated 'pyproject.toml' "
-                "at location {}".format(self.name, config_path)
+                f"Pipeline {self.path} has no associated 'pyproject.toml'"
             )
 
         try:
@@ -67,7 +65,12 @@ class PoetryEnvironment:
     def __post_init__(self):
         self._poetry = Factory().create_poetry(self.project.path)
         self._manager = EnvManager(self._poetry)
-        self._venv = self._manager.create_venv(ConsoleIO())
+        self._io = Application.create_io(self)
+        self._venv = self._manager.create_venv(self._io)
+
+    @property
+    def name(self):
+        return self._venv.path.name
 
     def exists(self):
         return True
@@ -81,7 +84,7 @@ class PoetryEnvironment:
 
     def install(self):
         installer = Installer(
-            self._venv._io,
+            self._io,
             self._venv,
             self._poetry.package,
             self._poetry.locker,
@@ -89,7 +92,11 @@ class PoetryEnvironment:
             self._poetry.config,
         )
         installer.update(True)
+        installer.use_executor(True)
         installer.run()
+
+        builder = EditableBuilder(self._poetry, self._venv, self._io)
+        builder.build()
 
     def run(self, *args):
         try:
@@ -143,7 +150,7 @@ class CondaEnvironment:
 
     def contains(self, project):
         # TODO: implement
-        raise NotImplementedError
+        return True
 
     def install(self, project):
         # TODO: implement

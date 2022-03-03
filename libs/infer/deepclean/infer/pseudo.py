@@ -101,11 +101,11 @@ def submit_for_inference(
         # warmp up. In that case, sleep for longer than
         # normal to avoid overloading the server with
         # requests before it can start handling them
-        if warm_up and (initial_request_id == 0) and (i == 0):
-            time.sleep(10)
+        if warm_up and request_id < 5:
+            time.sleep(8 - request_id)
         else:
             # otherwise adopt an average request rate of ~1000 inf/s
-            time.sleep(1e-3)
+            time.sleep(1.5e-3)
 
     if (i + 1) * stride < X.shape[-1]:
         remainder = X[:, (i + 1) * stride :]

@@ -2,7 +2,6 @@
 steps = [
     "train:train:autoencoder",
     "export:export-model:autoencoder",
-    "server:serve",
     "infer:infer",
     "analyze:analyze"
 ]
@@ -72,7 +71,7 @@ batch_size = 32
 max_epochs = 200
 lr = 3.2e-2
 weight_decay = 1e-5
-patience = 25
+patience = 12
 factor = 0.2
 early_stop = 100
 
@@ -85,7 +84,7 @@ profile = false
 verbose = "${base.verbose}"
 commands.autoencoder = "${base.autoencoder}"
 
-[tool.typeo.scripts.export]
+[tool.typeo.scripts.export-model]
 repository_directory = "${MODEL_REPOSITORY}"
 channels = "${base.channels}"
 weights = "${PROJECT_DIRECTORY}"

@@ -33,7 +33,8 @@ jobs:
     -
       name: Copy results
       run: |
-        scp -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/home/${{ secrets.USERNAME }}/deepclean-sandbox/results/analysis.html index.html
+        mkdir public
+        scp -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/home/${{ secrets.USERNAME }}/deepclean-sandbox/results/analysis.html public/index.html
     -
       name: Publish page
       uses: peaceiris/actions-gh-pages@v3.5.9

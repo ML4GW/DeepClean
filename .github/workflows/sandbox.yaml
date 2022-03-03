@@ -18,7 +18,7 @@ jobs:
       with:
         host: ${{ secrets.HOST }}
         username: ${{ secrets.USERNAME }}
-        key: ${{ secrets.KEY }}
+        key: ${{ secrets.PRIVATE_KEY }}
         envs: |
           PROJECT_DIRECTORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/${GITHUB_SHA}
           DATA_DIRECTORY=${{ secrets.DATA_DIRECTORY }}

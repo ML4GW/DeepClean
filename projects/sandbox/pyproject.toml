@@ -32,7 +32,7 @@ channels = [
     "H1:ASC-CSOFT_Y_INMON"
 ]
 sample_rate = 4096
-train_t0 = 1238292996
+train_t0 = 1239939250
 train_duration = 2000
 verbose = false
 

@@ -108,7 +108,7 @@ class Project(ProjectBase):
 
 
 @dataclass
-class Pipeline:
+class Pipeline(ProjectBase):
     def __post_init__(self):
         super().__post_init__()
 

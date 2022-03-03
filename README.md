@@ -13,18 +13,46 @@ Individual libraries and projects will have their own installation steps, but th
 curl -sSL https://install.python-poetry.org | python3 - --preview
 ```
 
-Certain projects will require the use of LIGO Data Analysis System (LDAS) tools for reading and writing [gravitational wave frame files](https://dcc.ligo.org/T970130/public), as well as LIGO Network Data Service (NDS) libraries for remotely fetching data. These libraries are only installable via [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html), so its recommended to install the base image here
+Certain projects will require the use of LIGO Data Analysis System (LDAS) tools for reading and writing [gravitational wave frame files](https://dcc.ligo.org/T970130/public), as well as LIGO Network Data Service (NDS) libraries for remotely fetching data. These libraries are only installable via [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html), and are included in the base environment file [`environment.yaml`](./environment.yaml).
+
+Once you have Poetry and Conda installed, you can install a command line utility into your base Conda environment for building and running the projects in this repo via
 
 ```console
-conda env create -f environment.yaml
-```
-
-Then clone it for installing poetry dependencies in other projects. For example, for installing `projects/training`, you might do something like
-
-```console
-conda env create -n deepclean-train --clone deepclean-base
-conda activate deepclean-train
 poetry install
 ```
- For details on individual libraries or projects, consult their documentation.
- 
+
+If you don't want to install development dependencies like `pre-commit`, you can instead run
+
+```console
+poetry install --without dev
+```
+
+ You should then be able to run
+
+```console
+deepclean -h
+```
+
+and see something like
+
+```console
+ usage: deepclean [-h] [--log-file LOG_FILE] [--verbose] {run,build} ...
+
+positional arguments:
+  {run,build}
+
+optional arguments:
+  -h, --help           show this help message and exit
+  --log-file LOG_FILE  Path to write logs to
+  --verbose            Log verbosity
+```
+
+It is _not_ recommended that you install this command-line utility inside a virtual environment, as this environment will lack the Poetry Python APIs that `deepclean` uses to build and execute commands in other virtual environments.
+
+To build projects, you can run `deepclean build <project directory>`, which will build a virtual environment for that project and install all the necessary dependencies, e.g.
+
+```console
+deepclean build projects/sandbox/train
+```
+
+Consult the documentation of individual projects to see what commands are exposed in their virtual environments.

@@ -1,0 +1,35 @@
+name: run-sandbox-experiment
+
+on:
+  push:
+    branches:
+      - main
+      - project-reorg
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    environment: ldg-dgx
+    steps:
+    # -
+    #   name: Run experiment remotely
+    #   uses: appleboy/ssh-action@master
+    #   with:
+    #     host: ${{ secrets.HOST }}
+    #     username: ${{ secrets.USERNAME }}
+    #     key: ${{ secrets.KEY }}
+    #     envs:
+    #       - PROJECT_DIRECTORY=${{ secrets.HOME_DIR }}/deepclean-sandbox/${GITHUB_SHA}
+    #       - DATA_DIRECTORY=${{ secrets.DATA_DIRECTORY }}
+    #       - MODEL_REPOSITORY=${{ secrets.HOME_DIR }}/deepclean-sandbox/${GITHUB_SHA}/repo
+    #     script: |
+    #       deepclean --verbose run ${{ secrets.EXEC_DIR }}/projects/sandbox
+    -
+      name: Copy results
+      run:
+        - scp ${{ secrets.USERNAME }}@${{ secrets.HOST }}:${{ secrets.HOME_DIR }}/deepclean-sandbox/results/analysis.html index.html
+    -
+      name: Publish page
+      uses: peaceiris/actions-gh-pages@v3.5.9
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}

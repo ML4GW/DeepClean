@@ -23,9 +23,9 @@ def run(pipeline: str):
         logging.info(stdout)
 
 
-def build(project_path: str):
+def build(project_path: str, force: bool):
     project = Project(project_path)
-    project.create_venv()
+    project.create_venv(force)
 
 
 def main():
@@ -38,7 +38,8 @@ def main():
     subparser.add_argument("pipeline", type=str, help="Pipeline to run")
 
     subparser = subparsers.add_parser("build", description="Build a project")
-    subparser.add_argument("project-path", type=str, help="Project to build")
+    subparser.add_argument("project", type=str, help="Project to build")
+    subparser.add_argument("-f", "--force", action="store_true", help="Force rebuild")
 
     args = parser.parse_args()
 
@@ -53,7 +54,7 @@ def main():
     if args.subcommand == "run":
         run(args.pipeline)
     if args.subcommand == "build":
-        build(args.project_path)
+        build(args.project, args.force)
 
 
 if __name__ == "__main__":

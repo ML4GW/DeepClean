@@ -61,26 +61,44 @@ class Project(ProjectBase):
             except KeyError:
                 return False
 
-    def create_venv(self):
+    def create_venv(self, force: bool = False):
         if self.uses_conda():
             env_name = self.runner_config.get(
                 "conda_env", f"deepclean-{self.name}"
             )
             venv = CondaEnvironment(env_name)
+            if not venv.exists():
+                venv.create()
         else:
             venv = PoetryEnvironment(self.path)
-
-        if not venv.exists():
             venv.create()
 
         # ensure environment has this project
         # installed somewhere
         if not venv.contains(self.name):
             logging.info(
-                f"Installing project '{self.name}' into "
-                f"virtual environment '{venv.name}'"
+                "Installing project '{}' from '{}' into "
+                "virtual environemnt '{}'".format(
+                    self.name, self.path, venv.name
+                )
             )
             venv.install(self.path)
+        elif force:
+            logging.info(
+                "Updating project '{}' from '{}' in "
+                "virtual environment '{}'".format(
+                    self.name, self.path, venv.name
+                )
+            )
+            venv.install(self.path)
+        else:
+            logging.info(
+                "Project '{}' at '{}' already installed in "
+                "virtual environment '{}'".format(
+                    self.name, self.path, venv.name
+                )
+            )
+
         self._venv = venv
 
     def run(self, *args):

@@ -26,7 +26,7 @@ class PoetryEnvironment:
         return self._venv.path.name
 
     def exists(self) -> bool:
-        return self.manager.get() != self.manager.get_system_env()
+        return self._manager.get() != self._manager.get_system_env()
 
     def create(self):
         self._venv = self._manager.create_venv(self._io)

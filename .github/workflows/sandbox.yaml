@@ -36,7 +36,7 @@ jobs:
       name: Run experiment remotely
       env:
         PROJECT_DIR: ${{ env.WORK_DIR }}/results
-        DATA_DIR: ${{ secrets.DATA_DIR }}
+        DATA_DIR: ${{ secrets.DATA_DIRECTORY }}
         MODEL_REPOSITORY: ${{ env.WORK_DIR }}/repo
       run: >
         ssh -o StrictHostKeyChecking=no -t

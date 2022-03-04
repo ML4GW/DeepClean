@@ -6,32 +6,48 @@ on:
       - main
       - project-reorg
 
+env:
+  CONNECTION: ${{ secrets.USERNAME }}@${{ secrets.HOST }}
+
 jobs:
-  main:
+  sandbox:
     runs-on: ubuntu-latest
     environment: ldg-dgx
+    env:
+      WORK_DIR: /home/${{ secrets.USERNAME }}/gh-deploy/deepclean-sandbox/${{ github.sha }}
+
     steps:
     - uses: actions/checkout@master
     - 
-      name: set up ssh keys
+      name: Set up ssh keys
       uses: webfactory/ssh-agent@v0.5.4
       with:
           ssh-private-key: ${{ secrets.PRIVATE_KEY }}
     -
+      name: Copy files to remote host
+      run: scp -r -o StrictHostKeyChecking=no . $CONNECTION:$WORK_DIR/src
+    -
       name: Run experiment remotely
+      env:
+        PROJECT_DIR: ${{ env.WORK_DIR }}/results
+        DATA_DIR: ${{ secrets.DATA_DIR }}
+        MODEL_REPOSITORY: ${{ env.WORK_DIR }}/repo
       run: >
         ssh -o StrictHostKeyChecking=no -t
-        ${{ secrets.USERNAME }}@${{ secrets.HOST }}
+        $CONNECTION
         /bin/bash -c
-        "echo hey! && PROJECT_DIRECTORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/$GITHUB_SHA/results
-        DATA_DIR=${{ secrets.DATA_DIRECTORY }}
-        MODEL_REPOSITORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/$GITHUB_SHA/repo
-        deepclean --verbose run /home/${{ secrets.USERNAME }}/projects/deepclean-monorepo/projects/sandbox"
+        "echo hey! &&
+        PROJECT_DIRECTORY=$PROJECT_DIR
+        DATA_DIR=$DATA_DIR
+        MODEL_REPOSITORY=$MODEL_REPOSITORY
+        deepclean --verbose run $WORK_DIR/src/projects/sandbox"
     -
       name: Copy results
+      env:
+        PUBLISH_DIR: public
       run: |
-        mkdir public
-        scp -o StrictHostKeyChecking=no ${{ secrets.USERNAME }}@${{ secrets.HOST }}:/home/${{ secrets.USERNAME }}/deepclean-sandbox/$GITHUB_SHA/results/analysis.html public/index.html
+        mkdir $PUBLISH_DIR
+        scp -o StrictHostKeyChecking=no $CONNECTION:$WORK_DIR/results/analysis.html $PUBLISH_DIR/index.html
     -
       name: Publish page
       uses: peaceiris/actions-gh-pages@v3.5.9

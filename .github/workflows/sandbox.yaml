@@ -20,7 +20,7 @@ jobs:
     -
       name: Run experiment remotely
       run: >
-        ssh -o StrictHostKeyChecking=no
+        ssh -o StrictHostKeyChecking=no -t
         ${{ secrets.USERNAME }}@${{ secrets.HOST }}
         /bin/bash -c
         "echo hey! && PROJECT_DIRECTORY=/home/${{ secrets.USERNAME }}/deepclean-sandbox/$GITHUB_SHA/results

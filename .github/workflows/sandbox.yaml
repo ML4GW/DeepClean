@@ -25,7 +25,7 @@ jobs:
           ssh-private-key: ${{ secrets.PRIVATE_KEY }}
     -
       name: Make output directory
-      run: ssh -o StrictHostKeyChecking=no -t "mkdir -p $WORK_DIR"
+      run: ssh -o StrictHostKeyChecking=no -t $CONNECTION mkdir -p $WORK_DIR
     -
       name: Copy files to remote host
       run: scp -r -o StrictHostKeyChecking=no . $CONNECTION:$WORK_DIR/src

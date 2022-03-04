@@ -68,7 +68,7 @@ filt_fh = "${base.freq_high}"
 filt_order = 8
 
 batch_size = 32
-max_epochs = 10
+max_epochs = 200
 lr = 3.2e-2
 weight_decay = 1e-5
 patience = 20
@@ -79,7 +79,7 @@ fftlength = 2
 overlap = 1
 alpha = 1.0
 
-device = "cuda:6"
+device = "cuda"
 profile = false
 verbose = "${base.verbose}"
 commands.autoencoder = "${base.autoencoder}"

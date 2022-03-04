@@ -79,7 +79,7 @@ fftlength = 2
 overlap = 1
 alpha = 1.0
 
-device = "cuda:6"
+device = "cuda"
 profile = false
 verbose = "${base.verbose}"
 commands.autoencoder = "${base.autoencoder}"

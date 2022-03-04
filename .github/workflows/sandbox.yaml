@@ -17,7 +17,10 @@ jobs:
       WORK_DIR: /home/${{ secrets.USERNAME }}/gh-deploy/deepclean-sandbox/${{ github.sha }}
 
     steps:
-    - uses: actions/checkout@master
+    - 
+      uses: actions/checkout@master
+      with:
+        submodules: recursive
     - 
       name: Set up ssh keys
       uses: webfactory/ssh-agent@v0.5.4

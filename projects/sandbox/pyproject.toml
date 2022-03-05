@@ -73,7 +73,7 @@ lr = 3.2e-2
 weight_decay = 1e-5
 patience = 25
 factor = 0.2
-early_stop = 50
+early_stop = 100
 
 fftlength = 2
 overlap = 1

@@ -68,12 +68,12 @@ filt_fh = "${base.freq_high}"
 filt_order = 8
 
 batch_size = 32
-max_epochs = 200
+max_epochs = 500
 lr = 3.2e-2
 weight_decay = 1e-5
-patience = 20
+patience = 25
 factor = 0.2
-early_stop = 100
+early_stop = 50
 
 fftlength = 2
 overlap = 1

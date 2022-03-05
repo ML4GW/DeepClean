@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - project-reorg
 
 env:
   CONNECTION: ${{ secrets.USERNAME }}@${{ secrets.HOST }}

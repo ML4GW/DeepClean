@@ -57,6 +57,12 @@ def make_ensemble(
                 "but doesn't include model 'snapshotter'".format(ensemble_name)
             )
 
+    snapshotter = repo.models["snapshotter"]
+    snapshotter.config.sequence_batching.max_sequence_idle_microseconds = int(
+        6e9
+    )
+    snapshotter.config.write()
+
     # add a streaming output to the model if it
     # doesn't already have one
     if len(ensemble.config.output) == 0:
@@ -73,6 +79,11 @@ def make_ensemble(
             name=name,
             streams_per_gpu=streams_per_gpu,
         )
+        aggregator = repo.models[name]
+        aggregator.config.sequence_batching.max_sequence_idle_microseconds = (
+            int(6e9)
+        )
+        aggregator.config.write()
 
     ensemble.export_version(None)
     return ensemble

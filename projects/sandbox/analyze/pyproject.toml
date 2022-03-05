@@ -1,18 +1,19 @@
 [tool.poetry]
-name = "train"
+name = "analyze"
 version = "0.0.1"
-description = "Training DeepClean on archival NDS2 data"
+description = "Create HTML file with analysis of DeepClean outputs"
 authors = ["Alec Gunny <alec.gunny@gmail.com>"]
 # readme = "README.md"
 
 [tool.poetry.scripts]
-train = "train.train:main"
+analyze = "analyze:main"
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
-
-"deepclean.trainer" = {path = "../../libs/trainer", develop = true, extras=["wrapper"]}
-"deepclean.logging" = {path = "../../libs/logging", develop = true}
+numpy = "^1.21"
+scipy = "^1.7"
+bokeh = "^2.3"
+"hermes.typeo" = {path = "../../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

@@ -1,7 +1,7 @@
 import logging
 import time
 from contextlib import contextmanager
-from typing import Callable
+from typing import Callable, Optional
 
 import numpy as np
 import tritonclient.grpc as triton
@@ -22,6 +22,7 @@ class SimpleCallback:
             self.stopped = True
             self.error = str(error)
             logging.exception(f"Encountered error in callback: {error}")
+            return
         elif self.stopped:
             return
 
@@ -74,6 +75,7 @@ def submit_for_inference(
     model_name: str = "deepclean-stream",
     model_version: int = 1,
     sequence_end: bool = False,
+    callback: Optional[SimpleCallback] = None,
 ) -> None:
     num_updates = (X.shape[-1] - 1) // stride + 1
     for i in range(num_updates):
@@ -93,7 +95,20 @@ def submit_for_inference(
             sequence_start=(initial_request_id == 0) & (i == 0),
             sequence_end=sequence_end & (i == (num_updates - 1)),
         )
-        time.sleep(1.5e-3)
+
+        # if this is the very first request made to
+        # the model, the snapshotter may require some
+        # warmp up. In that case, sleep for longer than
+        # normal to avoid overloading the server with
+        # requests before it can start handling them
+        if callback is not None and request_id == 0:
+            while callback.max_id_seen < 0:
+                time.sleep(1e-3)
+                if callback.stopped:
+                    raise RuntimeError(callback.error)
+        else:
+            # otherwise adopt an average request rate of ~1000 inf/s
+            time.sleep(1.5e-3)
 
     if (i + 1) * stride < X.shape[-1]:
         remainder = X[:, (i + 1) * stride :]

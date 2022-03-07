@@ -31,4 +31,47 @@ poetry run export-model -h
 Which should return something like
 
 ```console
+usage: export [-h] --repository-directory REPOSITORY_DIRECTORY --channels CHANNELS [CHANNELS ...] --weights WEIGHTS --kernel-length KERNEL_LENGTH --stride-length
+              STRIDE_LENGTH --sample-rate SAMPLE_RATE --max-latency MAX_LATENCY [MAX_LATENCY ...] [--streams-per-gpu STREAMS_PER_GPU] [--instances INSTANCES]
+              [--platform {onnxruntime_onnx,tensorflow_savedmodel,tensorrt_plan,ensemble}] [--verbose]
+              {autoencoder} ...
+
+    Export a DeepClean architecture to model repository
+    for streaming inference, including adding models for
+    caching input snapshot state as well as aggregated
+    output state.
+
+positional arguments:
+  {autoencoder}
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --repository-directory REPOSITORY_DIRECTORY
+                        Directory to which to save the models and their configs (default: None)
+  --channels CHANNELS [CHANNELS ...]
+                        A list of channel names used by DeepClean, with the strain channel first, or the path to a text file containing this list separated by
+                        newlines (default: None)
+  --weights WEIGHTS     Path to a set of trained weights with which to initialize the network architecture. If this path is a directory, it should contain a file
+                        called `"weights.pt"`. (default: None)
+  --kernel-length KERNEL_LENGTH
+                        The length, in seconds, of the input to DeepClean (default: None)
+  --stride-length STRIDE_LENGTH
+                        The length, in seconds, between kernels sampled at inference time. This, along with the `sample_rate`, dictates the size of the update
+                        expected at the snapshotter model (default: None)
+  --sample-rate SAMPLE_RATE
+                        Rate at which the input kernel has been sampled, in Hz (default: None)
+  --max-latency MAX_LATENCY [MAX_LATENCY ...]
+                        The maximum amount of time, in seconds, allowed during inference to wait for overlapping predictcions for online averaging. For example,
+                        if the `stride_length` is 0.002s and `max_latency` is 0.5s, then output segments will be averaged over 250 overlapping kernels before
+                        being streamed back from the server. This means there is a delay of `max_latency` (or the greatest multiple of `stride_length` that is
+                        less than `max_latency`) seconds between the start timestamp of the update streamed to the snapshotter and the resulting prediction
+                        returned by the ensemble model. (default: None)
+  --streams-per-gpu STREAMS_PER_GPU
+                        The number of snapshot states to host per GPU during inference (default: 1)
+  --instances INSTANCES
+                        The number of concurrent execution instances of the DeepClean architecture to host per GPU during inference (default: None)
+  --platform {onnxruntime_onnx,tensorflow_savedmodel,tensorrt_plan,ensemble}
+                        The backend framework platform used to host the DeepClean architecture on the inference service. Right now only `"onnxruntime_onnx"` is
+                        supported. (default: Platform.ONNX)
+  --verbose             If set, log at `DEBUG` verbosity, otherwise log at `INFO` verbosity. (default: False)
 ```

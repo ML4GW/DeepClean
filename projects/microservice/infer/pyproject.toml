@@ -1,0 +1,69 @@
+[tool.poetry]
+name = "infer"
+version = "0.0.1"
+description = "Production DeepClean cleaning service"
+authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+# readme = "README.md"
+
+[tool.poetry.scripts]
+clean = "infer:main"
+
+[tool.poetry.dependencies]
+python = "^3.8,<3.10"
+
+"deepclean.logging" = {path = "../../../libs/logging", develop = true}
+"deepclean.infer" = {path = "../../../libs/infer", develop = true}
+"hermes.typeo" = {path = "../../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2"
+
+[[tool.poetry.source]]
+name = "ngc"
+url = "https://pypi.ngc.nvidia.com"
+
+[build-system]
+requires = ["poetry>=1.2"]
+build-backend = "poetry.masonry.api"
+
+[tool.typeo]
+url = "localhost:8001"
+model_name = "deepclean-stream-0.5"
+train_directory = "${PROJECT_DIRECTORY}"
+
+witness_data_dir = "${DATA_DIR}/lldetchar/H1"
+strain_data_dir = "${DATA_DIR}/llhoft/H1"
+channels = [
+    "H1:GDS-CALIB_STRAIN",
+    "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
+    "H1:ASC-INP1_P_INMON",
+    "H1:ASC-INP1_Y_INMON",
+    "H1:ASC-MICH_P_INMON",
+    "H1:ASC-MICH_Y_INMON",
+    "H1:ASC-PRC1_P_INMON",
+    "H1:ASC-PRC1_Y_INMON",
+    "H1:ASC-PRC2_P_INMON",
+    "H1:ASC-PRC2_Y_INMON",
+    "H1:ASC-SRC1_P_INMON",
+    "H1:ASC-SRC1_Y_INMON",
+    "H1:ASC-SRC2_P_INMON",
+    "H1:ASC-SRC2_Y_INMON",
+    "H1:ASC-DHARD_P_INMON",
+    "H1:ASC-DHARD_Y_INMON",
+    "H1:ASC-CHARD_P_INMON",
+    "H1:ASC-CHARD_Y_INMON",
+    "H1:ASC-DSOFT_P_INMON",
+    "H1:ASC-DSOFT_Y_INMON",
+    "H1:ASC-CSOFT_P_INMON",
+    "H1:ASC-CSOFT_Y_INMON"
+]
+kernel_length = 1
+inference_sampling_rate = 512
+sample_rate = 4096
+
+max_latency = 0.5
+filter_memory = 10
+filter_lead_time = 0.5
+
+sequence_id = 1001
+verbose = true

@@ -1,0 +1,22 @@
+version: "2.0"
+instances:
+  server:
+    image: /cvmfs/singularity.opensciencegrid.org/fastml/gwiaas.tritonserver:stable
+    network:
+      enable: false
+      allocate_ip: false
+    start:
+      options:
+        - nv
+    exec:
+      command: |
+        /opt/tritonserver/bin/tritonserver
+        --model-repository /home/alec.gunny/repos/deepclean-online-production
+  client:
+    image: /cvmfs/singularity.opensciencegrid.org/ml4gw/deepclean.client:stable
+    network:
+      enable: false
+      allocate_ip: false
+    exec:
+      command: |
+        clean --typeo /home/docker/deepclean/projects/microservice/infer

@@ -41,4 +41,10 @@ $DATA_DIR/
             ...
 ```
 
-Once these have been exported to your environment, you can run the workflow end-to-end simply by executing `deepclean run .` from this directory. This will take care of building all the necessary virtual environment and executing the component scripts from inside of them.
+Once these have been exported to your environment, you can run the workflow end-to-end simply by executing
+
+```console
+deepclean run .
+```
+
+from this directory. This will take care of building all the necessary virtual environment and executing the component scripts from inside of them.

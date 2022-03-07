@@ -3,7 +3,7 @@ name = "export"
 version = "0.0.1"
 description = "Export DeepClean for IaaS inference"
 authors = ["Alec Gunny <alec.gunny@gmail.com>"]
-# readme = "README.md"
+readme = "README.md"
 
 [tool.poetry.scripts]
 export-model = "export:export"

@@ -98,7 +98,7 @@ commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.infer]
 url = "localhost:8001"
-model_name = "deepclean-stream-0.5"
+model_name = "deepclean-stream"
 train_directory = "${PROJECT_DIRECTORY}"
 model_repo_dir = "${MODEL_REPOSITORY}"
 

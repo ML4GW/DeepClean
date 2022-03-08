@@ -46,26 +46,113 @@ def main(
     gpus: Optional[List[int]] = None,
     max_frames: Optional[int] = None,
 ):
-    if len(channels) == 1:
+    """
+    Serve up the models from the indicated model repository
+    for inference using Triton and stream witness data taken
+    from one second-long frame files to clean the corresponding
+    strain data in an online fashion.
+
+    Args:
+        url:
+            Address at which Triton service is being hosted and
+            to which to send requests, including port
+        model_repo_dir:
+            Directory containing models to serve for inference
+        model_name:
+            Model to which to send streaming inference requests
+        train_directory:
+            Directory where pre- and post-processing pipelines
+            were exported during training
+        witness_data_dir:
+            A directory containing one-second-long gravitational
+            wave frame files corresponding to witness data as
+            inputs to DeepClean. Files should be named identically
+            except for their end which should take the form
+            `<GPS timestamp>_<length of frame>.gwf`.
+        strain_data_dir:
+            A directory containing one-second-long gravitational
+            wave frame files corresponding to the strain data
+            to be cleaned. The same rules about naming conventions
+            apply as those outlined for the files in `witness_data_dir`,
+            with the added stipulation that each timestamp should have
+            a matching file in `witness_data_dir`.
+        channels:
+            A list of channel names used by DeepClean, with the
+            strain channel first, or the path to a text file
+            containing this list separated by newlines
+        kernel_length:
+            The length, in seconds, of the input to DeepClean
+        stride_length:
+            The length, in seconds, between kernels sampled
+            at inference time. This, along with the `sample_rate`,
+            dictates the size of the update expected at the
+            snapshotter model
+        sample_rate:
+            Rate at which the input kernel has been sampled, in Hz
+        max_latency:
+            The maximum amount of time, in seconds, allowed during
+            inference to wait for overlapping predictcions for
+            online averaging. For example, if the `stride_length`
+            is 0.002s and `max_latency` is 0.5s, then output segments
+            will be averaged over 250 overlapping kernels before
+            being streamed back from the server. This means there is
+            a delay of `max_latency` (or the greatest multiple
+            of `stride_length` that is less than `max_latency`) seconds
+            between the start timestamp of the update streamed to
+            the snapshotter and the resulting prediction returned by
+            the ensemble model. The online averaging model being served
+            by Triton should have been instantiated with this same value.
+        filter_memory:
+            The number of seconds of past data to use when filtering
+            a frame's worth of noise predictions before subtraction to
+            avoid edge effects
+        filter_lead_time:
+            The number of seconds of _future_ data required to be available
+            before filtering a frame's worth of noise predictions before
+            subtraction to avoid edge effects
+        sequence_id:
+            A unique identifier to give this input/output snapshot state
+            on the server to ensure streams are updated appropriately
+        verbose:
+            If set, log at `DEBUG` verbosity, otherwise log at
+            `INFO` verbosity.
+        gpus:
+            The indices of the GPUs to use for inference
+        max_frames:
+            The maximum number of files from `witness_data_dir` and
+            `strain_data_dir` to clean.
+    """
+
+    # load the channels from a file if we specified one
+    if isinstance(channels, str) or len(channels) == 1:
+        if isinstance(channels, str):
+            channels = [channels]
+
         with open(channels[0], "r") as f:
             channels = [i for i in f.read().splitlines() if i]
 
     configure_logging(train_directory / "infer.log", verbose)
+
+    # launch a singularity container in a separate thread
+    # that runs the server, captures its logs, and waits until
+    # the server comes online before entering the context
     with serve(
         model_repo_dir,
         gpus=gpus,
         log_file=train_directory / "server.log",
         wait=True,
     ):
-        # connect to the server at the given
-        # url and make sure it's running and
-        # has the desired model online
+        # connect to the server at the given url
         client = triton.InferenceServerClient(url)
 
         # load in our pre- and postprocessing objects
         preprocessor = Pipeline.load(train_directory / "witness_pipeline.pkl")
         postprocessor = Pipeline.load(train_directory / "strain_pipeline.pkl")
 
+        # TODO: some checks to make sure that the filenames match,
+        # or just more intelligent logic to iterate through these.
+        # How many assumptions about the naming conventions do
+        # we want to make?
         witness_fnames = sorted(os.listdir(witness_data_dir))
         strain_fnames = sorted(os.listdir(strain_data_dir))
         N = min(max_frames or np.inf, len(witness_fnames))
@@ -74,6 +161,12 @@ def main(
         request_id = 0
         remainder = None
 
+        # do actual inference in a context that maintains a
+        # connection to the server to make sure the snapshot
+        # state is updated sequentially and responses are handled
+        # in a separate thread (managed by the `callback` returned here,
+        # which will maintain the model's predictions in-memory in a
+        # `predictions` attribute)
         logging.info("Beginning inference request submissions")
         with infer.begin_inference(client, model_name) as (input, callback):
             for i in range(N):

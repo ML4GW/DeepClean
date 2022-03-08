@@ -21,7 +21,8 @@ poetry install
 will work as well.
 
 
-## Running
+## Available commands
+### `export-model`
 You can see a full list of the available command line options by running
 
 ```console

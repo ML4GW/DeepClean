@@ -77,3 +77,74 @@ To get a sense for what command line arguments are available, you can run (from 
 ```console
 infer -h
 ```
+
+and should see something like
+
+```console
+usage: main [-h] --url URL --model-repo-dir MODEL_REPO_DIR --model-name MODEL_NAME --train-directory TRAIN_DIRECTORY
+            --witness-data-dir WITNESS_DATA_DIR --strain-data-dir STRAIN_DATA_DIR --channels CHANNELS [CHANNELS ...]
+            --kernel-length KERNEL_LENGTH --stride-length STRIDE_LENGTH --sample-rate SAMPLE_RATE --max-latency
+            MAX_LATENCY --filter-memory FILTER_MEMORY --filter-lead-time FILTER_LEAD_TIME [--sequence-id SEQUENCE_ID]
+            [--verbose] [--gpus GPUS [GPUS ...]] [--max-frames MAX_FRAMES]
+
+    Serve up the models from the indicated model repository
+    for inference using Triton and stream witness data taken
+    from one second-long frame files to clean the corresponding
+    strain data in an online fashion.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --url URL             Address at which Triton service is being hosted and to which to send requests, including port
+                        (default: None)
+  --model-repo-dir MODEL_REPO_DIR
+                        Directory containing models to serve for inference (default: None)
+  --model-name MODEL_NAME
+                        Model to which to send streaming inference requests (default: None)
+  --train-directory TRAIN_DIRECTORY
+                        Directory where pre- and post-processing pipelines were exported during training (default:
+                        None)
+  --witness-data-dir WITNESS_DATA_DIR
+                        A directory containing one-second-long gravitational wave frame files corresponding to witness
+                        data as inputs to DeepClean. Files should be named identically except for their end which
+                        should take the form `<GPS timestamp>_<length of frame>.gwf`. (default: None)
+  --strain-data-dir STRAIN_DATA_DIR
+                        A directory containing one-second-long gravitational wave frame files corresponding to the
+                        strain data to be cleaned. The same rules about naming conventions apply as those outlined for
+                        the files in `witness_data_dir`, with the added stipulation that each timestamp should have a
+                        matching file in `witness_data_dir`. (default: None)
+  --channels CHANNELS [CHANNELS ...]
+                        A list of channel names used by DeepClean, with the strain channel first, or the path to a
+                        text file containing this list separated by newlines (default: None)
+  --kernel-length KERNEL_LENGTH
+                        The length, in seconds, of the input to DeepClean (default: None)
+  --stride-length STRIDE_LENGTH
+                        The length, in seconds, between kernels sampled at inference time. This, along with the
+                        `sample_rate`, dictates the size of the update expected at the snapshotter model (default:
+                        None)
+  --sample-rate SAMPLE_RATE
+                        Rate at which the input kernel has been sampled, in Hz (default: None)
+  --max-latency MAX_LATENCY
+                        The maximum amount of time, in seconds, allowed during inference to wait for overlapping
+                        predictcions for online averaging. For example, if the `stride_length` is 0.002s and
+                        `max_latency` is 0.5s, then output segments will be averaged over 250 overlapping kernels
+                        before being streamed back from the server. This means there is a delay of `max_latency` (or
+                        the greatest multiple of `stride_length` that is less than `max_latency`) seconds between the
+                        start timestamp of the update streamed to the snapshotter and the resulting prediction
+                        returned by the ensemble model. The online averaging model being served by Triton should have
+                        been instantiated with this same value. (default: None)
+  --filter-memory FILTER_MEMORY
+                        The number of seconds of past data to use when filtering a frame's worth of noise predictions
+                        before subtraction to avoid edge effects (default: None)
+  --filter-lead-time FILTER_LEAD_TIME
+                        The number of seconds of _future_ data required to be available before filtering a frame's
+                        worth of noise predictions before subtraction to avoid edge effects (default: None)
+  --sequence-id SEQUENCE_ID
+                        A unique identifier to give this input/output snapshot state on the server to ensure streams
+                        are updated appropriately (default: 1001)
+  --verbose             If set, log at `DEBUG` verbosity, otherwise log at `INFO` verbosity. (default: False)
+  --gpus GPUS [GPUS ...]
+                        The indices of the GPUs to use for inference (default: None)
+  --max-frames MAX_FRAMES
+                        The maximum number of files from `witness_data_dir` and `strain_data_dir` to clean. (default:
+                        None)
+```

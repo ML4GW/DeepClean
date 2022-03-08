@@ -26,7 +26,7 @@ poetry install
 
 ## Available commands
 ### `train`
-To get a sense for what command line arguments are available, you can run (from the `deepclean-train` conda environment: `conda activate deepclean`):
+To get a sense for what command line arguments are available, you can run (from the `deepclean-train` conda environment: `conda activate deepclean-train`):
 
 ```console
 train -h

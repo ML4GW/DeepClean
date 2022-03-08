@@ -3,7 +3,7 @@ name = "analyze"
 version = "0.0.1"
 description = "Create HTML file with analysis of DeepClean outputs"
 authors = ["Alec Gunny <alec.gunny@gmail.com>"]
-# readme = "README.md"
+readme = "README.md"
 
 [tool.poetry.scripts]
 analyze = "analyze:main"

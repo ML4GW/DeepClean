@@ -4,7 +4,13 @@ Trains DeepClean using either local hdf5 files or by fetching data from LIGO's N
 Almost all of the actual training is handled by the [`deepclean.trainer`](../../libs/trainer) library, so consult the code there to get a sense for what the actual training loop looks like. The code here is primarily interested in the logic for getting the specified data and preparing it into numpy arrays, as well in setting up logging.
 
 ## Installation
-As mentioned in the [root README](../../README.md), you can install this project by first creating then cloning the base deepclean environment. From the root directory of this repo, this looks like
+If you've followed the steps outlined in the root [README](../../../README.md) for installing the DeepClean command line utility, you can install this project simply via
+
+```console
+deepclean build .
+```
+
+Otherwise, you can install this project by first creating then cloning the base deepclean environment. From the root directory of this repo, this looks like
 
 ```console
 conda env create -f environment.yaml
@@ -18,8 +24,9 @@ conda activate deepclean-train
 poetry install
 ```
 
-## Running
-To get a sense for what command line arguments are available, you can run (from this directory as well):
+## Available commands
+### `train`
+To get a sense for what command line arguments are available, you can run (from the `deepclean-train` conda environment: `conda activate deepclean-train`):
 
 ```console
 train -h

@@ -3,7 +3,7 @@ name = "infer"
 version = "0.0.1"
 description = "Simple inference script on existing frame files"
 authors = ["Alec Gunny <alec.gunny@gmail.com>"]
-# readme = "README.md"
+readme = "README.md"
 
 [tool.poetry.scripts]
 infer = "infer:main"

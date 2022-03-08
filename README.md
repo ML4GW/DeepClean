@@ -7,6 +7,14 @@ Project is divided into `libs`, modular source libraries for performing the rele
 
 
 ## Installation
+### Setting up the repository
+Before you do anything, be sure that the `gw-iaas` submodule has been initialized after cloning this repo
+```
+git submodule update
+git submodule init
+```
+
+### Environment set up
 Individual libraries and projects will have their own installation steps, but the primary environment-management tool used is [Poetry](https://python-poetry.org/), which can be [installed](https://python-poetry.org/docs/master/#installing-with-the-official-installer) via
 
 ```console
@@ -15,6 +23,8 @@ curl -sSL https://install.python-poetry.org | python3 - --preview
 
 Certain projects will require the use of LIGO Data Analysis System (LDAS) tools for reading and writing [gravitational wave frame files](https://dcc.ligo.org/T970130/public), as well as LIGO Network Data Service (NDS) libraries for remotely fetching data. These libraries are only installable via [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html), and are included in the base environment file [`environment.yaml`](./environment.yaml).
 
+
+### Command line interface installation
 Once you have Poetry and Conda installed, you can install a command line utility into your base Conda environment for building and running the projects in this repo via
 
 ```console

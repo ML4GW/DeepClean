@@ -1,5 +1,6 @@
 import os
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from typing import List, Optional
 
@@ -22,7 +23,15 @@ from hermes.typeo import typeo
 from scipy.signal import welch
 
 
-def build_timeseries(fnames: str, channel: str, sample_rate: float):
+def build_timeseries(
+    fnames: Iterable[str], channel: str, sample_rate: float
+) -> np.ndarray:
+    """
+    Read in the indicated channel from a sequence of .gwf filenames,
+    resample them to the indicated sample rate and concatenate them
+    into a single timeseries.
+    """
+
     # TODO: too many assumptions about length of frames
     h = np.zeros((int(len(fnames) * sample_rate),))
     for i, fname in enumerate(fnames):
@@ -37,6 +46,11 @@ def make_asd(
     fftlength: float,
     overlap: Optional[float] = None,
 ) -> np.ndarray:
+    """
+    Compute the ASD of a given timeseries and return it along
+    with its corresponding frequency bin values
+    """
+
     nperseg = int(fftlength * sample_rate)
     overlap = overlap or fftlength / 2
     noverlap = int(overlap * sample_rate)
@@ -46,6 +60,12 @@ def make_asd(
 
 
 def get_training_curves(output_directory: Path):
+    """
+    Read the training logs from the indicated output directory
+    and use them to parse the training and validation loss values
+    at each epoch. Plot these curves to a Bokeh `Figure` and return it.
+    """
+
     with open(output_directory / "train.log", "r") as f:
         train_log = f.read()
 
@@ -106,7 +126,16 @@ def get_training_curves(output_directory: Path):
     return p
 
 
-def get_logs_box(output_directory):
+def get_logs_box(output_directory: Path):
+    """
+    Creating a Bokeh `Tabs` layout with panels for each
+    of the log files contained in `output_directory`, as well
+    as of the config used to generate this run of DeepClean.
+    """
+
+    # TODO: make more general, include pyproject as a separate
+    # arg that defaults to this value, in case this is being
+    # run standalone.
     with open(Path(__file__).parent / ".." / "pyproject.toml", "r") as f:
         text_box = PreText(
             text=f.read(),
@@ -152,6 +181,14 @@ def analyze_test_data(
     freq_high: Optional[float] = None,
     overlap: Optional[float] = None,
 ):
+    """
+    Build plots of the ASDs of the cleaned and uncleaned
+    data, as well as a plot of the ratio of these ASDs
+    over a target frequency band. Return these plots as a
+    Bokeh `row` layout, and return the number of frames
+    analyzed as well.
+    """
+
     fnames = sorted(os.listdir(clean_data_dir))
     raw_fnames = [raw_data_dir / f for f in fnames]
     clean_fnames = [clean_data_dir / f for f in fnames]
@@ -246,6 +283,59 @@ def main(
     freq_high: Optional[float] = None,
     overlap: Optional[float] = None,
 ) -> None:
+    """
+    Build an HTML document analyzing a set of gravitational
+    wave frame files cleaned using DeepClean. This includes
+    plots of both the cleaned and uncleaned ASDs, as well as
+    of the ratio of these ASDs plotted over the frequency
+    range of interest. Included above these plots are the
+    training and validation loss curves from DeepClean
+    training as well as a box including any relevant logs
+    or configs used to generate this run of DeepClean.
+
+    Args:
+        raw_data_dir:
+            Directory containing the raw frame files containing
+            the strain channel DeepClean was used to clean
+        clean_data_dir:
+            Directory containing the frame files produced by
+            DeepClean with the cleaned strain channel (whose
+            name should match the raw strain channel)
+        output_directory:
+            Directory to which HTML document should be written
+            as `analysis.html`. Should also include any log files
+            (ending `.log`) that are desired to be included in
+            the plot.
+        channels:
+            A list of channel names used by DeepClean, with the
+            strain channel first, or the path to a text file
+            containing this list separated by newlines
+        sample_rate:
+            Rate at which the input data to DeepClean was sampled,
+            in Hz
+        fflength:
+            Length of time, in seconds, over which to compute the
+            ASDs of the cleaned and uncleaned data
+        freq_low:
+            The low end of the frequency range of interest for
+            plotting the ASD ratio
+        freq_high:
+            The high end of the frequency range of interest
+            for plotting the ASD ratio
+        overlap:
+            The amount of overlap, in seconds, between successive
+            FFT windows for the ASD computation. If left as `None`,
+            this will default to `fftlength / 2`.
+    """
+
+    # load the channels from a file if we specified one
+    if isinstance(channels, str) or len(channels) == 1:
+        if isinstance(channels, str):
+            channels = [channels]
+
+        with open(channels[0], "r") as f:
+            channels = [i for i in f.read().splitlines() if i]
+
     asdr_plots, num_frames = analyze_test_data(
         raw_data_dir,
         clean_data_dir,

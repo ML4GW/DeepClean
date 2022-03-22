@@ -2,6 +2,7 @@ import os
 import pickle
 import time
 from queue import Empty, Queue
+from typing import Optional
 
 import numpy as np
 from gwpy.timeseries import TimeSeries
@@ -16,8 +17,8 @@ class FrameWriter(PipelineProcess):
         channel_name: str,
         inference_sampling_rate: float,
         sample_rate: float,
-        postprocess_pkl: str,
         strain_q: Queue,
+        postprocess_pkl: Optional[str] = None,
         memory: float = 10,
         look_ahead: float = 0.05,
         aggregation_steps: int = 0,
@@ -45,16 +46,17 @@ class FrameWriter(PipelineProcess):
             inference_sampling_rate:
                 The rate at which kernels are sampled from the strain
                 and witness timeseries
+            strain_q:
+                A queue from which strain data will be retrieved from
+                upstream processes
             postprocess_pkl:
                 The path to a pickle file containing a serialized
                 `deepclean.signal.op.Op` to apply on the aggregated
                 noise predictions (including the past and future data
                 indicated by the `memory` and `look_ahead` arguments)
                 before subtraction from the strain channel. Will be
-                applied with `inverse=True`.
-            strain_q:
-                A queue from which strain data will be retrieved from
-                upstream processes
+                applied with `inverse=True`. If left as `None`, no
+                postprocessing will be applied.
             memory:
                 The number of seconds of noise predictions from
                 _before_ each frame being cleaned to include in-memory
@@ -93,8 +95,11 @@ class FrameWriter(PipelineProcess):
         self.aggregation_steps = aggregation_steps
 
         # load in our postprocessing pipeline
-        with open(postprocess_pkl, "rb") as f:
-            self.postprocessor = pickle.load(f)
+        if postprocess_pkl is None:
+            with open(postprocess_pkl, "rb") as f:
+                self.postprocessor = pickle.load(f)
+        else:
+            self.postprocessor = None
 
         # next we'll initialize a bunch of arrays
         # and indices we'll need to do efficient
@@ -222,7 +227,8 @@ class FrameWriter(PipelineProcess):
         # now postprocess the noise channel and
         # slice off the relevant frame to subtract
         # from the strain channel
-        noise = self.postprocessor(noise, inverse=True)
+        if self.postprocessor is not None:
+            noise = self.postprocessor(noise, inverse=True)
         noise = noise[-self.look_ahead - len(strain) : -self.look_ahead]
         cleaned = strain - noise
 

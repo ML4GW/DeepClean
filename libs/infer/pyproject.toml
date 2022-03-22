@@ -11,6 +11,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 numpy = "^1.21"
+"deepclean.signal" = {path = "../signal", develop = true}
 tritonclient = {extras = ["all"], version = "^2.5.0", source = "ngc"}
 
 [tool.poetry.dev-dependencies]

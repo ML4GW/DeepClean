@@ -4,12 +4,13 @@ Trains DeepClean using either local hdf5 files or by fetching data from LIGO's N
 Almost all of the actual training is handled by the [`deepclean.trainer`](../../libs/trainer) library, so consult the code there to get a sense for what the actual training loop looks like. The code here is primarily interested in the logic for getting the specified data and preparing it into numpy arrays, as well in setting up logging.
 
 ## Installation
-If you've followed the steps outlined in the root [README](../../../README.md) for installing the DeepClean command line utility, you can install this project simply via
+Assuming you chose [installation path #1](../../../README.md#environment-setup) when setting this repo up and have the `pinto` command line utility available, you can install this project simply via
 
 ```console
-deepclean build .
+pinto build .
 ```
 
+from this directory.
 Otherwise, you can install this project by first creating then cloning the base deepclean environment. From the root directory of this repo, this looks like
 
 ```console
@@ -26,11 +27,16 @@ poetry install
 
 ## Available commands
 ### `train`
-To get a sense for what command line arguments are available, you can run (from the `deepclean-train` conda environment: `conda activate deepclean-train`):
+To get a sense for what command line arguments are available, you can either run:
 
 ```console
-train -h
+pinto run . train -h
+```
 
+if you have the `pinto` command line utility installed, or you can `conda activate deepclean-train` and just run `train -h`.
+Either way, you should see something like
+
+```console
 usage: main [-h] --channels CHANNELS [CHANNELS ...] --output-directory
             OUTPUT_DIRECTORY --sample-rate SAMPLE_RATE --kernel-length
             KERNEL_LENGTH --kernel-stride KERNEL_STRIDE

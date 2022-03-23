@@ -15,7 +15,7 @@ Use a Triton server instance hosting DeepClean to clean a directory of strain GW
 Compute and plot the ASDs of the raw and cleaned frames, as well as the ratio between their ASDs in the target frequency band. Write these plot, the training curves, and the logs from each job to an HTML file in the pipeline's project directory.
 
 ## Running
-If you followed the `deepclean` command line interface installation instructions outlined in the root [README](../../README.md), you can build each component's environment individually by running  `deepclean build <path to component>`. Consult each component's documentation for the commands and options they expose.
+If you installed the `pinto` command line utility described in the root [README](../../README.md), you can build each component's environment individually by running  `pinto build <path to component>`. Consult each component's documentation for the commands and options they expose.
 
 Running the workflow end-to-end requires exporting three environment variables (with apologies for the inconsistent naming conventions for now)
 
@@ -41,10 +41,10 @@ $DATA_DIR/
             ...
 ```
 
-Once these have been exported to your environment, you can run the workflow end-to-end simply by executing
+Assuming you chose [installation path #1](../../README.md#environment-setup) when setting this repo up, you can run the workflow end-to-end simply by executing from this directory
 
 ```console
-deepclean run .
+pinto run .
 ```
 
-from this directory. This will take care of building all the necessary virtual environment and executing the component scripts from inside of them.
+This will take care of building all the necessary virtual environment and executing the component scripts from inside of them.

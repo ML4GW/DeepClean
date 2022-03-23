@@ -41,7 +41,7 @@ $DATA_DIR/
             ...
 ```
 
-Assuming you chose [installation path #1](../../README.md#environment-setup) when setting this repo up, you can run the workflow end-to-end simply by executing from this directory
+Assuming you chose [installation path #1](../../README.md##1-the-easy-way---pinto) when setting this repo up, you can run the workflow end-to-end simply by executing from this directory
 
 ```console
 pinto run .

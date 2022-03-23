@@ -50,7 +50,7 @@ Note that at this point, we've already accumulated `filter_lead_time` seconds of
 
 
 ## Installation
-Assuming you chose [installation path #1](../../../README.md#environment-setup) when setting this repo up and have the `pinto` command line utility available, you can install this project simply via
+Assuming you chose [installation path #1](../../../README.md##1-the-easy-way---pinto) when setting this repo up and have the `pinto` command line utility available, you can install this project simply via
 
 ```console
 pinto build .

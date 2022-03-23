@@ -4,7 +4,7 @@ Trains DeepClean using either local hdf5 files or by fetching data from LIGO's N
 Almost all of the actual training is handled by the [`deepclean.trainer`](../../libs/trainer) library, so consult the code there to get a sense for what the actual training loop looks like. The code here is primarily interested in the logic for getting the specified data and preparing it into numpy arrays, as well in setting up logging.
 
 ## Installation
-Assuming you chose [installation path #1](../../../README.md#environment-setup) when setting this repo up and have the `pinto` command line utility available, you can install this project simply via
+Assuming you chose [installation path #1](../../../README.md##1-the-easy-way---pinto) when setting this repo up and have the `pinto` command line utility available, you can install this project simply via
 
 ```console
 pinto build .

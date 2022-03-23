@@ -14,7 +14,7 @@ git submodule update
 git submodule init
 ```
 
-### Environmnet setup
+### Environment setup
 #### 1. The Easy Way - `pinto`
 The simplest way to interact with the code in this respository is to install the ML4GW [Pinto command line utility](https://ml4gw.github.io/Pinto/), which contains all the same prerequisites (namely Conda and Poetry) that this repo does.
 The only difference is that rather than having to keep track of which projects require Conda and which only need Poetry separately, `pinto` exposes commands which build and execute scripts inside of virtual environments automatically, dynamically detecting how and where to install each project.

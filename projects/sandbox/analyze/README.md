@@ -5,7 +5,7 @@ NOTE: Won't work for arbitrary runs of DeepClean, designed to work specifically 
 
 
 ## Installation
-Assuming you chose [installation path #1](../../../README.md##1-the-easy-way---pinto) when setting this repo up and have the `pinto` command line utility available, you can install this project simply via
+Assuming you chose [installation path #1](../../../README.md#1-the-easy-way---pinto) when setting this repo up and have the `pinto` command line utility available, you can install this project simply via
 
 ```console
 pinto build .

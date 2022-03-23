@@ -5,7 +5,7 @@ import sys
 import numpy as np
 import pytest
 
-from deepclean.trainer.wrapper import make_cmd_line_fn
+from deepclean.trainer.wrapper import trainify
 
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def make_random_data(
 
 
 def test_wrapper(output_directory):
-    fn = make_cmd_line_fn(make_random_data)
+    fn = trainify(make_random_data)
 
     # make sure we can run the function as-is with regular arguments
     X, y = fn(100, output_directory)

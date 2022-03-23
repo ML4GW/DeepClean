@@ -20,7 +20,7 @@ matplotlib = "^3.5.1"
 # include network architecture libraries
 # if we want to build a wrapper that exposes
 # architecture-specific args
-"deepclean.networks" = {path = "../networks", develop = true, optional = true}
+"deepclean.architectures" = {path = "../architectures", develop = true, optional = true}
 
 [tool.poetry.dependencies."hermes.typeo"]
 path = "../../gw-iaas/libs/hermes/hermes.typeo"
@@ -28,7 +28,7 @@ develop = true
 optional = true
 
 [tool.poetry.extras]
-wrapper = ["hermes.typeo", "deepclean.networks"]
+wrapper = ["hermes.typeo", "deepclean.architectures"]
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

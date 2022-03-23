@@ -3,7 +3,7 @@ import inspect
 from hermes.typeo import typeo
 from hermes.typeo.typeo import _parse_doc, _parse_help
 
-from deepclean.networks import get_network_fns
+from deepclean.architecture import get_arch_fns
 from deepclean.trainer.trainer import train
 
 
@@ -49,7 +49,7 @@ def _configure_wrapper(f, wrapper):
     wrapper.__doc__ = f_doc + "\n" + " " * 4 + "Args:\n" + wrapper_args
 
 
-def make_cmd_line_fn(f):
+def trainify(f):
     """Turn a data-generating function into a command line trainer
 
     Wraps the function `f`, which is assumed to generate training
@@ -65,7 +65,7 @@ def make_cmd_line_fn(f):
     # create the wrapper network functions. Populate these
     # args later within our wrapper function in-place
     train_kwargs = {}
-    network_fns = get_network_fns(train, train_kwargs)
+    arch_fns = get_arch_fns(train, train_kwargs)
     train_signature = inspect.signature(train)
 
     def wrapper(*args, **kwargs):
@@ -107,7 +107,7 @@ def make_cmd_line_fn(f):
         # `f` is called with an "arch" parameter
         if "arch" in kwargs:
             try:
-                network_fn = network_fns[kwargs["arch"]]
+                arch_fn = arch_fns[kwargs["arch"]]
             except KeyError:
                 raise ValueError(
                     "No network architecture named " + kwargs["arch"]
@@ -116,16 +116,16 @@ def make_cmd_line_fn(f):
             # grab any architecture-specific parameters from
             # the arguments passed to `f`
             arch_kwargs = {}
-            arch_sig = inspect.signature(network_fn)
+            arch_sig = inspect.signature(arch_fn)
             for k, v in kwargs.items():
                 if k in arch_sig.parameters:
                     arch_kwargs[k] = v
 
-            # run the network function, which will implicitly
+            # run the architecture function, which will implicitly
             # call deepclean.trainer.trainer.train under the
             # hood with the arguments we populated into
             # `train_kwargs`
-            result = network_fn(**arch_kwargs)
+            result = arch_fn(**arch_kwargs)
         else:
             # otherwise just return the data, equivalent
             # to running `f` without any wrapper functionality
@@ -142,4 +142,4 @@ def make_cmd_line_fn(f):
     # all training and architecture arguments. Each
     # network architecture will be exposed as a
     # subcommand with its own arguments
-    return typeo(wrapper, **network_fns)
+    return typeo(wrapper, **arch_fns)

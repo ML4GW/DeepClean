@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from deepclean.networks import DeepCleanAE
+from deepclean.architectures import DeepCleanAE
 
 
 @pytest.fixture(params=[1, 10, 21])

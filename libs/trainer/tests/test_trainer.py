@@ -71,7 +71,7 @@ def test_train_one_epoch_with_hastie():
 
         label = (mlp(valid_data.X) > 0.5).type(torch.float32)
         valid_accuracy = (label == valid_data.y).type(torch.float32).mean()
-        if valid_accuracy > 0.95:
+        if valid_accuracy > 0.9:
             break
     else:
         raise ValueError(

@@ -3,7 +3,7 @@ import inspect
 from hermes.typeo import typeo
 from hermes.typeo.typeo import _parse_doc, _parse_help
 
-from deepclean.architecture import get_arch_fns
+from deepclean.architectures import get_arch_fns
 from deepclean.trainer.trainer import train
 
 

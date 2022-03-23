@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 from train.data_utils import get_data
 
 from deepclean.logging import configure_logging
-from deepclean.trainer.wrapper import make_cmd_line_fn
+from deepclean.trainer.wrapper import trainify
 
 
 # note that this function decorator acts both to
@@ -14,7 +14,7 @@ from deepclean.trainer.wrapper import make_cmd_line_fn
 # as well as to expose these arguments _as well_ as those
 # from deepclean.trainer.trainer.train to command line
 # execution and parsing
-@make_cmd_line_fn
+@trainify
 def main(
     channels: Union[str, List[str]],
     output_directory: str,

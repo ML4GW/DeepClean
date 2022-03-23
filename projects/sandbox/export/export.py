@@ -5,8 +5,8 @@ from typing import Callable, List, Optional, Union
 import hermes.quiver as qv
 import torch
 
+from deepclean.architectures import architecturize
 from deepclean.logging import configure_logging
-from deepclean.networks import typeo_wrapper
 
 
 def make_ensemble(
@@ -124,7 +124,7 @@ def make_ensemble(
     return ensemble
 
 
-@typeo_wrapper
+@architecturize
 def export(
     architecture: Callable,
     repository_directory: str,

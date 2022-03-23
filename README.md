@@ -14,55 +14,48 @@ git submodule update
 git submodule init
 ```
 
-### Environment set up
-Individual libraries and projects will have their own installation steps, but the primary environment-management tool used is [Poetry](https://python-poetry.org/), which can be [installed](https://python-poetry.org/docs/master/#installing-with-the-official-installer) via
+### Environment setup
+#### 1. The Easy Way - `pinto`
+The simplest way to interact with the code in this respository is to install the ML4GW [Pinto command line utility](https://ml4gw.github.io/Pinto/), which contains all the same prerequisites (namely Conda and Poetry) that this repo does.
+The only difference is that rather than having to keep track of which projects require Conda and which only need Poetry separately, `pinto` exposes commands which build and execute scripts inside of virtual environments automatically, dynamically detecting how and where to install each project.
+For more information, consult the Pinto documentation linked to above.
+
+#### 2. The Hard Way - Conda + Poetry
+Otherwise, make sure you have Conda and Poetry installed in the manner outlined in Pinto's documentation.
+Then create the base Conda environment on which all projects are based
 
 ```console
-curl -sSL https://install.python-poetry.org | python3 - --preview
+conda env create -f environment.yaml
 ```
 
-Certain projects will require the use of LIGO Data Analysis System (LDAS) tools for reading and writing [gravitational wave frame files](https://dcc.ligo.org/T970130/public), as well as LIGO Network Data Service (NDS) libraries for remotely fetching data. These libraries are only installable via [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html), and are included in the base environment file [`environment.yaml`](./environment.yaml).
+Projects that requires Conda will have a `poetry.toml` file in them containing in part
 
+```toml
+[virtualenvs]
+create = false
+```
 
-### Command line interface installation
-Once you have Poetry and Conda installed, you can install a command line utility into your base Conda environment for building and running the projects in this repo via
+For these projects, you can build the necessary virtual environment by running 
+
+```console
+conda create -n <environment name> --clone deepclean-base
+```
+
+then using Poetry to install additional dependencies (called from the project's root directory, not the repository's)
 
 ```console
 poetry install
 ```
 
-If you don't want to install development dependencies like `pre-commit`, you can instead run
+Otherwise, you should just need to run `poetry install` from the project's directory, and Poetry will take care of creating a virtual environment automatically.
+
+### Running projects
+Consult each project's documentation for additional installation steps and available commands. If you installed the `pinto` utility, commands can be run
+in each project's virtual environment by
 
 ```console
-poetry install --without dev
+pinto run path/to/project my-command --arg 1
 ```
 
- You should then be able to run
-
-```console
-deepclean -h
-```
-
-and see something like
-
-```console
- usage: deepclean [-h] [--log-file LOG_FILE] [--verbose] {run,build} ...
-
-positional arguments:
-  {run,build}
-
-optional arguments:
-  -h, --help           show this help message and exit
-  --log-file LOG_FILE  Path to write logs to
-  --verbose            Log verbosity
-```
-
-It is _not_ recommended that you install this command-line utility inside a virtual environment, as this environment will lack the Poetry Python APIs that `deepclean` uses to build and execute commands in other virtual environments.
-
-To build projects, you can run `deepclean build <project directory>`, which will build a virtual environment for that project and install all the necessary dependencies, e.g.
-
-```console
-deepclean build projects/sandbox/train
-```
-
-Consult the documentation of individual projects to see what commands are exposed in their virtual environments.
+Otherwise, for Conda projects, you'll have to activate the appropriate Conda environment first then execute the code inside of it.
+For Poetry environments, it should be enough to run `poetry run my-command --arg 1` _from the projects directory_ (one downside of Poetry is that everything has to be done locally).

@@ -23,6 +23,8 @@ jobs:
         lib: [architectures, signal, trainer]
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: recursive
       -
         name: run ${{ matrix.lib }} tests
         env:

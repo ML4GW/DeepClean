@@ -74,7 +74,9 @@ def test_train_one_epoch_with_hastie():
         if valid_accuracy > 0.95:
             break
     else:
-        raise ValueError("Couldn't converge")
+        raise ValueError(
+            f"Couldn't converge, valid accuracy is {valid_accuracy}"
+        )
 
 
 # def test_train_step(input_dim, mlp):

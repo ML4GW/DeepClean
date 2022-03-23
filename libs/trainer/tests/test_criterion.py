@@ -183,4 +183,4 @@ def test_psd_loss(
     # since `y` should be roughly 0. in the relevant
     # frequency bins, `(x - y) / x` should be ~1 everywhere
     result = criterion(y, x).numpy()
-    assert np.isclose(result, 1.0, rtol=0.1)
+    assert 0.8 < result < 1.2

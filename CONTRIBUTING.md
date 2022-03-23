@@ -30,7 +30,7 @@ Now you're ready to start adding in all your important fixes!
 The key environment management tool for this repo is [Poetry](https://python-poetry.org/). For installation instructions, see the [README](./README.md). Any libraries or projects you create should have a `pyproject.toml` with a `[tool.poetry]` table that describes the relevant dependencies. You should create and commit a lockfile via `poetry lock` and `git add poetry.lock` to ensure that the environment you've specified can be built.
 
 ### Libraries vs. Projects
-If the code you're writing is some general-purpose function that gets used in many places, consider implementing it as a library in `libs` that other code can import and call. To make clear what libraries come from this repository, we've adopted the practice that local library imports should start with `deepclean.`, e.g. `from deepclean.networks import DeepCleanAE`.
+If the code you're writing is some general-purpose function that gets used in many places, consider implementing it as a library in `libs` that other code can import and call. To make clear what libraries come from this repository, we've adopted the practice that local library imports should start with `deepclean.`, e.g. `from deepclean.architectures import DeepCleanAE`.
 
 In practice, this means structuring libraries like:
 ```

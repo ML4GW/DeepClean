@@ -20,6 +20,7 @@ def train_for_one_epoch(
     train_data: ChunkedTimeSeriesDataset,
     valid_data: Optional[ChunkedTimeSeriesDataset] = None,
     profiler: Optional[torch.profiler.profile] = None,
+    scaler: Optional[torch.cuda.amp.GradScaler] = None,
 ):
     """Run a single epoch of training"""
 
@@ -30,16 +31,18 @@ def train_for_one_epoch(
     for witnesses, strain in train_data:
         optimizer.zero_grad(set_to_none=True)  # reset gradient
         # do forward step in mixed precision
-        # with torch.autocast("cuda"):
-        noise_prediction = model(witnesses)
-        loss = criterion(noise_prediction, strain)
+        with torch.autocast("cuda"):
+            noise_prediction = model(witnesses)
+            loss = criterion(noise_prediction, strain)
 
-        # do backwards pass at full precision
-        loss.backward()
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
 
-        # update weights and add gradient step to
-        # profile if we have it turned on
-        optimizer.step()
         if profiler is not None:
             profiler.step()
 
@@ -351,6 +354,7 @@ def train(
 
     # start training
     torch.backends.cudnn.benchmark = True
+    scaler = torch.cuda.amp.GradScaler()
     best_valid_loss = np.inf
     since_last_improvement = 0
     history = {"train_loss": [], "valid_loss": []}
@@ -370,7 +374,13 @@ def train(
 
         logging.info(f"=== Epoch {epoch + 1}/{max_epochs} ===")
         train_loss, valid_loss, duration, throughput = train_for_one_epoch(
-            model, optimizer, criterion, train_data, valid_data, profiler
+            model,
+            optimizer,
+            criterion,
+            train_data,
+            valid_data,
+            profiler,
+            scaler
         )
         history["train_loss"].append(train_loss)
 

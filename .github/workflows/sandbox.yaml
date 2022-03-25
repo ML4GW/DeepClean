@@ -10,6 +10,7 @@ env:
 
 jobs:
   sandbox:
+    if: github.repository_owner == 'ML4GW'
     runs-on: ubuntu-latest
     environment: ldg-dgx
     env:

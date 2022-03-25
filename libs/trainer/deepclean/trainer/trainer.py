@@ -35,6 +35,9 @@ def train_for_one_epoch(
             noise_prediction = model(witnesses)
             loss = criterion(noise_prediction, strain)
 
+        train_loss += loss.item() * len(witnesses)
+        samples_seen += len(witnesses)
+
         if scaler is not None:
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -45,9 +48,6 @@ def train_for_one_epoch(
 
         if profiler is not None:
             profiler.step()
-
-        train_loss += loss.item() * len(witnesses)
-        samples_seen += len(witnesses)
         logging.debug(f"{samples_seen}/{train_data.num_kernels}")
 
     if profiler is not None:

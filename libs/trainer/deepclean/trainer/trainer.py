@@ -380,7 +380,7 @@ def train(
             train_data,
             valid_data,
             profiler,
-            scaler
+            scaler,
         )
         history["train_loss"].append(train_loss)
 

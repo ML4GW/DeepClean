@@ -67,6 +67,19 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
+name = "deepclean.gwftools"
+version = "0.0.1"
+description = "Utilites for managing gwf file conventions"
+category = "main"
+optional = false
+python-versions = "^3.8,<3.10"
+develop = true
+
+[package.source]
+type = "directory"
+url = "../gwftools"
+
+[[package]]
 name = "deepclean.signal"
 version = "0.0.1"
 description = "DeepClean signal processing utilities"
@@ -412,7 +425,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "2e5606ae09cf957374cee0b2273bdd8e3bc601f85598bbd0765ef4536af76dc7"
+content-hash = "f3803f1a83e129eedd5332cef90dea0d13c12ea661bfd7d961160d8b4d2cac00"
 
 [metadata.files]
 atomicwrites = [
@@ -536,6 +549,7 @@ colorama = [
     {file = "colorama-0.4.4-py2.py3-none-any.whl", hash = "sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2"},
     {file = "colorama-0.4.4.tar.gz", hash = "sha256:5941b2b48a20143d2267e95b1c2a7603ce057ee39fd88e7329b0c292aa16869b"},
 ]
+"deepclean.gwftools" = []
 "deepclean.signal" = []
 gevent = [
     {file = "gevent-21.12.0-cp27-cp27m-macosx_10_14_x86_64.whl", hash = "sha256:2afa3f3ad528155433f6ac8bd64fa5cc303855b97004416ec719a6b1ca179481"},

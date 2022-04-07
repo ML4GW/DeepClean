@@ -1,36 +1,14 @@
 import os
 import pickle
-import re
 import time
 from queue import Empty, Queue
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 from gwpy.timeseries import TimeSeries
 from hermes.stillwater import PipelineProcess
 
-FNAME_RE = re.compile("(?P<t0>[0-9]{10})-(?P<length>[0-9]{1,4}).gwf$")
-
-
-def _parse_frame_name(fname: str) -> Tuple[int, int]:
-    """Use the name of a frame file to infer its initial timestamp and length
-
-    Expects frame names to follow a standard nomenclature
-    where the name of the frame file ends {timestamp}-{length}.gwf
-
-    Args:
-        fname: The name of the frame file
-    Returns:
-        The initial GPS timestamp of the frame file
-        The length of the frame file in seconds
-    """
-
-    match = FNAME_RE.search(fname)
-    if match is None:
-        raise ValueError(
-            f"Could not parse timestamp and length from filename {fname}"
-        )
-    return float(match.group("t0")), float(match.group("length"))
+from deepclean.gwftools import parse_frame_name
 
 
 class FrameWriter(PipelineProcess):
@@ -266,7 +244,7 @@ class FrameWriter(PipelineProcess):
         # we can write to a `.gwf`. Make sure to give it
         # the same timestamp as the original file
         fname = os.path.basename(strain_fname)
-        timestamp, _ = _parse_frame_name(fname)
+        _, timestamp, __ = parse_frame_name(fname)
         timeseries = TimeSeries(
             cleaned,
             t0=timestamp,

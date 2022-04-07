@@ -11,8 +11,10 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 numpy = "^1.21"
-"deepclean.signal" = {path = "../signal", develop = true}
 tritonclient = {extras = ["all"], version = "^2.5.0", source = "ngc"}
+
+"deepclean.gwftools" = {path = "../gwftools", develop = true}
+"deepclean.signal" = {path = "../signal", develop = true}
 
 [tool.poetry.dependencies."hermes.stillwater"]
 path = "../../gw-iaas/libs/hermes/hermes.stillwater"

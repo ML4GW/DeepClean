@@ -2,12 +2,33 @@ import os
 import pickle
 import time
 from queue import Empty, Queue
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 from gwpy.timeseries import TimeSeries
-from hermes.gwftools.gwftools import _parse_frame_name
 from hermes.stillwater import PipelineProcess
+
+
+def _parse_frame_name(fname: str) -> Tuple[int, int]:
+    """Use the name of a frame file to infer its initial timestamp and length
+
+    Copied from gw-iaas/libs/hermes/gwftools for now
+    in order to avoid it as a dependency.
+
+    Expects frame names to follow a standard nomenclature
+    where the name of the frame file ends {timestamp}-{length}.gwf
+
+    Args:
+        fname:
+            The name of the frame file
+    Returns
+        The initial GPS timestamp of the frame file
+        The length of the frame file in seconds
+    """
+
+    fname = fname.replace(".gwf", "")
+    timestamp, length = tuple(map(int, fname.split("-")[-2:]))
+    return timestamp, length
 
 
 class FrameWriter(PipelineProcess):

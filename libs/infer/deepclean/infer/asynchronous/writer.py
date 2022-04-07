@@ -9,7 +9,6 @@ import numpy as np
 from gwpy.timeseries import TimeSeries
 from hermes.stillwater import PipelineProcess
 
-
 FNAME_RE = re.compile("(?P<t0>[0-9]{9})-(?P<length>[0-1]{1,4}).gwf$")
 
 
@@ -31,7 +30,7 @@ def _parse_frame_name(fname: str) -> Tuple[int, int]:
         raise ValueError(
             f"Could not parse timestamp and length from filename {fname}"
         )
-    return match.group("t0"), match.group("length")
+    return float(match.group("t0")), float(match.group("length"))
 
 
 class FrameWriter(PipelineProcess):
@@ -254,7 +253,9 @@ class FrameWriter(PipelineProcess):
         # from the strain channel
         if self.postprocessor is not None:
             noise = self.postprocessor(noise, inverse=True)
-        noise_segment = noise[-self.look_ahead - len(strain) : -self.look_ahead]
+        noise_segment = noise[
+            -self.look_ahead - len(strain) : -self.look_ahead
+        ]
         cleaned = strain - noise_segment
 
         # increment our _frame_idx to account for

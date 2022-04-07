@@ -6,7 +6,7 @@ def num_frames(request):
     return request.param
 
 
-@pytest.fixture(params=[1, 8])
+@pytest.fixture(params=[1, 4])
 def frame_length(request):
     return request.param
 
@@ -16,12 +16,12 @@ def sample_rate(request):
     return request.param
 
 
-@pytest.fixture(params=[0.1, 0.5, 1])
+@pytest.fixture(params=[0.1, 1])
 def filter_lead_time(request):
     return request.param
 
 
-@pytest.fixture(params=[1, 5, 10])
+@pytest.fixture(params=[2, 10])
 def filter_memory(request):
     return request.param
 

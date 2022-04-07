@@ -74,7 +74,7 @@ def test_writer(
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
         strain_q=strain_q,
-        postprocess_pkl=postprocess_pkl,
+        postprocess_pkl=str(postprocess_pkl),
         memory=filter_memory,
         look_ahead=filter_lead_time,
         aggregation_steps=aggregation_steps,
@@ -112,15 +112,25 @@ def test_writer(
             break
         writer.process(package)
 
-    i = 0
-    while True:
+    for i in range(num_frames):
         try:
             fname, latency = writer.out_q.get_nowait()
         except Empty:
+            if filter_lead_time == frame_length:
+                break
+
+            raise ValueError(
+                "Expected {} frames but only found {}".format(
+                    num_frames, i
+                )
+            )
+
+        if (i + 1) == num_frames:
             break
 
         ts = TimeSeries.read(fname, channel=channel_name).value
         validate_frame(ts, i)
-        i += 1
 
-    assert i == (num_frames - 1)
+    with pytest.raises(Empty):
+        writer.out_q.get_nowait()
+

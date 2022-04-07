@@ -120,7 +120,7 @@ class FrameWriter(PipelineProcess):
         self.aggregation_steps = aggregation_steps
 
         # load in our postprocessing pipeline
-        if postprocess_pkl is None:
+        if postprocess_pkl is not None:
             with open(postprocess_pkl, "rb") as f:
                 self.postprocessor = pickle.load(f)
         else:
@@ -254,8 +254,8 @@ class FrameWriter(PipelineProcess):
         # from the strain channel
         if self.postprocessor is not None:
             noise = self.postprocessor(noise, inverse=True)
-        noise = noise[-self.look_ahead - len(strain) : -self.look_ahead]
-        cleaned = strain - noise
+        noise_segment = noise[-self.look_ahead - len(strain) : -self.look_ahead]
+        cleaned = strain - noise_segment
 
         # increment our _frame_idx to account for
         # the frame we're about to write
@@ -285,7 +285,7 @@ class FrameWriter(PipelineProcess):
         # give us more than `memory` samples, then
         # slough off a frame from the start of our
         # _noises and _mask arrays
-        if len(noise) - self.look_ahead > self.memory:
+        if (len(noise) - self.look_ahead) > self.memory:
             self._noises = self._noises[len(strain) :]
             self._mask = self._mask[len(strain) :]
 

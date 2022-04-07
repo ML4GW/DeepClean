@@ -6,12 +6,12 @@ def num_frames(request):
     return request.param
 
 
-@pytest.fixture(params=[1, 8])
+@pytest.fixture(params=[8])#1, 8])
 def frame_length(request):
     return request.param
 
 
-@pytest.fixture(params=[1024, 4096])
+@pytest.fixture(params=[1024])#, 4096])
 def sample_rate(request):
     return request.param
 

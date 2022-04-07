@@ -19,4 +19,4 @@ instances:
       allocate_ip: false
     exec:
       command: |
-        clean --typeo /home/docker/deepclean/projects/microservice/infer
+        clean --typeo /opt/deepclean/projects/microservice::clean

@@ -1,6 +1,8 @@
+import logging
 import os
 import pickle
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 from queue import Empty, Queue
 from unittest.mock import Mock
@@ -10,6 +12,12 @@ import pytest
 from gwpy.timeseries import TimeSeries
 
 from deepclean.infer.asynchronous import FrameWriter
+
+
+@dataclass(frozen=True)
+class Package:
+    x: np.ndarray
+    request_id: int
 
 
 @pytest.fixture
@@ -73,6 +81,7 @@ def test_writer(
         output_name=output_name,
         name="writer",
     )
+    writer.logger = logging.getLogger()
 
     throw_away = int(aggregation_steps * sample_rate / inference_sampling_rate)
     x = np.arange(-throw_away, num_frames * frame_length * sample_rate)
@@ -81,11 +90,11 @@ def test_writer(
     updates = np.split(x, (len(x) / sample_rate) * inference_sampling_rate)
 
     for i, strain in enumerate(strains):
-        fname = f"{start_timestamp + i}_1.gwf"
-        witness_fname = write_dir / ("witness-" + fname)
-        strain_fname = write_dir / ("strain-" + fname)
+        fname = f"{start_timestamp + i}-1.gwf"
+        witness_fname = write_dir / ("witness_" + fname)
+        strain_fname = write_dir / ("strain_" + fname)
 
-        package = (str(witness_fname), str(strain_fname), strain)
+        package = ((str(witness_fname), str(strain_fname)), strain)
         strain_q.put(package)
 
         # need to be able to os.stat witness fnames for latency
@@ -93,11 +102,9 @@ def test_writer(
             pass
 
     for i, update in enumerate(updates):
-        package = Mock()
-        package.x = update
-        package.request_id = i
-        writer._in_q.put({output_name: package})
-    writer._in_q.put(None)
+        package = Package(update, i)
+        writer.in_q.put({output_name: package})
+    writer.in_q.put(None)
 
     while True:
         package = writer.get_package()
@@ -108,7 +115,7 @@ def test_writer(
     i = 0
     while True:
         try:
-            fname, latency = writer._out_q.get_nowait()
+            fname, latency = writer.out_q.get_nowait()
         except Empty:
             break
 

@@ -1,5 +1,6 @@
 import os
 import pickle
+import re
 import time
 from queue import Empty, Queue
 from typing import Optional, Tuple
@@ -9,26 +10,28 @@ from gwpy.timeseries import TimeSeries
 from hermes.stillwater import PipelineProcess
 
 
+FNAME_RE = re.compile("(?P<t0>[0-9]{9})-(?P<length>[0-1]{1,4}).gwf$")
+
+
 def _parse_frame_name(fname: str) -> Tuple[int, int]:
     """Use the name of a frame file to infer its initial timestamp and length
-
-    Copied from gw-iaas/libs/hermes/gwftools for now
-    in order to avoid it as a dependency.
 
     Expects frame names to follow a standard nomenclature
     where the name of the frame file ends {timestamp}-{length}.gwf
 
     Args:
-        fname:
-            The name of the frame file
-    Returns
+        fname: The name of the frame file
+    Returns:
         The initial GPS timestamp of the frame file
         The length of the frame file in seconds
     """
 
-    fname = fname.replace(".gwf", "")
-    timestamp, length = tuple(map(int, fname.split("-")[-2:]))
-    return timestamp, length
+    match = FNAME_RE.search(fname)
+    if match is None:
+        raise ValueError(
+            f"Could not parse timestamp and length from filename {fname}"
+        )
+    return match.group("t0"), match.group("length")
 
 
 class FrameWriter(PipelineProcess):
@@ -106,11 +109,12 @@ class FrameWriter(PipelineProcess):
         self.channel_name = channel_name
         self.sample_rate = sample_rate
         self.strain_q = strain_q
+        self.output_name = output_name
 
         # record some of the parameters of the data,
         # mapping from time or frequency units to
         # sample units
-        self.step_size = int(1 / inference_sampling_rate)
+        self.step_size = int(sample_rate / inference_sampling_rate)
         self.memory = int(memory * sample_rate)
         self.look_ahead = int(look_ahead * sample_rate)
         self.aggregation_steps = aggregation_steps
@@ -187,7 +191,7 @@ class FrameWriter(PipelineProcess):
             # clean the strain we just grabbed
             zeros = np.zeros_like(strain)
             self._noises = np.append(self._noises, zeros)
-            self._covered_idx = np.append(self._covered_idx, zeros)
+            self._mask = np.append(self._mask, zeros)
 
         # return the noise prediction for processing
         # in `self.process`
@@ -228,7 +232,7 @@ class FrameWriter(PipelineProcess):
 
         # If we've sloughed off any past data so far,
         # make sure to account for that
-        start_idx -= max(self._frame_idx - self.past_samples, 0)
+        start_idx -= max(self._frame_idx - self.memory, 0)
 
         # now insert the response into the existing array
         # TODO: should we check that this is all 0s to
@@ -310,7 +314,8 @@ class FrameWriter(PipelineProcess):
         x = package.x.reshape(-1)
         if len(x) != self.step_size:
             raise ValueError(
-                "Noise prediction is of wrong length {}".format(len(x))
+                "Noise prediction is of wrong length {}, "
+                "expected length {}".format(len(x), self.step_size)
             )
 
         # now insert it into our `_noises` prediction

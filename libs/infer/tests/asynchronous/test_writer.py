@@ -109,7 +109,7 @@ def test_writer(
     # pass the strains and dummy filenames
     # into the writer's strain_q
     for i, strain in enumerate(strains):
-        fname = f"{start_timestamp + i}-1.gwf"
+        fname = f"{start_timestamp + i}-{frame_length}.gwf"
         witness_fname = write_dir / ("witness_" + fname)
         strain_fname = write_dir / ("strain_" + fname)
 
@@ -180,8 +180,8 @@ def test_writer(
         # now read in the written frame and validate
         # that it matches our expectations
         ts = TimeSeries.read(fname, channel=writer.channel_name)
-        assert ts.t0 == t0
-        assert (ts.dt * len(ts)) == length
+        assert ts.t0.value == t0
+        assert (ts.dt.value * len(ts)) == length
 
         validate_frame(ts.value, i)
 

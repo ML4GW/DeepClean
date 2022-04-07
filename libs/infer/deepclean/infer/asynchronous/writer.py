@@ -9,7 +9,7 @@ import numpy as np
 from gwpy.timeseries import TimeSeries
 from hermes.stillwater import PipelineProcess
 
-FNAME_RE = re.compile("(?P<t0>[0-9]{9})-(?P<length>[0-1]{1,4}).gwf$")
+FNAME_RE = re.compile("(?P<t0>[0-9]{10})-(?P<length>[0-9]{1,4}).gwf$")
 
 
 def _parse_frame_name(fname: str) -> Tuple[int, int]:

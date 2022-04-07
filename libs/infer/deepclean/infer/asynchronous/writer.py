@@ -285,9 +285,10 @@ class FrameWriter(PipelineProcess):
         # give us more than `memory` samples, then
         # slough off a frame from the start of our
         # _noises and _mask arrays
-        if (len(noise) - self.look_ahead) > self.memory:
-            self._noises = self._noises[len(strain) :]
-            self._mask = self._mask[len(strain) :]
+        extra = len(noise) - self.look_ahead - self.memory
+        if extra > 0:
+            self._noises = self._noises[extra:]
+            self._mask = self._mask[extra:]
 
         return write_path, latency
 

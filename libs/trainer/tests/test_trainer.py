@@ -17,7 +17,7 @@ def make_mlp(input_dim, hidden_dims):
 
 def make_hastie(num_samples, batch_size, shuffle):
     X = np.random.randn(num_samples, 10).astype("float32")
-    y = ((X ** 2).sum(axis=1) > 9.34).astype("float32")[:, None]
+    y = ((X**2).sum(axis=1) > 9.34).astype("float32")[:, None]
     return Dataloader(X, y, batch_size, shuffle)
 
 

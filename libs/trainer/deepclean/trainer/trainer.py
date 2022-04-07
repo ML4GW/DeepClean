@@ -348,7 +348,7 @@ def train(
             patience=patience,
             factor=factor,
             threshold=0.0001,
-            min_lr=lr * factor ** 2,
+            min_lr=lr * factor**2,
             verbose=True,
         )
 

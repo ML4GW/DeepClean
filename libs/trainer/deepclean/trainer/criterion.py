@@ -176,7 +176,7 @@ class PSDLoss(nn.Module):
 
 
 class CompositePSDLoss(nn.Module):
-    """ PSD + MSE Loss with weight """
+    """PSD + MSE Loss with weight"""
 
     def __init__(
         self,

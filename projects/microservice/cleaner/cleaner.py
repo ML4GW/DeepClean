@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Iterable
 from pathlib import Path
-from queue import Empty, Queue
+from queue import Empty
 from typing import Optional, Union
 
 from hermes.stillwater import InferenceClient
@@ -9,7 +9,7 @@ from hermes.stillwater.utils import ExceptionWrapper
 from hermes.typeo import typeo
 
 from deepclean.gwftools.channels import ChannelList, get_channels
-from deepclean.infer.asynchronous import FrameWriter
+from deepclean.infer.asynchronous import FrameLoader, FrameWriter
 from deepclean.infer.frame_crawler import FrameCrawler
 from deepclean.logging import configure_logging
 from deepclean.signal.filter import BandpassFilter
@@ -49,6 +49,12 @@ def main(
     crawler = FrameCrawler(
         witness_data_dir, strain_data_dir, start_first, timeout
     )
+    loader = FrameLoader(
+        inference_sampling_rate=inference_sampling_rate,
+        sample_rate=sample_rate,
+        channels=channels,
+        sequence_id=sequence_id,
+    )
 
     client = InferenceClient(
         url=url,
@@ -58,7 +64,6 @@ def main(
         name="client",
         rate=inference_rate,
     )
-    loader = ""  # TODO
 
     postprocessor = BandpassFilter(freq_low, freq_high)
     metadata = client.client.get_model_metadata(client.model_name)
@@ -67,7 +72,7 @@ def main(
         channel_name=channels[0] + "-CLEANED",
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
-        strain_q=Queue(),
+        strain_q=loader.strain_q,
         postprocessor=postprocessor,
         memory=memory,
         look_ahead=look_ahead,
@@ -76,16 +81,10 @@ def main(
         name="writer",
     )
 
-    pipeline = client >> writer
-    stride = int(sample_rate // inference_sampling_rate)
+    pipeline = loader >> client >> writer
     with pipeline:
         for witness_fname, strain_fname in crawler:
-            witness, strain = loader(witness_fname, strain_fname)
-            writer.strain_q.put(((witness_fname, strain_fname), strain))
-
-            for i in range(inference_sampling_rate):
-                slc = slice(i * stride, (i + 1) * stride)
-                client.in_q.put(witness[:, slc])
+            loader.in_q.put((witness_fname, strain_fname))
 
             try:
                 result = writer.out_q.get_nowait()
@@ -101,6 +100,8 @@ def main(
                         fname, latency
                     )
                 )
+
+        loader.in_q.put(StopIteration)
 
 
 if __name__ == "__main__":

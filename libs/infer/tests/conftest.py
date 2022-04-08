@@ -1,4 +1,16 @@
+import os
+import shutil
+from pathlib import Path
+
 import pytest
+
+
+@pytest.fixture(scope="function")
+def write_dir():
+    tmp_dir = Path(__file__).resolve().parent / "tmp"
+    os.makedirs(tmp_dir)
+    yield tmp_dir
+    shutil.rmtree(tmp_dir)
 
 
 @pytest.fixture(params=[10, 100])

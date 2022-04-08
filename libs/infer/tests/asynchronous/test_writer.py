@@ -1,8 +1,5 @@
 import logging
-import os
-import shutil
 from dataclasses import dataclass
-from pathlib import Path
 from queue import Empty, Queue
 
 import numpy as np
@@ -22,14 +19,6 @@ class Package:
 @pytest.fixture
 def start_timestamp():
     return 1649289999
-
-
-@pytest.fixture
-def write_dir():
-    tmp_dir = Path(__file__).resolve().parent / "tmp"
-    os.makedirs(tmp_dir)
-    yield tmp_dir
-    shutil.rmtree(tmp_dir)
 
 
 @pytest.fixture(params=[128, 512, 1024])

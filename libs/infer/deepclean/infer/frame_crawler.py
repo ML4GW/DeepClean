@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from deepclean.gwftools import FrameFileFormat, fname_re
+from deepclean.gwftools.frames import FrameFileFormat, fname_re
 
 
 def get_prefix(data_dir: Path):

@@ -7,7 +7,7 @@ import numpy as np
 from gwpy.timeseries import TimeSeries
 from hermes.stillwater import PipelineProcess
 
-from deepclean.gwftools import parse_frame_name
+from deepclean.gwftools.frames import parse_frame_name
 
 
 class FrameWriter(PipelineProcess):

@@ -114,6 +114,19 @@ type = "directory"
 url = "../../../libs/architectures"
 
 [[package]]
+name = "deepclean.gwftools"
+version = "0.0.1"
+description = "Utilites for managing gwf file conventions"
+category = "main"
+optional = false
+python-versions = "^3.8,<3.10"
+develop = true
+
+[package.source]
+type = "directory"
+url = "../../../libs/gwftools"
+
+[[package]]
 name = "deepclean.logging"
 version = "0.0.1"
 description = "Utilities for standardizing logging practices"
@@ -831,7 +844,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "f1f1b1b3bfbeff8816e41ad5d8791b1972c80aea0488d79018387c4d748d73bd"
+content-hash = "a0748ccff2ad0a1116de5c07e17bd4b85553963d23042147fc9ab5b220b499fb"
 
 [metadata.files]
 absl-py = [
@@ -968,6 +981,7 @@ colorama = [
     {file = "colorama-0.4.4.tar.gz", hash = "sha256:5941b2b48a20143d2267e95b1c2a7603ce057ee39fd88e7329b0c292aa16869b"},
 ]
 "deepclean.architectures" = []
+"deepclean.gwftools" = []
 "deepclean.logging" = []
 flatbuffers = [
     {file = "flatbuffers-2.0-py2.py3-none-any.whl", hash = "sha256:3751954f0604580d3219ae49a85fafec9d85eec599c0b96226e1bc0b48e57474"},

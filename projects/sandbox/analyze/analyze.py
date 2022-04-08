@@ -22,6 +22,8 @@ from gwpy.timeseries import TimeSeries
 from hermes.typeo import typeo
 from scipy.signal import welch
 
+from deepclean.gwftools.channels import ChannelList, get_channels
+
 
 def build_timeseries(
     fnames: Iterable[str], channel: str, sample_rate: float
@@ -276,7 +278,7 @@ def main(
     raw_data_dir: Path,
     clean_data_dir: Path,
     output_directory: Path,
-    channels: List[str],
+    channels: ChannelList,
     sample_rate: float,
     fftlength: float,
     freq_low: Optional[float] = None,
@@ -329,12 +331,7 @@ def main(
     """
 
     # load the channels from a file if we specified one
-    if isinstance(channels, str) or len(channels) == 1:
-        if isinstance(channels, str):
-            channels = [channels]
-
-        with open(channels[0], "r") as f:
-            channels = [i for i in f.read().splitlines() if i]
+    channels = get_channels(channels)
 
     asdr_plots, num_frames = analyze_test_data(
         raw_data_dir,

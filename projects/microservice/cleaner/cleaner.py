@@ -8,6 +8,7 @@ from hermes.stillwater import InferenceClient
 from hermes.stillwater.utils import ExceptionWrapper
 from hermes.typeo import typeo
 
+from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.infer.asynchronous import FrameWriter
 from deepclean.infer.frame_crawler import FrameCrawler
 from deepclean.logging import configure_logging
@@ -25,7 +26,7 @@ def main(
     kernel_length: float,
     inference_sampling_rate: float,
     inference_rate: float,
-    channels: Union[str, Iterable[str]],
+    channels: ChannelList,
     freq_low: Union[float, Iterable[float]],
     freq_high: Union[float, Iterable[float]],
     # Triton args
@@ -43,6 +44,7 @@ def main(
     log_file: Optional[str] = None,
 ):
     configure_logging(log_file, verbose)
+    channels = get_channels(channels)
 
     crawler = FrameCrawler(
         witness_data_dir, strain_data_dir, start_first, timeout

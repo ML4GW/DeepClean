@@ -6,6 +6,7 @@ import hermes.quiver as qv
 import torch
 
 from deepclean.architectures import architecturize
+from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.logging import configure_logging
 
 
@@ -128,7 +129,7 @@ def make_ensemble(
 def export(
     architecture: Callable,
     repository_directory: str,
-    channels: Union[str, List[str]],
+    channels: ChannelList,
     weights: str,
     kernel_length: float,
     stride_length: float,
@@ -197,6 +198,9 @@ def export(
             If set, log at `DEBUG` verbosity, otherwise log at
             `INFO` verbosity.
     """
+
+    # load the channel names from a file if necessary
+    channels = get_channels(channels)
 
     # standardize the weights filename
     # use the directory the weights are hosted in

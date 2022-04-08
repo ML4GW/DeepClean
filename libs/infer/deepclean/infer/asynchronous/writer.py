@@ -1,8 +1,7 @@
 import os
-import pickle
 import time
 from queue import Empty, Queue
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 from gwpy.timeseries import TimeSeries
@@ -19,7 +18,7 @@ class FrameWriter(PipelineProcess):
         inference_sampling_rate: float,
         sample_rate: float,
         strain_q: Queue,
-        postprocess_pkl: Optional[str] = None,
+        postprocessor: Optional[Callable] = None,
         memory: float = 10,
         look_ahead: float = 0.05,
         aggregation_steps: int = 0,
@@ -97,11 +96,7 @@ class FrameWriter(PipelineProcess):
         self.aggregation_steps = aggregation_steps
 
         # load in our postprocessing pipeline
-        if postprocess_pkl is not None:
-            with open(postprocess_pkl, "rb") as f:
-                self.postprocessor = pickle.load(f)
-        else:
-            self.postprocessor = None
+        self.postprocessor = postprocessor
 
         # next we'll initialize a bunch of arrays
         # and indices we'll need to do efficient

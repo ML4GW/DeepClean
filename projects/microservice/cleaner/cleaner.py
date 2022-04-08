@@ -10,6 +10,8 @@ from hermes.typeo import typeo
 
 from deepclean.infer.asynchronous import FrameWriter
 from deepclean.infer.frame_crawler import FrameCrawler
+from deepclean.logging import configure_logging
+from deepclean.signal.filter import BandpassFilter
 
 
 @typeo
@@ -22,8 +24,8 @@ def main(
     inference_sampling_rate: float,
     inference_rate: float,
     channels: Union[str, Iterable[str]],
-    filter_high: Union[float, Iterable[float]],
-    filter_low: Union[float, Iterable[float]],
+    freq_low: Union[float, Iterable[float]],
+    freq_high: Union[float, Iterable[float]],
     url: str,
     model_name: str,
     model_version: int = -1,
@@ -36,6 +38,8 @@ def main(
     look_ahead: float = 0.5,
     verbose: bool = False,
 ):
+    configure_logging(log_file, verbose)
+
     crawler = FrameCrawler(
         witness_data_dir, strain_data_dir, start_first, timeout
     )
@@ -50,6 +54,7 @@ def main(
     )
     loader = ""  # TODO
 
+    postprocessor = BandpassFilter(freq_low, freq_high)
     metadata = client.client.get_model_metadata(client.model_name)
     writer = FrameWriter(
         write_dir,
@@ -57,7 +62,7 @@ def main(
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
         strain_q=Queue(),
-        postprocess_pkl="",  # TODO
+        postprocessor=postprocessor,
         memory=memory,
         look_ahead=look_ahead,
         aggregation_steps=int(max_latency * inference_sampling_rate),

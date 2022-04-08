@@ -14,7 +14,7 @@ def test_normalize_frequencies(iterable_type):
         iterable_type([55, 75]), iterable_type([65, 85])
     ) == ([55, 75], [65, 85])
 
-    # ensure lists are organized
+    # ensure lists are sorted
     assert normalize_frequencies(
         iterable_type([75, 55]), iterable_type([85, 65])
     ) == ([55, 75], [65, 85])

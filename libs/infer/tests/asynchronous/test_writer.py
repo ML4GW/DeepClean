@@ -1,6 +1,5 @@
 import logging
 import os
-import pickle
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,10 +42,6 @@ def aggregation_steps(request):
     return request.param
 
 
-def postprocessor(x, **kwargs):
-    return x - x.mean()
-
-
 @pytest.fixture
 def writer(
     write_dir,
@@ -55,18 +50,15 @@ def writer(
     filter_memory,
     filter_lead_time,
     aggregation_steps,
+    postprocessor,
 ):
-    postprocess_pkl = write_dir / "postproc.pkl"
-    with open(postprocess_pkl, "wb") as f:
-        pickle.dump(postprocessor, f)
-
     writer = FrameWriter(
         write_dir,
         channel_name="test_channel",
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
         strain_q=Queue(),
-        postprocess_pkl=str(postprocess_pkl),
+        postprocessor=postprocessor,
         memory=filter_memory,
         look_ahead=filter_lead_time,
         aggregation_steps=aggregation_steps,

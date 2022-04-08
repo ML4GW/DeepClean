@@ -1,8 +1,7 @@
 import logging
-from collections.abc import Iterable
 from pathlib import Path
 from queue import Empty
-from typing import Optional, Union
+from typing import Iterable, Optional, Union
 
 from hermes.stillwater import InferenceClient
 from hermes.stillwater.utils import ExceptionWrapper
@@ -67,6 +66,11 @@ def main(
 
     postprocessor = BandpassFilter(freq_low, freq_high)
     metadata = client.client.get_model_metadata(client.model_name)
+
+    if max_latency is None:
+        aggregation_steps = 0
+    else:
+        aggregation_steps = int(max_latency * inference_sampling_rate)
     writer = FrameWriter(
         write_dir,
         channel_name=channels[0] + "-CLEANED",
@@ -76,7 +80,7 @@ def main(
         postprocessor=postprocessor,
         memory=memory,
         look_ahead=look_ahead,
-        aggregation_steps=int(max_latency * inference_sampling_rate),
+        aggregation_steps=aggregation_steps,
         output_name=metadata.outputs[0].name,
         name="writer",
     )

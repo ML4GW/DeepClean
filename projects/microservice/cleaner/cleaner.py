@@ -16,9 +16,11 @@ from deepclean.signal.filter import BandpassFilter
 
 @typeo
 def main(
+    # IO args
     witness_data_dir: Path,
     strain_data_dir: Path,
     write_dir: Path,
+    # Data args
     sample_rate: float,
     kernel_length: float,
     inference_sampling_rate: float,
@@ -26,17 +28,19 @@ def main(
     channels: Union[str, Iterable[str]],
     freq_low: Union[float, Iterable[float]],
     freq_high: Union[float, Iterable[float]],
+    # Triton args
     url: str,
     model_name: str,
     model_version: int = -1,
     sequence_id: int = 1001,
+    # Misc args
     max_latency: Optional[float] = None,
     start_first: bool = False,
     timeout: Optional[float] = None,
-    log_file: Optional[str] = None,
     memory: float = 10,
     look_ahead: float = 0.5,
     verbose: bool = False,
+    log_file: Optional[str] = None,
 ):
     configure_logging(log_file, verbose)
 

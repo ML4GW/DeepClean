@@ -15,4 +15,4 @@ def get_channels(channels: ChannelList) -> List[str]:
             raise FileNotFoundError(f"No channel file {channels} exists")
 
     channels = list(channels)
-    return channels[0] + sorted(channels[1:])
+    return channels[:1] + sorted(channels[1:])

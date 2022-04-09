@@ -16,15 +16,24 @@ class EndtoEndDeepClean(torch.nn.Module):
         super().__init__()
         self.deepclean = deepclean
 
-        with open(train_directory / "preprocessor.pkl", "rb") as f:
+        with open(train_directory / "witness_pipeline.pkl", "rb") as f:
             preprocessor = pickle.load(f)
-        self.x_mean = torch.Tensor(preprocessor.ops[0].mean)
-        self.x_std = torch.Tensor(preprocessor.ops[0].std)
+        try:
+            scaler = preprocessor.ops[0]
+        except AttributeError:
+            scaler = preprocessor
 
-        with open(train_directory / "postprocessor.pkl", "rb") as f:
+        self.x_mean = torch.Tensor(scaler.mean)
+        self.x_std = torch.Tensor(scaler.std)
+
+        with open(train_directory / "strain_pipeline.pkl", "rb") as f:
             postprocessor = pickle.load(f)
-        self.y_mean = torch.Tensor(postprocessor.ops[0].mean)
-        self.y_std = torch.Tensor(postprocessor.ops[0].std)
+        try:
+            scaler = postprocessor.ops[0]
+        except AttributeError:
+            scaler = postprocessor
+        self.y_mean = torch.Tensor([scaler.mean])
+        self.y_std = torch.Tensor([scaler.std])
 
     def forward(self, x):
         x = (x - self.x_mean) / self.x_std

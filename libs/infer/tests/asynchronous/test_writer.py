@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 from gwpy.timeseries import TimeSeries
 
-from deepclean.infer.asynchronous import FrameWriter
 from deepclean.gwftools.frames import parse_frame_name
+from deepclean.infer.asynchronous import FrameWriter
 
 
 @dataclass(frozen=True)

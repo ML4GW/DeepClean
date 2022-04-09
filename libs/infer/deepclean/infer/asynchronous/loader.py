@@ -3,7 +3,7 @@ from queue import Queue
 from typing import Callable, Iterable, Optional, Tuple
 
 import numpy as np
-from gwpy.timeseries import TimeSeriesDict
+from gwpy.timeseries import TimeSeries, TimeSeriesDict
 from hermes.stillwater import Package, PipelineProcess
 
 from deepclean.gwftools.channels import ChannelList
@@ -71,18 +71,18 @@ class FrameLoader(PipelineProcess):
     ) -> Tuple[np.ndarray, np.ndarray]:
         """Load the indicated channels from the indicated frame file"""
 
-        # load in the data and prepare it as a numpy array
-        data = TimeSeriesDict.read(fname, self.channels)
-        data.resample(self.sample_rate)
-
         # if we don't have multiple channels,
         # then just grab the data
         if isinstance(channels, str) or len(channels) == 1:
             if not isinstance(channels, str):
                 channels = channels[0]
-            data = data[channels].value
+            data = TimeSeries.read(fname, channels)
+            data.resample(self.sample_rate)
+            data = data.value
         else:
             # otherwise stack the arrays
+            data = TimeSeriesDict.read(fname, channels)
+            data.resample(self.sample_rate)
             data = np.stack([data[i].value for i in channels])
 
         # return as the expected type

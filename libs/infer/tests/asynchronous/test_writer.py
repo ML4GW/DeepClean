@@ -7,7 +7,7 @@ import pytest
 from gwpy.timeseries import TimeSeries
 
 from deepclean.infer.asynchronous import FrameWriter
-from deepclean.infer.asynchronous.writer import _parse_frame_name
+from deepclean.gwftools.frames import parse_frame_name
 
 
 @dataclass(frozen=True)
@@ -143,7 +143,7 @@ def test_writer(
             )
 
         # make sure the frame name is correct
-        t0, length = _parse_frame_name(fname)
+        _, t0, length = parse_frame_name(fname)
         assert t0 == (start_timestamp + i)
         assert length == frame_length
 

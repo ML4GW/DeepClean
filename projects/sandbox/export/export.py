@@ -1,5 +1,6 @@
 import logging
-import os
+import pickle
+from pathlib import Path
 from typing import Callable, List, Optional, Union
 
 import hermes.quiver as qv
@@ -8,6 +9,27 @@ import torch
 from deepclean.architectures import architecturize
 from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.logging import configure_logging
+
+
+class EndtoEndDeepClean(torch.nn.Module):
+    def __init__(self, deepclean: torch.nn.Module, train_directory: Path):
+        super().__init__()
+        self.deepclean = deepclean
+
+        with open(train_directory / "preprocessor.pkl", "rb") as f:
+            preprocessor = pickle.load(f)
+        self.x_mean = torch.Tensor(preprocessor.ops[0].mean)
+        self.x_std = torch.Tensor(preprocessor.ops[0].std)
+
+        with open(train_directory / "postprocessor.pkl", "rb") as f:
+            postprocessor = pickle.load(f)
+        self.y_mean = torch.Tensor(postprocessor.ops[0].mean)
+        self.y_std = torch.Tensor(postprocessor.ops[0].std)
+
+    def forward(self, x):
+        x = (x - self.x_mean) / self.x_std
+        y = self.deepclean(x)
+        return self.y_mean + self.y_std * y
 
 
 def make_ensemble(
@@ -130,7 +152,7 @@ def export(
     architecture: Callable,
     repository_directory: str,
     channels: ChannelList,
-    weights: str,
+    weights: Path,
     kernel_length: float,
     stride_length: float,
     sample_rate: float,
@@ -205,18 +227,21 @@ def export(
     # standardize the weights filename
     # use the directory the weights are hosted in
     # as the directory to direct our logs
-    if os.path.isdir(weights):
+    if weights.is_dir():
         output_directory = weights
-        weights = os.path.join(output_directory, "weights.pt")
+        weights = output_directory / "weights.pt"
     else:
-        output_directory = os.path.dirname(weights)
-    configure_logging(os.path.join(output_directory, "export.log"), verbose)
+        output_directory = weights.parent
+    configure_logging(output_directory / "export.log", verbose)
 
     # instantiate the architecture and initialize
     # its weights with the trained values
     logging.info(f"Creating model and loading weights from {weights}")
     nn = architecture(len(channels) - 1)
     nn.load_state_dict(torch.load(weights))
+
+    # include pre and postprocessing with model
+    nn = EndtoEndDeepClean(nn, output_directory)
     nn.eval()
 
     # instantiate a model repository at the

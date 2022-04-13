@@ -32,7 +32,7 @@ def get_prefix(data_dir: Path):
                 list(lengths), data_dir
             )
         )
-    return prefixes[0], int(lengths[0])
+    return list(prefixes)[0], int(list(lengths)[0])
 
 
 @dataclass
@@ -61,7 +61,7 @@ class FrameCrawler:
     def __iter__(self):
         witness_fnames = os.listdir(self.witness_data_dir)
         matches = map(fname_re.search, witness_fnames)
-        tstamps = [i.group("t0") for i in matches if i is not None]
+        tstamps = [int(i.group("t0")) for i in matches if i is not None]
 
         self.t0 = sorted(tstamps, reverse=not self.start_first)[0]
         return self

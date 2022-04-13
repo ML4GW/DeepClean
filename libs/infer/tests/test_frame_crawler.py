@@ -31,10 +31,12 @@ def data_dir(write_dir, frame_length, error_type, prefix, timestamp):
         length = frame_length
         prfx = prefix
 
-        if i != 5:
-            pass
-        elif error_type == "name":
+        if error_type == "name":
             postfix = ".gwff"
+        elif i != 5:
+            # for other error types, only make one
+            # file not match the rest
+            pass
         elif error_type == "prefix":
             prfx = prefix + "1"
         elif error_type == "length":
@@ -70,7 +72,7 @@ def test_frame_crawler(
     if error_type is not None:
         with pytest.raises(ValueError):
             FrameCrawler(data_dir, data_dir)
-            return
+        return
 
     # TODO: add check for mismatched lengths
     # between the two data directories
@@ -91,7 +93,7 @@ def test_frame_crawler(
             assert t0 == expected_tstamp
             assert length == frame_length
 
-        if start_first:
+        if not start_first:
             break
 
     with pytest.raises(RuntimeError):

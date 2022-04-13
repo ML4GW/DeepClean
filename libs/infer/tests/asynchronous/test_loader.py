@@ -87,7 +87,7 @@ def test_frame_loader(
                 loader.process(package)
         else:
             loader.process(package)
-        time.sleep(0.001)
+        time.sleep(0.01)
 
         # get the package from the loader's out_q
         try:

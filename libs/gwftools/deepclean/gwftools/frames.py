@@ -8,7 +8,7 @@ PATH_LIKE = Union[str, Path]
 
 prefix_re = "[a-zA-Z0-9_:-]+"
 t0_re = "[0-9]{10}"
-length_re = "[0-9]{1,4}"
+length_re = "[1-9][0-9]{0,3}"
 fname_re = re.compile(
     f"(?P<prefix>{prefix_re})_"
     f"(?P<t0>{t0_re})-"
@@ -52,13 +52,20 @@ class FrameFileFormat:
         return cls(prefix)
 
     def get_name(self, timestamp: int, length: int):
-        if str(timestamp) != 10:
+        if int(timestamp) != timestamp:
+            raise ValueError(f"Timestamp {timestamp} must be an int")
+        elif len(str(timestamp)) != 10:
             raise ValueError(
                 "Couldn't create valid GPS timestamp from timestamp {}".format(
                     timestamp
                 )
             )
-        if not 1 <= str(length) < 5:
+
+        if length <= 0:
+            raise ValueError(f"Length {length} must be greater than 0")
+        elif int(length) != length:
+            raise ValueError(f"Length {length} must be an int")
+        elif not 1 <= len(str(length)) < 5:
             raise ValueError(f"Frame length {length} invalid")
 
-        return f"{self.prefix}_{timestamp}-{length}"
+        return f"{self.prefix}_{timestamp}-{length}.gwf"

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
 import torch
 
-from deepclean.export import PrePostDeepclean
+from deepclean.export import PrePostDeepClean
 from deepclean.signal import BandpassFilter, StandardScaler
 from deepclean.trainer import ChunkedTimeSeriesDataset, CompositePSDLoss
 from deepclean.trainer.viz import plot_data_asds
@@ -444,7 +444,7 @@ def train(
         )
 
     # now create a version of the model which
-    model = PrePostDeepclean(model)
+    model = PrePostDeepClean(model)
     model.fit(X, y)
     model.save(model.state_dict(), weights_path)
 

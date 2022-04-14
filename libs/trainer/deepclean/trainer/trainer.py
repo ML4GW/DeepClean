@@ -2,19 +2,16 @@ import logging
 import os
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple
 
+import numpy as np
 import torch
 
 from deepclean.export import PrePostDeepClean
 from deepclean.signal import BandpassFilter, StandardScaler
+from deepclean.signal.filter import FREQUENCY
 from deepclean.trainer import ChunkedTimeSeriesDataset, CompositePSDLoss
 from deepclean.trainer.viz import plot_data_asds
-
-if TYPE_CHECKING:
-    from numpy import ndarray
-
-    from deepclean.signal.filter import FREQUENCY
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
@@ -98,18 +95,18 @@ def train(
     architecture: Callable,
     output_directory: str,
     # data params
-    X: "ndarray",
-    y: "ndarray",
+    X: np.ndarray,
+    y: np.ndarray,
     kernel_length: float,
     kernel_stride: float,
     sample_rate: float,
     chunk_length: float = 0,
     num_chunks: int = 1,
-    valid_data: Optional[Tuple["ndarray", "ndarray"]] = None,
+    valid_data: Optional[Tuple[np.ndarray, np.ndarray]] = None,
     # preproc params
     # TODO: make optional
-    freq_low: "FREQUENCY" = 55.0,
-    freq_high: "FREQUENCY" = 65.0,
+    freq_low: FREQUENCY = 55.0,
+    freq_high: FREQUENCY = 65.0,
     filter_order: int = 8,
     # optimization params
     batch_size: int = 32,

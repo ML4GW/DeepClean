@@ -107,8 +107,9 @@ def train(
     num_chunks: int = 1,
     valid_data: Optional[Tuple["ndarray", "ndarray"]] = None,
     # preproc params
-    freq_low: Optional["FREQUENCY"] = 55.0,
-    freq_high: Optional["FREQUENCY"] = 65.0,
+    # TODO: make optional
+    freq_low: "FREQUENCY" = 55.0,
+    freq_high: "FREQUENCY" = 65.0,
     filter_order: int = 8,
     # optimization params
     batch_size: int = 32,

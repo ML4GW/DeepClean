@@ -12,6 +12,9 @@ packages = [
 python = "^3.8,<3.10"
 torch = "^1.0"
 
+[tool.poetry.group.dev.dependencies]
+numpy = "^1.22.3"
+
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
 

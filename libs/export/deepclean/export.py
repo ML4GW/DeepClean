@@ -3,25 +3,29 @@ import torch
 
 class PrePostDeepClean(torch.nn.Module):
     def __init__(self, deepclean: torch.nn.Module):
-        super().__init__(self)
+        super().__init__()
 
         self.deepclean = deepclean
+        device = next(deepclean.parameters()).device
 
-        self.input_shift = self.add_processing_param(0)
-        self.input_scale = self.add_processing_param(1)
+        self.input_shift = self.add_processing_param(0, device)
+        self.input_scale = self.add_processing_param(1, device)
 
-        self.output_shift = self.add_processing_param(0)
-        self.output_scale = self.add_processing_param(1)
+        self.output_shift = self.add_processing_param(0, device)
+        self.output_scale = self.add_processing_param(1, device)
 
-    def add_processing_param(self, value: float):
-        return torch.nn.Parameter([value], requires_grad=False).to(
-            self.deepclean.device
-        )
+    def add_processing_param(self, value: float, device: str):
+        return torch.nn.Parameter(
+            torch.Tensor([value]), requires_grad=False
+        ).to(device)
 
     def set_param_value(self, param: torch.nn.Parameter, value):
-        param.data = torch.Tensor(
-            value, dtype=torch.float32, device=param.device
-        )
+        value = value.astype("float32")
+        try:
+            value = torch.Tensor(value)
+        except TypeError:
+            value = torch.Tensor([value])
+        param.data = value.to(param.device)
 
     def fit(self, X, y):
         self.set_param_value(self.input_shift, X.mean(axis=1, keepdims=True))

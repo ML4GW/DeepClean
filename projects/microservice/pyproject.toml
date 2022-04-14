@@ -27,19 +27,28 @@ sample_rate = 4096
 
 [tool.typeo.scripts.clean]
 url = "localhost:8001"
-model_name = "deepclean-stream-0.5"
-train_directory = "${PROJECT_DIRECTORY}"
+model_name = "deepclean-stream"
+model_version = 1
 
 witness_data_dir = "${DATA_DIR}/lldetchar/H1"
 strain_data_dir = "${DATA_DIR}/llhoft/H1"
-channels = "${{ base.channels }}"
+write_dir = "output"
+
+channels = "${base.channels}"
 kernel_length = 1
 inference_sampling_rate = 512
-sample_rate = "${{ base.sample_rate }}"
+inference_rate = 1024
+sample_rate = "${base.sample_rate}"
 
 max_latency = 0.5
-filter_memory = 10
-filter_lead_time = 0.5
+freq_low = 55
+freq_high = 65 
+memory = 10
+look_ahead = 0.5
 
+start_first = true
+timeout = 1
 sequence_id = 1001
+
 verbose = true
+log_file = "infer.log"

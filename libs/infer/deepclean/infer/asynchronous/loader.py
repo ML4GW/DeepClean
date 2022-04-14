@@ -1,5 +1,5 @@
 import time
-from queue import Queue
+from multiprocessing import Queue
 from typing import Callable, Iterable, Optional, Tuple
 
 import numpy as np
@@ -177,6 +177,7 @@ class FrameLoader(PipelineProcess):
         return package
 
     def process(self, package):
+        self.logger.debug(f"Submitting inference request {package.request_id}")
         super().process(package)
 
         # if this is the last package in the sequence,

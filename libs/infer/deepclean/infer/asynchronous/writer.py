@@ -130,6 +130,8 @@ class FrameWriter(PipelineProcess):
         # on the server side
         self._thrown_away = 0
 
+        self._latest_seen = -1
+
     def get_package(self):
         # now get the next inferred noise estimate
         noise_prediction = super().get_package()
@@ -196,6 +198,16 @@ class FrameWriter(PipelineProcess):
             # don't update any our arrays with this response
             return
 
+        if request_id > (self._latest_seen + 1):
+            self.logger.warning(
+                f"No response for request id {self._latest_seen + 1}"
+            )
+            self._latest_seen = request_id
+        elif request_id < self._latest_seen:
+            self.logger.warning(f"Request id {request_id} came in late")
+        else:
+            self._latest_seen = request_id
+
         # use the package request id to figure out where
         # in the blank noise array we need to insert
         # this prediction. Subtract the steps that we threw away
@@ -213,13 +225,14 @@ class FrameWriter(PipelineProcess):
 
         # update our mask to indicate which parts of our
         # noise array have had inference performed on them
-        self._mask[start_idx : start_idx + len(x)] = 1
+        # self._mask[start_idx : start_idx + len(x)] = 1
+        self._mask[: start_idx + len(x)] = 1
 
     def clean(self, noise: np.ndarray):
         # pop out the earliest strain data from our
         # _strains tracker
         (witness_fname, strain_fname), strain = self._strains.pop(0)
-        self.logger.debug("Cleaning strain file " + strain_fname)
+        self.logger.debug(f"Cleaning strain file {strain_fname}")
 
         # now postprocess the noise channel and
         # slice off the relevant frame to subtract

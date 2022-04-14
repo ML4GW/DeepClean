@@ -24,7 +24,7 @@ def test_parse_frame_name(path_type, frame_dir):
 
     tstamp = 1234567890
     for frame_length in [1, 1024, 4096, 8192]:
-        frame_name = f"{full_prefix}_{tstamp}-{frame_length}.gwf"
+        frame_name = f"{full_prefix}-{tstamp}-{frame_length}.gwf"
         prfx, t0, length = parse_frame_name(path_type(frame_name))
         assert prfx == prefix
         assert t0 == tstamp
@@ -59,7 +59,7 @@ def test_frame_file_format(path_type, frame_dir):
 
     file_format = FrameFileFormat(prefix)
     assert file_format.get_name(tstamp, length) == (
-        f"{prefix}_{tstamp}-{length}.gwf"
+        f"{prefix}-{tstamp}-{length}.gwf"
     )
 
     if frame_dir is not None:
@@ -67,9 +67,9 @@ def test_frame_file_format(path_type, frame_dir):
     else:
         full_prefix = prefix
     file_format = FrameFileFormat.from_frame_file(
-        path_type(f"{full_prefix}_{tstamp}-{length}.gwf")
+        path_type(f"{full_prefix}-{tstamp}-{length}.gwf")
     )
     assert file_format.prefix == prefix
     assert file_format.get_name(tstamp + 1, length) == (
-        f"{prefix}_{tstamp + 1}-{length}.gwf"
+        f"{prefix}-{tstamp + 1}-{length}.gwf"
     )

@@ -42,7 +42,7 @@ def data_dir(write_dir, frame_length, error_type, prefix, timestamp):
         elif error_type == "length":
             length = length + 1
 
-        fname = f"{prfx}_{timestamp + i * length}-{length}{postfix}"
+        fname = f"{prfx}-{timestamp + i * length}-{length}{postfix}"
         with open(write_dir / fname, "w"):
             pass
     return write_dir

@@ -11,7 +11,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 numpy = "^1.21"
-tritonclient = {extras = ["all"], version = "^2.5.0", source = "ngc"}
+tritonclient = {extras = ["all"], version = "^2.18.0"}
 
 "deepclean.gwftools" = {path = "../gwftools", develop = true}
 "deepclean.signal" = {path = "../signal", develop = true}
@@ -22,10 +22,6 @@ develop = true
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
-
-[[tool.poetry.source]]
-name = "ngc"
-url = "https://pypi.ngc.nvidia.com"
 
 [build-system]
 requires = ["poetry>=1.2"]

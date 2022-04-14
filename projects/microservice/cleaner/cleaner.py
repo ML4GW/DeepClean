@@ -1,4 +1,5 @@
 import logging
+import time
 from pathlib import Path
 from queue import Empty
 from typing import Iterable, Optional, Union
@@ -53,6 +54,9 @@ def main(
         sample_rate=sample_rate,
         channels=channels,
         sequence_id=sequence_id,
+        name="loader",
+        rate=inference_rate,
+        join_timeout=1,
     )
 
     client = InferenceClient(
@@ -61,10 +65,10 @@ def main(
         model_version=model_version,
         profile=False,
         name="client",
-        rate=inference_rate,
+        join_timeout=1,
     )
 
-    postprocessor = BandpassFilter(freq_low, freq_high)
+    postprocessor = BandpassFilter(freq_low, freq_high, sample_rate)
     metadata = client.client.get_model_metadata(client.model_name)
 
     if max_latency is None:
@@ -83,7 +87,9 @@ def main(
         aggregation_steps=aggregation_steps,
         output_name=metadata.outputs[0].name,
         name="writer",
+        join_timeout=1,
     )
+    time.sleep(1)
 
     pipeline = loader >> client >> writer
     with pipeline:
@@ -104,6 +110,9 @@ def main(
                         fname, latency
                     )
                 )
+            finally:
+                if start_first:
+                    time.sleep(0.9)
 
         loader.in_q.put(StopIteration)
 

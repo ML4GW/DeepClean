@@ -10,7 +10,7 @@ prefix_re = "[a-zA-Z0-9_:-]+"
 t0_re = "[0-9]{10}"
 length_re = "[1-9][0-9]{0,3}"
 fname_re = re.compile(
-    f"(?P<prefix>{prefix_re})_"
+    f"(?P<prefix>{prefix_re})-"
     f"(?P<t0>{t0_re})-"
     f"(?P<length>{length_re})"
     ".gwf$"
@@ -68,4 +68,4 @@ class FrameFileFormat:
         elif not 1 <= len(str(length)) < 5:
             raise ValueError(f"Frame length {length} invalid")
 
-        return f"{self.prefix}_{timestamp}-{length}.gwf"
+        return f"{self.prefix}-{timestamp}-{length}.gwf"

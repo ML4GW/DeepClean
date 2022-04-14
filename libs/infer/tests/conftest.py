@@ -28,13 +28,13 @@ def sample_rate(request):
     return request.param
 
 
-@pytest.fixture(params=[0.1, 1])
-def filter_lead_time(request):
+@pytest.fixture(params=[2, 10])
+def filter_memory(request):
     return request.param
 
 
-@pytest.fixture(params=[2, 10])
-def filter_memory(request):
+@pytest.fixture(params=[0.1, 1])
+def look_ahead(request):
     return request.param
 
 
@@ -54,11 +54,11 @@ def postprocessor():
 
 
 @pytest.fixture
-def validate_frame(frame_length, sample_rate, filter_lead_time, filter_memory):
+def validate_frame(frame_length, sample_rate, memory, look_ahead):
     # convert times to sizes
     frame_size = int(frame_length * sample_rate)
-    filter_lead_size = int(filter_lead_time * sample_rate)
-    filter_memory_size = int(filter_memory * sample_rate)
+    filter_lead_size = int(look_ahead * sample_rate)
+    filter_memory_size = int(memory * sample_rate)
 
     def _validate_frame(frame, i):
         # make sure frame has appropriate length

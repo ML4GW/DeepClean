@@ -22,6 +22,8 @@ matplotlib = "^3.5.1"
 # architecture-specific args
 "deepclean.architectures" = {path = "../architectures", develop = true}
 
+"deepclean.export" = {path = "../export", develop = true}
+
 [tool.poetry.dependencies."hermes.typeo"]
 path = "../../gw-iaas/libs/hermes/hermes.typeo"
 develop = true

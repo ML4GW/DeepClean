@@ -101,8 +101,8 @@ def normalize_frequencies(
 class BandpassFilter(Op):
     def __init__(
         self,
-        freq_low: Union[float, List[float]],
-        freq_high: Union[float, List[float]],
+        freq_low: FREQUENCY,
+        freq_high: FREQUENCY,
         sample_rate: float,
         order: int = 8,
     ) -> None:

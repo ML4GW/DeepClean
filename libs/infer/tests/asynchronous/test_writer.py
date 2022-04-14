@@ -36,8 +36,8 @@ def writer(
     write_dir,
     inference_sampling_rate,
     sample_rate,
-    filter_memory,
-    filter_lead_time,
+    memory,
+    look_ahead,
     aggregation_steps,
     postprocessor,
 ):
@@ -48,8 +48,8 @@ def writer(
         sample_rate=sample_rate,
         strain_q=Queue(),
         postprocessor=postprocessor,
-        memory=filter_memory,
-        look_ahead=filter_lead_time,
+        memory=memory,
+        look_ahead=look_ahead,
         aggregation_steps=aggregation_steps,
         output_name="aggregator",
         name="writer",
@@ -65,7 +65,7 @@ def test_writer(
     num_frames,
     frame_length,
     sample_rate,
-    filter_lead_time,
+    look_ahead,
     validate_frame,
     start_timestamp,
     write_dir,
@@ -135,7 +135,7 @@ def test_writer(
             # frame length, the (num_frames - 1)th frame
             # won't have gotten processed because
             # there wasn't sufficient data
-            if filter_lead_time >= frame_length:
+            if look_ahead >= frame_length:
                 break
 
             raise ValueError(

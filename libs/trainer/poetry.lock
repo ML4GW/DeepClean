@@ -53,6 +53,22 @@ type = "directory"
 url = "../architectures"
 
 [[package]]
+name = "deepclean.export"
+version = "0.0.1"
+description = "Model export utilities"
+category = "main"
+optional = false
+python-versions = "^3.8,<3.10"
+develop = true
+
+[package.dependencies]
+torch = "^1.0"
+
+[package.source]
+type = "directory"
+url = "../export"
+
+[[package]]
 name = "deepclean.signal"
 version = "0.0.1"
 description = "DeepClean signal processing utilities"
@@ -318,7 +334,7 @@ python-versions = ">=3.6"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "97fa810aa629cebad7e5542b62b3e1db67b4ce7f41d9bf56b9ec298ddaa7ae3f"
+content-hash = "29806c9be3d0611842d2ed2a46c0e941b6562788e97c5ee3ff439f722d730acb"
 
 [metadata.files]
 atomicwrites = [
@@ -338,6 +354,7 @@ cycler = [
     {file = "cycler-0.11.0.tar.gz", hash = "sha256:9c87405839a19696e837b3b818fed3f5f69f16f1eec1a1ad77e043dcea9c772f"},
 ]
 "deepclean.architectures" = []
+"deepclean.export" = []
 "deepclean.signal" = []
 fonttools = [
     {file = "fonttools-4.31.2-py3-none-any.whl", hash = "sha256:2df636a3f402ef14593c6811dac0609563b8c374bd7850e76919eb51ea205426"},

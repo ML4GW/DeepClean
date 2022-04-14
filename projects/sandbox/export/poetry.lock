@@ -114,6 +114,22 @@ type = "directory"
 url = "../../../libs/architectures"
 
 [[package]]
+name = "deepclean.export"
+version = "0.0.1"
+description = "Model export utilities"
+category = "main"
+optional = false
+python-versions = "^3.8,<3.10"
+develop = true
+
+[package.dependencies]
+torch = "^1.0"
+
+[package.source]
+type = "directory"
+url = "../../../libs/export"
+
+[[package]]
 name = "deepclean.gwftools"
 version = "0.0.1"
 description = "Utilites for managing gwf file conventions"
@@ -844,7 +860,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "a0748ccff2ad0a1116de5c07e17bd4b85553963d23042147fc9ab5b220b499fb"
+content-hash = "9fd855f48bf27ac1a325eb2d7722bb843f723b15668ebb00236538e206f53d39"
 
 [metadata.files]
 absl-py = [
@@ -981,6 +997,7 @@ colorama = [
     {file = "colorama-0.4.4.tar.gz", hash = "sha256:5941b2b48a20143d2267e95b1c2a7603ce057ee39fd88e7329b0c292aa16869b"},
 ]
 "deepclean.architectures" = []
+"deepclean.export" = []
 "deepclean.gwftools" = []
 "deepclean.logging" = []
 flatbuffers = [

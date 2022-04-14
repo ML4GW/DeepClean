@@ -122,18 +122,17 @@ def online_postprocess(
     strain: np.ndarray,
     frame_length: float,
     postprocessor: Callable,
-    filter_memory: float,
-    filter_lead_time: float,
+    memory: float,
+    look_ahead: float,
     sample_rate: float,
 ):
     assert len(predictions) == len(strain)
 
     frame_size = int(sample_rate * frame_length)
-    memory_size = int(sample_rate * filter_memory)
-    lead_size = int(sample_rate * filter_lead_time)
+    memory_size = int(sample_rate * memory)
+    lead_size = int(sample_rate * look_ahead)
 
-    # cut off the last frame because we won't have
-    # any lead time for it
+    # cut off the last frame because we won't have any lead time for it
     num_frames = (len(predictions) - 1) // frame_size
     frames = []
     for i in range(num_frames):
@@ -141,7 +140,7 @@ def online_postprocess(
         stop = (i + 1) * frame_size + lead_size
 
         prediction = predictions[start:stop]
-        prediction = postprocessor(prediction, inverse=True)
+        prediction = postprocessor(prediction)
 
         prediction = prediction[-frame_size - lead_size : -lead_size]
         target = strain[stop - frame_size - lead_size : stop - lead_size]

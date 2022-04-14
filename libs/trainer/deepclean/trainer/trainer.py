@@ -1,14 +1,20 @@
 import logging
 import os
 import time
-from typing import Callable, List, Optional, Tuple, Union
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, Optional, Tuple
 
-import numpy as np
 import torch
 
+from deepclean.export import PrePostDeepclean
 from deepclean.signal import BandpassFilter, StandardScaler
 from deepclean.trainer import ChunkedTimeSeriesDataset, CompositePSDLoss
 from deepclean.trainer.viz import plot_data_asds
+
+if TYPE_CHECKING:
+    from numpy import ndarray
+
+    from deepclean.signal.filter import FREQUENCY
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
@@ -92,22 +98,22 @@ def train(
     architecture: Callable,
     output_directory: str,
     # data params
-    X: np.ndarray,
-    y: np.ndarray,
+    X: "ndarray",
+    y: "ndarray",
     kernel_length: float,
     kernel_stride: float,
     sample_rate: float,
     chunk_length: float = 0,
     num_chunks: int = 1,
-    valid_data: Optional[Tuple[np.ndarray, np.ndarray]] = None,
+    valid_data: Optional[Tuple["ndarray", "ndarray"]] = None,
     # preproc params
-    filt_fl: Union[float, List[float]] = 55.0,
-    filt_fh: Union[float, List[float]] = 65.0,
-    filt_order: int = 8,
+    freq_low: Optional["FREQUENCY"] = 55.0,
+    freq_high: Optional["FREQUENCY"] = 65.0,
+    filter_order: int = 8,
     # optimization params
     batch_size: int = 32,
     max_epochs: int = 40,
-    init_weights: Optional[str] = None,
+    init_weights: Optional[Path] = None,
     lr: float = 1e-3,
     weight_decay: float = 0.0,
     patience: Optional[int] = None,
@@ -164,17 +170,17 @@ def train(
             Witness and strain timeseries for validating model
             performance at the end of each epoch. If left
             as `None`, validation won't be performed.
-        filt_fl:
+        freq_low:
             Lower limit(s) of frequency range(s) over which to optimize
             PSD loss, in Hz. Specify multiple to optimize over
             multiple ranges. In this case, must be same length
-            as `filt_fh`.
-        filt_fh:
+            as `freq_high`.
+        freq_high:
             Upper limit(s) of frequency range(s) over which to optimize
             PSD loss, in Hz. Specify multiple to optimize over
             multiple ranges. In this case, must be same length
-            as `filt_fl`.
-        filt_order:
+            as `freq_low`.
+        filter_order:
             Order of bandpass filter to apply to strain channel
             before training.
         batch_size:
@@ -232,39 +238,40 @@ def train(
     if not (0 <= alpha <= 1):
         raise ValueError("Alpha value must be between 0 and 1")
     os.makedirs(output_directory, exist_ok=True)
+    output_directory = Path(output_directory)
 
-    # Preprocess data
+    # Create pipelines for preprocessing both
+    # witness and strain data. Witness data
+    # just gets normalized on a channel-wise
+    # basis, strain data gets normalized then
+    # bandpass filtered to ensure only the
+    # target frequency range gets optimized
     logging.info("Preprocessing")
     witness_scaler = StandardScaler()
     strain_scaler = StandardScaler()
     bandpass = BandpassFilter(
-        freq_low=filt_fl,
-        freq_high=filt_fh,
+        freq_low=freq_low,
+        freq_high=freq_high,
         sample_rate=sample_rate,
-        order=filt_order,
+        order=filter_order,
     )
+
+    # fit the pipelines to the data (i.e. compute
+    # the mean and standard deviation across
+    # the datasets) and save them for later use
     witness_pipeline = witness_scaler
     witness_pipeline.fit(X)
-    witness_pipeline.write(
-        os.path.join(output_directory, "witness_pipeline.pkl")
-    )
+    witness_pipeline.write(output_directory / "witness_pipeline.pkl")
 
     strain_pipeline = strain_scaler >> bandpass
     strain_pipeline.fit(y)
-    strain_pipeline.write(
-        os.path.join(output_directory, "strain_pipeline.pkl")
-    )
+    strain_pipeline.write(output_directory / "strain_pipeline.pkl")
 
-    X = witness_pipeline(X)
-    y = strain_pipeline(y)
-    if valid_data is not None:
-        valid_X, valid_y = valid_data
-        valid_X = witness_pipeline(valid_X)
-        valid_y = strain_pipeline(valid_y)
-
+    # use these preprocessed arrays to
+    # instantiate iterable datasets
     train_data = ChunkedTimeSeriesDataset(
-        X,
-        y,
+        witness_pipeline(X),
+        strain_pipeline(y),
         kernel_length=kernel_length,
         kernel_stride=kernel_stride,
         sample_rate=sample_rate,
@@ -276,9 +283,10 @@ def train(
     )
 
     if valid_data is not None:
+        valid_X, valid_y = valid_data
         valid_data = ChunkedTimeSeriesDataset(
-            valid_X,
-            valid_y,
+            witness_pipeline(valid_X),
+            strain_pipeline(valid_y),
             kernel_length=kernel_length,
             kernel_stride=kernel_stride,
             sample_rate=sample_rate,
@@ -296,8 +304,8 @@ def train(
     if init_weights is not None:
         # allow us to easily point to the best weights
         # from another run of this same function
-        if os.path.isdir(init_weights):
-            init_weights = os.path.join(init_weights, "weights.pt")
+        if init_weights.is_dir():
+            init_weights = init_weights / "weights.pt"
 
         logging.debug(
             f"Initializing model weights from checkpoint '{init_weights}'"
@@ -313,8 +321,8 @@ def train(
         overlap=None,
         asd=False,
         device=device,
-        freq_low=filt_fl,
-        freq_high=filt_fh,
+        freq_low=freq_low,
+        freq_high=freq_high,
     )
 
     if alpha > 0:
@@ -322,18 +330,18 @@ def train(
         # plot the ASDs of training data as they go
         # into the network so we have a sense for
         # what the NN is learning from
-        if filt_fl is not None:
+        if freq_low is not None:
             # zoom in on the frequency range or
             # ranges we actually care about
             try:
-                x_range = (0.9 * min(filt_fl), 1.1 * max(filt_fh))
+                x_range = (0.9 * min(freq_low), 1.1 * max(freq_high))
             except TypeError:
-                x_range = (0.9 * filt_fl, 1.1 * filt_fh)
+                x_range = (0.9 * freq_low, 1.1 * freq_high)
 
         plot_data_asds(
             train_data,
             sample_rate=sample_rate,
-            write_dir=os.path.join(output_directory, "train_asds"),
+            write_dir=output_directory / "train_asds",
             welch=criterion.psd_loss.welch,
             channels=range(len(X) + 1),
             x_range=x_range,
@@ -355,8 +363,9 @@ def train(
     # start training
     torch.backends.cudnn.benchmark = True
     scaler = torch.cuda.amp.GradScaler()
-    best_valid_loss = np.inf
+    best_valid_loss = float("inf")
     since_last_improvement = 0
+    weights_path = output_directory / "weights.pt"
     history = {"train_loss": [], "valid_loss": []}
 
     logging.info("Beginning training loop")
@@ -365,7 +374,7 @@ def train(
             profiler = torch.profiler.profile(
                 schedule=torch.profiler.schedule(wait=0, warmup=1, active=10),
                 on_trace_ready=torch.profiler.tensorboard_trace_handler(
-                    os.path.join(output_directory, "profile")
+                    output_directory / "profile"
                 ),
             )
             profiler.start()
@@ -405,7 +414,6 @@ def train(
                 )
                 best_valid_loss = valid_loss
 
-                weights_path = os.path.join(output_directory, "weights.pt")
                 torch.save(model.state_dict(), weights_path)
                 since_last_improvement = 0
             else:
@@ -417,23 +425,27 @@ def train(
                     )
                     break
 
+    # load in the best version of the model from training
+    model.load_state_dict(torch.load(weights_path))
     if valid_data is not None and alpha > 0:
         # if we have validation data and a welch transform,
         # plot the same ASDs above for the validation data,
         # this time using our optimized model and postprocessing
         # pipeline to also plot the residuals against the
         # strain channel
-        model.load_state_dict(
-            torch.load(os.path.join(output_directory, "weights.pt"))
-        )
         plot_data_asds(
             valid_data,
             sample_rate=sample_rate,
-            write_dir=os.path.join(output_directory, "valid_asds"),
+            write_dir=output_directory / "valid_asds",
             welch=criterion.psd_loss.welch,
             channels=range(len(X) + 1),
             x_range=x_range,
             model=model,
         )
+
+    # now create a version of the model which
+    model = PrePostDeepclean(model)
+    model.fit(X, y)
+    model.save(model.state_dict(), weights_path)
 
     return history

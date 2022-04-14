@@ -7,8 +7,8 @@ def test_online_postprocess(
     num_frames,
     frame_length,
     sample_rate,
-    filter_lead_time,
-    filter_memory,
+    memory,
+    look_ahead,
     validate_frame,
     postprocessor,
 ):
@@ -18,8 +18,8 @@ def test_online_postprocess(
         x,
         frame_length,
         postprocessor,
-        filter_memory,
-        filter_lead_time,
+        memory,
+        look_ahead,
         sample_rate,
     )
 

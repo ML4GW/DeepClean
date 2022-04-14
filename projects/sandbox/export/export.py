@@ -1,44 +1,14 @@
 import logging
-import pickle
 from pathlib import Path
-from typing import Callable, List, Optional, Union
+from typing import Callable, Iterable, Optional, Union
 
 import hermes.quiver as qv
 import torch
 
 from deepclean.architectures import architecturize
+from deepclean.export import PrePostDeepclean
 from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.logging import configure_logging
-
-
-class EndtoEndDeepClean(torch.nn.Module):
-    def __init__(self, deepclean: torch.nn.Module, train_directory: Path):
-        super().__init__()
-        self.deepclean = deepclean
-
-        with open(train_directory / "witness_pipeline.pkl", "rb") as f:
-            preprocessor = pickle.load(f)
-        try:
-            scaler = preprocessor.ops[0]
-        except AttributeError:
-            scaler = preprocessor
-
-        self.x_mean = torch.Tensor(scaler.mean)
-        self.x_std = torch.Tensor(scaler.std)
-
-        with open(train_directory / "strain_pipeline.pkl", "rb") as f:
-            postprocessor = pickle.load(f)
-        try:
-            scaler = postprocessor.ops[0]
-        except AttributeError:
-            scaler = postprocessor
-        self.y_mean = torch.Tensor([scaler.mean])
-        self.y_std = torch.Tensor([scaler.std])
-
-    def forward(self, x):
-        x = (x - self.x_mean) / self.x_std
-        y = self.deepclean(x)
-        return self.y_mean + self.y_std * y
 
 
 def make_ensemble(
@@ -160,12 +130,13 @@ def make_ensemble(
 def export(
     architecture: Callable,
     repository_directory: str,
+    output_directory: Path,
     channels: ChannelList,
-    weights: Path,
     kernel_length: float,
     stride_length: float,
     sample_rate: float,
-    max_latency: Union[float, List[float]],
+    max_latency: Union[float, Iterable[float]],
+    weights: Optional[Path] = None,
     streams_per_gpu: int = 1,
     instances: Optional[int] = None,
     platform: qv.Platform = qv.Platform.ONNX,
@@ -185,15 +156,13 @@ def export(
         repository_directory:
             Directory to which to save the models and their
             configs
+        output_directory:
+            Path to save logs. If `weights` is `None`, this
+            directory is assumed to contain a file `"weights.pt"`.
         channels:
             A list of channel names used by DeepClean, with the
             strain channel first, or the path to a text file
             containing this list separated by newlines
-        weights:
-            Path to a set of trained weights with which to
-            initialize the network architecture. If this path
-            is a directory, it should contain a file called
-            `"weights.pt"`.
         kernel_length:
             The length, in seconds, of the input to DeepClean
         stride_length:
@@ -215,6 +184,11 @@ def export(
             between the start timestamp of the update streamed to
             the snapshotter and the resulting prediction returned by
             the ensemble model.
+        weights:
+            Path to a set of trained weights with which to
+            initialize the network architecture. If left as
+            `None`, a file called `"weights.pt"` will be looked
+            for in the `output_directory`.
         streams_per_gpu:
             The number of snapshot states to host per GPU during
             inference
@@ -233,24 +207,21 @@ def export(
     # load the channel names from a file if necessary
     channels = get_channels(channels)
 
-    # standardize the weights filename
-    # use the directory the weights are hosted in
-    # as the directory to direct our logs
-    if weights.is_dir():
-        output_directory = weights
+    # if we didn't specify a weights filename, assume
+    # that a "weights.pt" lives in our output directory
+    if weights is None:
         weights = output_directory / "weights.pt"
-    else:
-        output_directory = weights.parent
+    if not weights.exists():
+        raise FileNotFoundError(f"No weights file '{weights}'")
+
     configure_logging(output_directory / "export.log", verbose)
 
     # instantiate the architecture and initialize
     # its weights with the trained values
     logging.info(f"Creating model and loading weights from {weights}")
     nn = architecture(len(channels) - 1)
+    nn = PrePostDeepclean(nn)
     nn.load_state_dict(torch.load(weights))
-
-    # include pre and postprocessing with model
-    nn = EndtoEndDeepClean(nn, output_directory)
     nn.eval()
 
     # instantiate a model repository at the

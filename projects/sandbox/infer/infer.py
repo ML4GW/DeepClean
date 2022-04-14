@@ -11,7 +11,7 @@ from tritonclient import grpc as triton
 import deepclean.infer.pseudo as infer
 from deepclean.logging import configure_logging
 from deepclean.serve import serve
-from deepclean.signal import Pipeline
+from deepclean.signal.filter import FREQUENCY, BandpassFilter
 
 
 def write_frames(frames, write_dir: Path, fnames: str, channel: str):
@@ -31,7 +31,7 @@ def main(
     url: str,
     model_repo_dir: str,
     model_name: str,
-    train_directory: Path,
+    output_directory: Path,
     witness_data_dir: Path,
     strain_data_dir: Path,
     channels: Union[str, List[str]],
@@ -39,8 +39,10 @@ def main(
     stride_length: float,
     sample_rate: float,
     max_latency: float,
-    filter_memory: float,
-    filter_lead_time: float,
+    memory: float,
+    look_ahead: float,
+    freq_low: FREQUENCY,
+    freq_high: FREQUENCY,
     sequence_id: int = 1001,
     verbose: bool = False,
     gpus: Optional[List[int]] = None,
@@ -60,9 +62,8 @@ def main(
             Directory containing models to serve for inference
         model_name:
             Model to which to send streaming inference requests
-        train_directory:
-            Directory where pre- and post-processing pipelines
-            were exported during training
+        output_directory:
+            Directory to save logs and cleaned frames
         witness_data_dir:
             A directory containing one-second-long gravitational
             wave frame files corresponding to witness data as
@@ -102,14 +103,24 @@ def main(
             the snapshotter and the resulting prediction returned by
             the ensemble model. The online averaging model being served
             by Triton should have been instantiated with this same value.
-        filter_memory:
+        memory:
             The number of seconds of past data to use when filtering
             a frame's worth of noise predictions before subtraction to
             avoid edge effects
-        filter_lead_time:
+        look_ahead:
             The number of seconds of _future_ data required to be available
             before filtering a frame's worth of noise predictions before
             subtraction to avoid edge effects
+        freq_low:
+            Lower limit(s) of frequency range(s) over which to filter
+            noise estimates, in Hz. Specify multiple to filter over
+            multiple ranges. In this case, must be same length
+            as `freq_high`.
+        freq_high:
+            Upper limit(s) of frequency range(s) over which to filter
+            noise estimates, in Hz. Specify multiple to filter over
+            multiple ranges. In this case, must be same length
+            as `freq_low`.
         sequence_id:
             A unique identifier to give this input/output snapshot state
             on the server to ensure streams are updated appropriately
@@ -131,7 +142,7 @@ def main(
         with open(channels[0], "r") as f:
             channels = [i for i in f.read().splitlines() if i]
 
-    configure_logging(train_directory / "infer.log", verbose)
+    configure_logging(output_directory / "infer.log", verbose)
 
     # launch a singularity container in a separate thread
     # that runs the server, captures its logs, and waits until
@@ -139,15 +150,11 @@ def main(
     with serve(
         model_repo_dir,
         gpus=gpus,
-        log_file=train_directory / "server.log",
+        log_file=output_directory / "server.log",
         wait=True,
     ):
         # connect to the server at the given url
         client = triton.InferenceServerClient(url)
-
-        # load in our pre- and postprocessing objects
-        preprocessor = Pipeline.load(train_directory / "witness_pipeline.pkl")
-        postprocessor = Pipeline.load(train_directory / "strain_pipeline.pkl")
 
         # TODO: some checks to make sure that the filenames match,
         # or just more intelligent logic to iterate through these.
@@ -183,7 +190,7 @@ def main(
                 X = TimeSeriesDict.read(witness_fname, channels[1:])
                 X = X.resample(sample_rate)
                 X = np.stack([X[i].value for i in sorted(channels[1:])])
-                X = preprocessor(X).astype("float32")
+                X = X.astype("float32")
 
                 # tack on any leftover witnesses from the last
                 # frame that weren't sufficiently long to make
@@ -223,6 +230,7 @@ def main(
         update_steps = max_latency // stride_length
         stride_size = sample_rate * stride_length
         throw_away = int(update_steps * stride_size)
+        postprocessor = BandpassFilter(freq_low, freq_high, sample_rate)
 
         # now clean the processed timeseries in an
         # online fashion and break into frames
@@ -232,15 +240,15 @@ def main(
             strains[:-throw_away],
             frame_length=1,  # TODO: best way to do this?
             postprocessor=postprocessor,
-            filter_memory=filter_memory,
-            filter_lead_time=filter_lead_time,
+            filter_memory=memory,
+            look_ahead=look_ahead,
             sample_rate=sample_rate,
         )
 
         # now write these frames to the directory where
         # all our training outputs go. TODO: should this
         # be an optional param that defaults to this value?
-        write_dir = train_directory / "cleaned"
+        write_dir = output_directory / "cleaned"
         logging.info(f"Writing cleaned frames to '{write_dir}'")
         write_frames(cleaned_frames, write_dir, strain_fnames, channels[0])
 

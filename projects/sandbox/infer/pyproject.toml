@@ -20,10 +20,6 @@ python = "^3.8,<3.10"
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
 
-[[tool.poetry.source]]
-name = "ngc"
-url = "https://pypi.ngc.nvidia.com"
-
 [build-system]
 requires = ["poetry>=1.2"]
 build-backend = "poetry.masonry.api"

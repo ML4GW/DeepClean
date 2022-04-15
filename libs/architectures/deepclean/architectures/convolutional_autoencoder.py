@@ -49,7 +49,7 @@ class DeepCleanAE(nn.Module):
     def __init__(self, in_channels):
         super().__init__()
 
-        num_witnesses = in_channels
+        self.num_witnesses = in_channels
         self.input_conv = ConvBlock(
             in_channels,
             in_channels,
@@ -73,7 +73,7 @@ class DeepCleanAE(nn.Module):
             in_channels = out_channels
 
         self.upsampler = nn.Sequential()
-        for i, out_channels in enumerate([32, 16, 8, num_witnesses]):
+        for i, out_channels in enumerate([32, 16, 8, self.num_witnesses]):
             conv_block = ConvBlock(
                 in_channels,
                 out_channels,

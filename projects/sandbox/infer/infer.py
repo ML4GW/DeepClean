@@ -240,7 +240,7 @@ def main(
             strains[:-throw_away],
             frame_length=1,  # TODO: best way to do this?
             postprocessor=postprocessor,
-            filter_memory=memory,
+            memory=memory,
             look_ahead=look_ahead,
             sample_rate=sample_rate,
         )

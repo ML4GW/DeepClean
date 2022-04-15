@@ -238,6 +238,11 @@ def train(
     os.makedirs(output_directory, exist_ok=True)
     output_directory = Path(output_directory)
 
+    # TODO: is there more complicated device
+    # logic we want to do or should "cpu" just
+    # be the default?
+    device = device or "cpu"
+
     # Create pipelines for preprocessing both
     # witness and strain data. Witness data
     # just gets normalized on a channel-wise
@@ -360,7 +365,7 @@ def train(
 
     # start training
     torch.backends.cudnn.benchmark = True
-    scaler = torch.cuda.amp.GradScaler()
+    scaler = torch.cuda.amp.GradScaler() if device.startswith("cuda") else None
     best_valid_loss = float("inf")
     since_last_improvement = 0
     weights_path = output_directory / "weights.pt"
@@ -422,6 +427,10 @@ def train(
                         "epochs, halting training early".format(early_stop)
                     )
                     break
+        else:
+            # if we don't have validation data, just
+            # always keep the last version of the model
+            torch.save(model.state_dict(), weights_path)
 
     # load in the best version of the model from training
     model.load_state_dict(torch.load(weights_path))
@@ -442,8 +451,8 @@ def train(
         )
 
     # now create a version of the model which
-    model = PrePostDeepClean(model)
-    model.fit(X, y)
-    model.save(model.state_dict(), weights_path)
-
+    # has the pre- and postprocessing built in
+    nn = PrePostDeepClean(model)
+    nn.fit(X, y)
+    torch.save(nn.state_dict(), weights_path)
     return history

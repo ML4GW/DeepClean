@@ -6,7 +6,7 @@ import hermes.quiver as qv
 import torch
 
 from deepclean.architectures import architecturize
-from deepclean.export import PrePostDeepclean
+from deepclean.export import PrePostDeepClean
 from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.logging import configure_logging
 
@@ -220,7 +220,7 @@ def export(
     # its weights with the trained values
     logging.info(f"Creating model and loading weights from {weights}")
     nn = architecture(len(channels) - 1)
-    nn = PrePostDeepclean(nn)
+    nn = PrePostDeepClean(nn)
     nn.load_state_dict(torch.load(weights))
     nn.eval()
 

@@ -16,8 +16,8 @@ class PrePostDeepClean(torch.nn.Module):
 
     def add_processing_param(self, value: float, device: str):
         return torch.nn.Parameter(
-            torch.Tensor([value]), requires_grad=False
-        ).to(device)
+            torch.Tensor([value]).to(device), requires_grad=False
+        )
 
     def set_param_value(self, param: torch.nn.Parameter, value):
         value = value.astype("float32")

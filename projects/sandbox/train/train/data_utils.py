@@ -136,6 +136,6 @@ def get_data(
         # so fetch that stretch of data from nds
         data = fetch(channels, t0, duration, sample_rate)
 
-    X = np.stack([data[chan] for chan in channels])
+    X = np.stack([data[chan] for chan in channels[1:]])
     y = data[channels[0]]
     return X, y

@@ -9,6 +9,8 @@ def test_pre_post_deepclean():
         torch.nn.Conv1d(4, 2, 4), torch.nn.ConvTranspose1d(2, 4, 4)
     )
     nn = PrePostDeepClean(deepclean)
+    assert len(list(deepclean.state_dict().keys())) == 4
+    assert len(list(nn.state_dict().keys())) == 8
 
     x = torch.randn(8, 4, 100)
     assert (deepclean(x) == nn(x)).numpy().all()
@@ -17,6 +19,7 @@ def test_pre_post_deepclean():
     y = np.arange(100)
     nn.fit(X, y)
 
+    assert len(list(nn.state_dict().keys())) == 8
     assert np.isclose(
         nn.input_shift.numpy()[:, 0], X.mean(axis=1), rtol=1e-6
     ).all()

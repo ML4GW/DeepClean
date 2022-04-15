@@ -26,17 +26,19 @@ class PrePostDeepClean(torch.nn.Module):
         device = next(deepclean.parameters()).device
 
         self.input_shift = self.add_processing_param(
-            [0] * self.num_witnesses, device
+            [[0]] * self.num_witnesses, device
         )
         self.input_scale = self.add_processing_param(
-            [1] * self.num_witnesses, device
+            [[1]] * self.num_witnesses, device
         )
 
-        self.output_shift = self.add_processing_param(0, device)
-        self.output_scale = self.add_processing_param(1, device)
+        self.output_shift = self.add_processing_param(0.0, device)
+        self.output_scale = self.add_processing_param(1.0, device)
 
     def add_processing_param(self, value: float, device: str):
-        return torch.nn.Parameter(_make_tensor(value), requires_grad=False)
+        return torch.nn.Parameter(
+            _make_tensor(value, device), requires_grad=False
+        )
 
     def fit(self, X, y):
         if X.shape[0] != self.num_witnesses:
@@ -47,11 +49,14 @@ class PrePostDeepClean(torch.nn.Module):
                 )
             )
 
-        self.input_shift.data = _make_tensor(X.mean(axis=1, keepdims=True))
-        self.input_scale.data = _make_tensor(X.std(axis=1, keepdims=True))
+        device = self.input_shift.device
+        Xmean = X.mean(axis=1, keepdims=True)
+        Xstd = X.std(axis=1, keepdims=True)
+        self.input_shift.data = _make_tensor(Xmean, device)
+        self.input_scale.data = _make_tensor(Xstd, device)
 
-        self.output_shift.data = _make_tensor(y.mean())
-        self.output_scale.data = _make_tensor(y.std())
+        self.output_shift.data = _make_tensor(y.mean(), device)
+        self.output_scale.data = _make_tensor(y.std(), device)
 
     def forward(self, x):
         x = (x - self.input_shift) / self.input_scale

@@ -7,7 +7,7 @@ from deepclean.export import PrePostDeepClean
 
 def test_pre_post_deepclean():
     deepclean = torch.nn.Sequential(
-        torch.nn.Conv1d(4, 2, 4), torch.nn.ConvTranspose1d(2, 4, 4)
+        torch.nn.Conv1d(4, 2, 4), torch.nn.ConvTranspose1d(2, 1, 4)
     )
 
     # models without a num_witnesses attribute

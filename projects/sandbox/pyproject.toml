@@ -1,4 +1,4 @@
-[tool.runner]
+[tool.pinto]
 steps = [
     "train:train:autoencoder",
     "export:export-model:autoencoder",
@@ -79,7 +79,7 @@ fftlength = 2
 overlap = 1
 alpha = 1.0
 
-device = "cuda"
+device = "cuda:5"
 profile = false
 verbose = "${base.verbose}"
 commands.autoencoder = "${base.autoencoder}"
@@ -116,7 +116,7 @@ max_latency = "${base.max_latency}"
 memory = 10
 look_ahead = 0.5
 
-gpus = [6]
+gpus = [5]
 max_frames = 101
 sequence_id = 1001
 verbose = true

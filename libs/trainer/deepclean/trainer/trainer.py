@@ -34,7 +34,8 @@ def train_for_one_epoch(
     for witnesses, strain in train_data:
         optimizer.zero_grad(set_to_none=True)  # reset gradient
         # do forward step in mixed precision
-        with torch.autocast("cuda"):
+        # if a gradient scaler got passed
+        with torch.autocast("cuda", enabled=scaler is not None):
             noise_prediction = model(witnesses)
             loss = criterion(noise_prediction, strain)
 
@@ -124,6 +125,7 @@ def train(
     # misc params
     device: Optional[str] = None,
     profile: bool = False,
+    use_amp: bool = False,
 ) -> float:
     """Train a DeepClean model on in-memory data
 
@@ -231,6 +233,9 @@ def train(
             Whether to generate a tensorboard profile of the
             training step on the first epoch. This will make
             this first epoch slower.
+        use_amp:
+            Whether to train with mixed precision, which could
+            offer speed advantages.
     """
 
     if not (0 <= alpha <= 1):
@@ -333,13 +338,12 @@ def train(
         # plot the ASDs of training data as they go
         # into the network so we have a sense for
         # what the NN is learning from
-        if freq_low is not None:
-            # zoom in on the frequency range or
-            # ranges we actually care about
-            try:
-                x_range = (0.9 * min(freq_low), 1.1 * max(freq_high))
-            except TypeError:
-                x_range = (0.9 * freq_low, 1.1 * freq_high)
+        # zoom in on the frequency range or
+        # ranges we actually care about
+        try:
+            x_range = (0.9 * min(freq_low), 1.1 * max(freq_high))
+        except TypeError:
+            x_range = (0.9 * freq_low, 1.1 * freq_high)
 
         plot_data_asds(
             train_data,
@@ -364,8 +368,13 @@ def train(
         )
 
     # start training
+    scaler = None
+    if use_amp and device.startswith("cuda"):
+        scaler = torch.cuda.amp.GradScaler()
+    elif use_amp:
+        logging.warning("'use_amp' flag set but no cuda device, ignoring")
+
     torch.backends.cudnn.benchmark = True
-    scaler = torch.cuda.amp.GradScaler() if device.startswith("cuda") else None
     best_valid_loss = float("inf")
     since_last_improvement = 0
     weights_path = output_directory / "weights.pt"

@@ -91,8 +91,8 @@ def test_writer(
     # into the writer's strain_q
     for i, strain in enumerate(strains):
         fname = f"{start_timestamp + i}-{frame_length}.gwf"
-        witness_fname = write_dir / ("witness_" + fname)
-        strain_fname = write_dir / ("strain_" + fname)
+        witness_fname = write_dir / ("witness-" + fname)
+        strain_fname = write_dir / ("strain-" + fname)
 
         # the package the writer expects in the strain
         # queue is a tuple of a (tuple of matching witness

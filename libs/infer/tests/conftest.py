@@ -13,7 +13,7 @@ def write_dir():
     shutil.rmtree(tmp_dir)
 
 
-@pytest.fixture(params=[10, 100])
+@pytest.fixture(params=[10])  # , 100])
 def num_frames(request):
     return request.param
 
@@ -29,7 +29,7 @@ def sample_rate(request):
 
 
 @pytest.fixture(params=[2, 10])
-def filter_memory(request):
+def memory(request):
     return request.param
 
 

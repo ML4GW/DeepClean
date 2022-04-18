@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
-from queue import Empty, Queue
+from multiprocessing import Queue
+from queue import Empty
 
 import numpy as np
 import pytest
@@ -21,6 +22,11 @@ def start_timestamp():
     return 1649289999
 
 
+@pytest.fixture
+def channel_name():
+    return "test-channel"
+
+
 @pytest.fixture(params=[128, 512, 1024])
 def inference_sampling_rate(request):
     return request.param
@@ -37,6 +43,7 @@ def dataset(
     aggregation_steps,
     sample_rate,
     inference_sampling_rate,
+    start_timestamp,
     num_frames,
     frame_length,
 ):
@@ -54,7 +61,7 @@ def dataset(
     # that will be our dummy "witnesses"
     updates = np.split(x, (len(x) / sample_rate) * inference_sampling_rate)
 
-    strain_packages = update_packages = []
+    strain_packages = []
     for i, strain in enumerate(strains):
         fname = f"{start_timestamp + i}-{frame_length}.gwf"
         witness_fname = write_dir / ("witness-" + fname)
@@ -73,6 +80,7 @@ def dataset(
 
     # now pass all the updates as dummy package objects
     # into the writer's main in_q for processing
+    update_packages = []
     for i, update in enumerate(updates):
         package = Package(update, i)
         update_packages.append(package)
@@ -90,6 +98,7 @@ def pass_dataset(writer, dataset):
 @pytest.fixture(scope="function")
 def writer(
     write_dir,
+    channel_name,
     inference_sampling_rate,
     sample_rate,
     memory,
@@ -99,7 +108,7 @@ def writer(
 ):
     return FrameWriter(
         write_dir,
-        channel_name="test_channel",
+        channel_name=channel_name,
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
         strain_q=Queue(),
@@ -130,7 +139,10 @@ def async_writer(writer, dataset):
         yield writer
 
 
-def validate_fname(validate_frame, start_timestamp, frame_length, num_frames):
+@pytest.fixture
+def validate_fname(
+    validate_frame, start_timestamp, frame_length, num_frames, channel_name
+):
     def _validate_fname(fname, i):
         # make sure the frame name is correct
         _, t0, length = parse_frame_name(fname)
@@ -150,7 +162,7 @@ def validate_fname(validate_frame, start_timestamp, frame_length, num_frames):
 
         # now read in the written frame and validate
         # that it matches our expectations
-        ts = TimeSeries.read(fname, channel=writer.channel_name)
+        ts = TimeSeries.read(fname, channel=channel_name)
         assert ts.t0.value == t0
         assert (ts.dt.value * len(ts)) == length
 

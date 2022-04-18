@@ -1,3 +1,4 @@
+import logging
 import time
 from queue import Empty
 
@@ -28,6 +29,7 @@ def loader(inference_sampling_rate, sample_rate, channels):
     loader = FrameLoader(
         inference_sampling_rate, sample_rate, channels, name="loader"
     )
+    loader.logger = logging.getLogger()
     yield loader
     loader.in_q.close()
     loader.out_q.close()

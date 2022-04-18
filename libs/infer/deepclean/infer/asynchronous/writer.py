@@ -238,7 +238,7 @@ class FrameWriter(PipelineProcess):
         # slice off the relevant frame to subtract
         # from the strain channel
         if self.postprocessor is not None:
-            noise = self.postprocessor(noise, inverse=True)
+            noise = self.postprocessor(noise)
         noise_segment = noise[
             -self.look_ahead - len(strain) : -self.look_ahead
         ]

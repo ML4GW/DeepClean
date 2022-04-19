@@ -172,6 +172,39 @@ def get_logs_box(output_directory: Path):
     return Tabs(tabs=panels)
 
 
+def get_asdr_vs_time(
+    clean_timeseries: np.ndarray,
+    raw_timeseries: np.ndarray,
+    window_length: float,
+    window_step: float,
+    fftlength: float,
+    sample_rate: float,
+    freq_low: Optional[float] = None,
+    freq_high: Optional[float] = None,
+    overlap: Optional[float] = None,
+):
+    window_size = int(window_length * sample_rate)
+    step_size = int(window_step * sample_rate)
+    num_asdrs = (len(clean_timeseries) - window_size) // step_size + 1
+
+    asdrs = []
+    for i in range(num_asdrs):
+        clean_window = clean_timeseries[i * step_size : (i + 1) * step_size]
+        raw_window = raw_timeseries[i * step_size : (i + 1) * step_size]
+
+        freqs, clean_asd = make_asd(
+            clean_window, sample_rate, fftlength, overlap
+        )
+        freqs, raw_asd = make_asd(raw_window, sample_rate, fftlength, overlap)
+
+        if freq_low is not None:
+            mask = (freq_low <= freqs) & (freqs < freq_high)
+            clean_asd = clean_asd[mask]
+            raw_asd = raw_asd[mask]
+        asdrs.append((clean_asd / raw_asd).mean())
+    return asdrs
+
+
 def analyze_test_data(
     raw_data_dir: Path,
     clean_data_dir: Path,
@@ -245,6 +278,7 @@ def analyze_test_data(
                 ("Power of raw strain", "@raw"),
                 ("Power of clean strain", "@clean"),
             ],
+            mode="vline",
         ),
         BoxZoomTool(dimensions="width"),
     )
@@ -255,8 +289,7 @@ def analyze_test_data(
         width=600,
         title="Ratio of clean strain to raw strain",
         x_axis_label="Frequency [Hz]",
-        y_axis_label="Ratio",
-        tooltips=[("Frequency", "@freqs Hz"), ("ASDR", "@asdr")],
+        y_axis_label="Ratio [Clean / Raw]",
         sizing_mode="scale_width",
         tools="reset",
     )
@@ -268,9 +301,56 @@ def analyze_test_data(
         line_alpha=0.8,
         source=asdr_source,
     )
-    p_asdr.add_tools(BoxZoomTool(dimensions="width"))
+    p_asdr.add_tools(
+        HoverTool(
+            renderers=[r],
+            tooltips=[("Frequency", "@freqs Hz"), ("ASDR", "@asdr")],
+            mode="vline",
+        ),
+        BoxZoomTool(dimensions="width"),
+    )
 
-    return row(p_asd, p_asdr), len(raw_fnames)
+    asdrs = get_asdr_vs_time(
+        clean_data,
+        raw_data,
+        window_length=20,
+        window_step=10,
+        fftlength=fftlength,
+        sample_rate=sample_rate,
+        freq_low=freq_low,
+        freq_high=freq_high,
+        overlap=overlap,
+    )
+    asdrs_source = ColumnDataSource(
+        {"time": [10 * (i + 1) for i in range(len(asdrs))], "asdr": asdrs}
+    )
+    p_asdrt = figure(
+        height=300,
+        width=800,
+        title="Average ratio of clean strain to raw strain over time",
+        x_axis_label="Time [s]",
+        y_axis_label="Average ratio [Clean / Raw]",
+        sizing_mode="scale_width",
+        tools="reset",
+    )
+    r = p_asdrt.line(
+        x="time",
+        y="asdr",
+        line_color=palette[3],
+        line_width=2.3,
+        line_alpha=0.8,
+        source=asdrs_source,
+    )
+    p_asdrt.add_tools(
+        HoverTool(
+            renderers=[r],
+            tooltips=[("Window center", "@time s"), ("ASDR", "@asdr")],
+            mode="vline",
+        ),
+        BoxZoomTool(dimensions="width"),
+    )
+
+    return column(row(p_asd, p_asdr), p_asdrt), len(raw_fnames)
 
 
 @typeo

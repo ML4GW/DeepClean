@@ -32,7 +32,7 @@ model_version = 1
 
 witness_data_dir = "${DATA_DIR}/lldetchar"
 strain_data_dir = "${DATA_DIR}/llhoft"
-write_dir = "output"
+write_dir = "${PROJECT_DIR}/production"
 
 channels = "${base.channels}"
 kernel_length = 1
@@ -51,4 +51,4 @@ timeout = 1
 sequence_id = 1001
 
 verbose = true
-log_file = "infer.log"
+log_file = "${PROJECT_DIR}/clean.log"

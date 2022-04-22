@@ -49,7 +49,7 @@ autoencoder = {}
 
 [tool.typeo.scripts.train]
 channels = "${base.channels}"
-output_directory = "${PROJECT_DIRECTORY}"
+output_directory = "${PROJECT_DIR}"
 sample_rate = "${base.sample_rate}"
 t0 = "${base.train_t0}"
 duration = "${base.train_duration}"
@@ -86,7 +86,7 @@ commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.export-model]
 repository_directory = "${MODEL_REPOSITORY}"
-output_directory = "${PROJECT_DIRECTORY}"
+output_directory = "${PROJECT_DIR}"
 channels = "${base.channels}"
 kernel_length = "${base.infer_kernel_length}"
 stride_length = "${base.infer_kernel_stride}"
@@ -99,7 +99,7 @@ commands.autoencoder = "${base.autoencoder}"
 [tool.typeo.scripts.infer]
 url = "localhost:8001"
 model_name = "deepclean-stream"
-output_directory = "${PROJECT_DIRECTORY}"
+output_directory = "${PROJECT_DIR}"
 model_repo_dir = "${MODEL_REPOSITORY}"
 
 witness_data_dir = "${DATA_DIR}/lldetchar"
@@ -123,8 +123,8 @@ verbose = true
 
 [tool.typeo.scripts.analyze]
 raw_data_dir = "${DATA_DIR}/llhoft"
-clean_data_dir = "${PROJECT_DIRECTORY}/cleaned"
-output_directory = "${PROJECT_DIRECTORY}"
+clean_data_dir = "${PROJECT_DIR}/production"  # cleaned"
+output_directory = "${PROJECT_DIR}"
 channels = "${base.channels}"
 sample_rate = "${base.sample_rate}"
 fftlength = 10

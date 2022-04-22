@@ -1,6 +1,6 @@
 [tool.typeo.base]
 channels = [
-    "H1:GDS-CALIB_STRAIN",
+    "H1:GDS-CALIB_STRAIN_CLEAN",
     "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
     "H1:ASC-INP1_P_INMON",
     "H1:ASC-INP1_Y_INMON",
@@ -30,8 +30,8 @@ url = "localhost:8001"
 model_name = "deepclean-stream"
 model_version = 1
 
-witness_data_dir = "${DATA_DIR}/lldetchar/H1"
-strain_data_dir = "${DATA_DIR}/llhoft/H1"
+witness_data_dir = "${DATA_DIR}/lldetchar"
+strain_data_dir = "${DATA_DIR}/llhoft"
 write_dir = "output"
 
 channels = "${base.channels}"
@@ -40,7 +40,7 @@ inference_sampling_rate = 512
 inference_rate = 1024
 sample_rate = "${base.sample_rate}"
 
-max_latency = 0.5
+max_latency = 0.75
 freq_low = 55
 freq_high = 65 
 memory = 10

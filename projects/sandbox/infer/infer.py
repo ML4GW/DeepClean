@@ -250,7 +250,8 @@ def main(
         # be an optional param that defaults to this value?
         write_dir = output_directory / "cleaned"
         logging.info(f"Writing cleaned frames to '{write_dir}'")
-        write_frames(cleaned_frames, write_dir, strain_fnames, channels[0])
+        channel_name = channels[0] + "-CLEANED"
+        write_frames(cleaned_frames, write_dir, strain_fnames, channel_name)
 
 
 if __name__ == "__main__":

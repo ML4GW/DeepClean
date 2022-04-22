@@ -112,7 +112,7 @@ def main(
                 )
             finally:
                 if start_first:
-                    time.sleep(0.9)
+                    time.sleep(inference_sampling_rate / inference_rate)
 
         loader.in_q.put(StopIteration)
 

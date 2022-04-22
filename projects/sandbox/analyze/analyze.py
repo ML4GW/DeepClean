@@ -228,8 +228,10 @@ def analyze_test_data(
     raw_fnames = [raw_data_dir / f for f in fnames]
     clean_fnames = [clean_data_dir / f for f in fnames]
 
-    raw_data = build_timeseries(raw_fnames, channels[0], sample_rate)
-    clean_data = build_timeseries(clean_fnames, channels[0], sample_rate)
+    strain_channel = channels[0]
+    clean_channel = strain_channel + "-CLEANED"
+    raw_data = build_timeseries(raw_fnames, strain_channel, sample_rate)
+    clean_data = build_timeseries(clean_fnames, clean_channel, sample_rate)
 
     freqs, raw_asd = make_asd(raw_data, sample_rate, fftlength, overlap)
     freqs, clean_asd = make_asd(clean_data, sample_rate, fftlength, overlap)

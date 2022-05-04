@@ -35,10 +35,14 @@ def build_timeseries(
     """
 
     # TODO: too many assumptions about length of frames
-    h = np.zeros((int(len(fnames) * sample_rate),))
+    h = None  # np.zeros((int(len(fnames) * sample_rate),))
     for i, fname in enumerate(fnames):
         ts = TimeSeries.read(fname, channel=channel).resample(sample_rate)
-        h[i * int(sample_rate) : (i + 1) * int(sample_rate)] = ts.value
+        if h is None:
+            h = ts
+        else:
+            h = h.append(ts)
+        # h[i * int(sample_rate) : (i + 1) * int(sample_rate)] = ts.value
     return h
 
 
@@ -153,7 +157,7 @@ def get_logs_box(output_directory: Path):
     panels = [Panel(child=text_box, title="Config")]
 
     for fname in os.listdir(output_directory):
-        if fname.endswith(".log"):
+        if fname.endswith(".log") and not fname.startswith("clean"):
             with open(output_directory / fname, "r") as f:
                 text_box = PreText(
                     text=f.read(),
@@ -233,8 +237,18 @@ def analyze_test_data(
     raw_data = build_timeseries(raw_fnames, strain_channel, sample_rate)
     clean_data = build_timeseries(clean_fnames, clean_channel, sample_rate)
 
-    freqs, raw_asd = make_asd(raw_data, sample_rate, fftlength, overlap)
-    freqs, clean_asd = make_asd(clean_data, sample_rate, fftlength, overlap)
+    # freqs, raw_asd = make_asd(raw_data, sample_rate, fftlength, overlap)
+    # freqs, clean_asd = make_asd(clean_data, sample_rate, fftlength, overlap)
+    raw_asd = raw_data.asd(fftlength)
+    clean_asd = clean_data.asd(fftlength)
+
+    from scipy.fft import rfftfreq
+
+    freqs = rfftfreq(int(fftlength * sample_rate), 1 / sample_rate)
+    mask = freqs <= 100
+    raw_asd = raw_asd.value[mask]
+    clean_asd = clean_asd.value[mask]
+    freqs = freqs[mask]
     asd_source = ColumnDataSource(
         {"raw": raw_asd, "clean": clean_asd, "freqs": freqs}
     )
@@ -295,7 +309,7 @@ def analyze_test_data(
         sizing_mode="scale_width",
         tools="reset",
     )
-    p_asdr.line(
+    r = p_asdr.line(
         x="freqs",
         y="asdr",
         line_color=palette[2],
@@ -343,6 +357,25 @@ def analyze_test_data(
         line_alpha=0.8,
         source=asdrs_source,
     )
+
+    with open(output_directory / "clean.log", "r") as f:
+        log = f.read()
+    tsteps = list(
+        map(int, re.findall("(?<=No response for request id )[0-9]+", log))
+    )
+    tsteps = [i * 8 / 4096 for i in tsteps]
+
+    xs = [[i] * 2 for i in tsteps]
+    ys = [[0, 35] for _ in tsteps]
+    p_asdrt.multi_line(
+        xs,
+        ys,
+        line_width=1.0,
+        line_dash="4 4",
+        line_color="black",
+        line_alpha=0.5,
+    )
+
     p_asdrt.add_tools(
         HoverTool(
             renderers=[r],

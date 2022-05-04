@@ -51,12 +51,12 @@ autoencoder = {}
 channels = "${base.channels}"
 output_directory = "${PROJECT_DIR}"
 sample_rate = "${base.sample_rate}"
-t0 = "${base.train_t0}"
-duration = "${base.train_duration}"
+# t0 = "${base.train_t0}"
+# duration = "${base.train_duration}"
 
 # TODO: add typeo fix which allows multiple wildcards
 # and then replace this 2000 with "${base.train_duration}"
-data_directory = "data/${base.train_t0}/2000"
+data_directory = "${TRAIN_DATA_DIR}"
 valid_frac = 0.25
 
 kernel_length = 8
@@ -71,9 +71,9 @@ batch_size = 32
 max_epochs = 500
 lr = 3.2e-2
 weight_decay = 1e-5
-patience = 25
+patience = 8
 factor = 0.2
-early_stop = 100
+early_stop = 50
 
 fftlength = 2
 overlap = 1
@@ -116,7 +116,7 @@ max_latency = "${base.max_latency}"
 memory = 10
 look_ahead = 0.5
 
-gpus = [0]
+gpus = [6]
 max_frames = 101
 sequence_id = 1001
 verbose = true

@@ -1,10 +1,7 @@
-import os
 import re
-from collections.abc import Iterable
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
-import numpy as np
 from bokeh.io import save
 from bokeh.layouts import column, row
 from bokeh.models import (
@@ -20,49 +17,11 @@ from bokeh.palettes import Colorblind8 as palette
 from bokeh.plotting import figure
 from gwpy.timeseries import TimeSeries
 from hermes.typeo import typeo
-from scipy.signal import welch
 
 from deepclean.gwftools.channels import ChannelList, get_channels
 
-
-def build_timeseries(
-    fnames: Iterable[str], channel: str, sample_rate: float
-) -> np.ndarray:
-    """
-    Read in the indicated channel from a sequence of .gwf filenames,
-    resample them to the indicated sample rate and concatenate them
-    into a single timeseries.
-    """
-
-    # TODO: too many assumptions about length of frames
-    h = None  # np.zeros((int(len(fnames) * sample_rate),))
-    for i, fname in enumerate(fnames):
-        ts = TimeSeries.read(fname, channel=channel).resample(sample_rate)
-        if h is None:
-            h = ts
-        else:
-            h = h.append(ts)
-        # h[i * int(sample_rate) : (i + 1) * int(sample_rate)] = ts.value
-    return h
-
-
-def make_asd(
-    data: np.ndarray,
-    sample_rate: float,
-    fftlength: float,
-    overlap: Optional[float] = None,
-) -> np.ndarray:
-    """
-    Compute the ASD of a given timeseries and return it along
-    with its corresponding frequency bin values
-    """
-
-    nperseg = int(fftlength * sample_rate)
-    overlap = overlap or fftlength / 2
-    noverlap = int(overlap * sample_rate)
-
-    f, psd = welch(data, fs=sample_rate, nperseg=nperseg, noverlap=noverlap)
-    return f, np.sqrt(psd)
+if TYPE_CHECKING:
+    from gwpy.frequencyseries import FrequencySeries
 
 
 def get_training_curves(output_directory: Path):
@@ -156,8 +115,8 @@ def get_logs_box(output_directory: Path):
         )
     panels = [Panel(child=text_box, title="Config")]
 
-    for fname in os.listdir(output_directory):
-        if fname.endswith(".log") and not fname.startswith("clean"):
+    for fname in output_directory.iterdir():
+        if fname.endswith(".log"):
             with open(output_directory / fname, "r") as f:
                 text_box = PreText(
                     text=f.read(),
@@ -177,8 +136,8 @@ def get_logs_box(output_directory: Path):
 
 
 def get_asdr_vs_time(
-    clean_timeseries: np.ndarray,
-    raw_timeseries: np.ndarray,
+    raw_timeseries: TimeSeries,
+    clean_timeseries: TimeSeries,
     window_length: float,
     window_step: float,
     fftlength: float,
@@ -193,20 +152,175 @@ def get_asdr_vs_time(
 
     asdrs = []
     for i in range(num_asdrs):
-        clean_window = clean_timeseries[i * step_size : (i + 1) * step_size]
-        raw_window = raw_timeseries[i * step_size : (i + 1) * step_size]
-
-        freqs, clean_asd = make_asd(
-            clean_window, sample_rate, fftlength, overlap
-        )
-        freqs, raw_asd = make_asd(raw_window, sample_rate, fftlength, overlap)
+        slc = slice(i * step_size, (i + 1) * step_size)
+        clean_asd = clean_timeseries[slc].asd(fftlength, overlap=overlap)
+        raw_asd = raw_timeseries[slc].asd(fftlength, overlap=overlap)
 
         if freq_low is not None:
+            freqs = clean_asd.frequencies
             mask = (freq_low <= freqs) & (freqs < freq_high)
             clean_asd = clean_asd[mask]
             raw_asd = raw_asd[mask]
         asdrs.append((clean_asd / raw_asd).mean())
     return asdrs
+
+
+def plot_asds(raw_asd: "FrequencySeries", clean_asd: "FrequencySeries"):
+    source = ColumnDataSource(
+        {
+            "raw": raw_asd.value,
+            "clean": clean_asd,
+            "freqs": raw_asd.freqs,
+        }
+    )
+    p = figure(
+        height=300,
+        width=600,
+        title="ASD of Raw and Clean Strains",
+        y_axis_type="log",
+        x_axis_label="Frequency [Hz]",
+        y_axis_label="ASD [Hz⁻¹ᐟ²]",
+        sizing_mode="scale_width",
+        tools="reset",
+    )
+
+    for i, asd in enumerate(["raw", "clean"]):
+        r = p.line(
+            x="freqs",
+            y=asd,
+            line_color=palette[i],
+            line_width=2.3,
+            line_alpha=0.8,
+            legend_label=asd.title(),
+            source=source,
+        )
+
+    # add a hovertool that always displays based on
+    # the x-position of the mouse and a zoom tool that
+    # only allows for horizontal zooming
+    p.add_tools(
+        HoverTool(
+            renderers=[r],
+            tooltips=[
+                ("Frequency", "@freqs Hz"),
+                ("Power of raw strain", "@raw"),
+                ("Power of clean strain", "@clean"),
+            ],
+            mode="vline",
+        ),
+        BoxZoomTool(dimensions="width"),
+    )
+
+    # make the legend interactive so we can view
+    # either of the asds on their own
+    p.legend.click_policy = "hide"
+    return p
+
+
+def plot_asdr(
+    raw_asd: "FrequencySeries",
+    clean_asd: "FrequencySeries",
+    freq_low: Optional[float] = None,
+    freq_high: Optional[float] = None,
+):
+    asdr = clean_asd / raw_asd
+    freqs = asdr.frequencies
+    asdr = asdr.value
+
+    # TODO: use signal lib's frequency check, allow for multiple ranges
+    if freq_low is not None and freq_high is not None:
+        mask = (freq_low <= freqs) & (freqs <= freq_high)
+        freqs = freqs[mask]
+        asdr = asdr[mask]
+    elif freq_low is None or freq_high is None:
+        # TODO: make more explicit
+        raise ValueError(
+            "freq_low and freq_high must both be either None or float"
+        )
+
+    source = ColumnDataSource({"asdr": asdr, "freqs": freqs})
+    p = figure(
+        height=300,
+        width=600,
+        title="Ratio of clean strain to raw strain",
+        x_axis_label="Frequency [Hz]",
+        y_axis_label="Ratio [Clean / Raw]",
+        sizing_mode="scale_width",
+        tools="reset",
+    )
+    r = p.line(
+        x="freqs",
+        y="asdr",
+        line_color=palette[2],
+        line_width=2.3,
+        line_alpha=0.8,
+        source=source,
+    )
+    p.add_tools(
+        HoverTool(
+            renderers=[r],
+            tooltips=[("Frequency", "@freqs Hz"), ("ASDR", "@asdr")],
+            mode="vline",
+        ),
+        BoxZoomTool(dimensions="width"),
+    )
+    return p
+
+
+def plot_asdr_vs_time(
+    raw_timeseries: "TimeSeries",
+    clean_timeseries: "TimeSeries",
+    sample_rate: float,
+    fftlength: float,
+    overlap: Optional[float] = None,
+    window_length: float = 20,
+    window_step: float = 10,
+    freq_low: Optional[float] = None,
+    freq_high: Optional[float] = None,
+):
+    asdrs = get_asdr_vs_time(
+        raw_timeseries,
+        clean_timeseries,
+        window_length=window_length,
+        window_step=window_step,
+        fftlength=fftlength,
+        sample_rate=sample_rate,
+        freq_low=freq_low,
+        freq_high=freq_high,
+        overlap=overlap,
+    )
+    source = ColumnDataSource(
+        {
+            "time": [window_step * (i + 1) for i in range(len(asdrs))],
+            "asdr": asdrs,
+        }
+    )
+    p = figure(
+        height=300,
+        width=800,
+        title="Average ratio of clean strain to raw strain over time",
+        x_axis_label="Time [s]",
+        y_axis_label="Average ratio [Clean / Raw]",
+        sizing_mode="scale_width",
+        tools="reset",
+    )
+    r = p.line(
+        x="time",
+        y="asdr",
+        line_color=palette[3],
+        line_width=2.3,
+        line_alpha=0.8,
+        source=source,
+    )
+    p.add_tools(
+        HoverTool(
+            renderers=[r],
+            tooltips=[("Window center", "@time s"), ("ASDR", "@asdr")],
+            mode="vline",
+        ),
+        BoxZoomTool(dimensions="width"),
+    )
+    return p
 
 
 def analyze_test_data(
@@ -228,164 +342,34 @@ def analyze_test_data(
     analyzed as well.
     """
 
-    fnames = sorted(os.listdir(clean_data_dir))
-    raw_fnames = [raw_data_dir / f for f in fnames]
-    clean_fnames = [clean_data_dir / f for f in fnames]
+    # assume that the cleaned files represent a subset
+    # of the raw files, so use those to get the filenames
+    fnames = sorted(clean_data_dir.iterdir())
 
-    strain_channel = channels[0]
-    clean_channel = strain_channel + "-CLEANED"
-    raw_data = build_timeseries(raw_fnames, strain_channel, sample_rate)
-    clean_data = build_timeseries(clean_fnames, clean_channel, sample_rate)
+    clean_timeseries = TimeSeries.read(
+        [clean_data_dir / f for f in fnames],
+        channel=channels[0] + "-CLEANED",
+    ).resample(sample_rate)
+    clean_asd = clean_timeseries.asd(fftlength, overlap=overlap)
 
-    # freqs, raw_asd = make_asd(raw_data, sample_rate, fftlength, overlap)
-    # freqs, clean_asd = make_asd(clean_data, sample_rate, fftlength, overlap)
-    raw_asd = raw_data.asd(fftlength)
-    clean_asd = clean_data.asd(fftlength)
+    raw_timeseries = TimeSeries.read(
+        [raw_data_dir / f for f in fnames],
+        channels[0],
+    ).resample(sample_rate)
+    raw_asd = raw_timeseries.asd(fftlength, overlap=overlap)
 
-    from scipy.fft import rfftfreq
-
-    freqs = rfftfreq(int(fftlength * sample_rate), 1 / sample_rate)
-    mask = freqs <= 100
-    raw_asd = raw_asd.value[mask]
-    clean_asd = clean_asd.value[mask]
-    freqs = freqs[mask]
-    asd_source = ColumnDataSource(
-        {"raw": raw_asd, "clean": clean_asd, "freqs": freqs}
-    )
-
-    asdr = clean_asd / raw_asd
-    if freq_low is not None and freq_high is not None:
-        mask = (freq_low <= freqs) & (freqs <= freq_high)
-        freqs = freqs[mask]
-        asdr = asdr[mask]
-    elif freq_low is None or freq_high is None:
-        # TODO: make more explicit
-        raise ValueError(
-            "freq_low and freq_high must both be either None or float"
-        )
-    asdr_source = ColumnDataSource({"asdr": asdr, "freqs": freqs})
-
-    p_asd = figure(
-        height=300,
-        width=600,
-        title="ASD of Raw and Clean Strains",
-        y_axis_type="log",
-        x_axis_label="Frequency [Hz]",
-        y_axis_label="ASD [Hz⁻¹ᐟ²]",
-        sizing_mode="scale_width",
-        tools="reset",
-    )
-
-    for i, asd in enumerate(["raw", "clean"]):
-        r = p_asd.line(
-            x="freqs",
-            y=asd,
-            line_color=palette[i],
-            line_width=2.3,
-            line_alpha=0.8,
-            legend_label=asd.title(),
-            source=asd_source,
-        )
-    p_asd.add_tools(
-        HoverTool(
-            renderers=[r],
-            tooltips=[
-                ("Frequency", "@freqs Hz"),
-                ("Power of raw strain", "@raw"),
-                ("Power of clean strain", "@clean"),
-            ],
-            mode="vline",
-        ),
-        BoxZoomTool(dimensions="width"),
-    )
-    p_asd.legend.click_policy = "hide"
-
-    p_asdr = figure(
-        height=300,
-        width=600,
-        title="Ratio of clean strain to raw strain",
-        x_axis_label="Frequency [Hz]",
-        y_axis_label="Ratio [Clean / Raw]",
-        sizing_mode="scale_width",
-        tools="reset",
-    )
-    r = p_asdr.line(
-        x="freqs",
-        y="asdr",
-        line_color=palette[2],
-        line_width=2.3,
-        line_alpha=0.8,
-        source=asdr_source,
-    )
-    p_asdr.add_tools(
-        HoverTool(
-            renderers=[r],
-            tooltips=[("Frequency", "@freqs Hz"), ("ASDR", "@asdr")],
-            mode="vline",
-        ),
-        BoxZoomTool(dimensions="width"),
-    )
-
-    asdrs = get_asdr_vs_time(
-        clean_data,
-        raw_data,
-        window_length=20,
-        window_step=10,
-        fftlength=fftlength,
-        sample_rate=sample_rate,
+    p_asd = plot_asds(raw_asd, clean_asd)
+    p_asdr = plot_asdr(raw_asd, clean_asd, freq_low, freq_high)
+    p_asdrt = plot_asdr_vs_time(
+        raw_timeseries,
+        clean_timeseries,
+        sample_rate,
+        fftlength,
+        overlap=overlap,
         freq_low=freq_low,
         freq_high=freq_high,
-        overlap=overlap,
     )
-    asdrs_source = ColumnDataSource(
-        {"time": [10 * (i + 1) for i in range(len(asdrs))], "asdr": asdrs}
-    )
-    p_asdrt = figure(
-        height=300,
-        width=800,
-        title="Average ratio of clean strain to raw strain over time",
-        x_axis_label="Time [s]",
-        y_axis_label="Average ratio [Clean / Raw]",
-        sizing_mode="scale_width",
-        tools="reset",
-    )
-    r = p_asdrt.line(
-        x="time",
-        y="asdr",
-        line_color=palette[3],
-        line_width=2.3,
-        line_alpha=0.8,
-        source=asdrs_source,
-    )
-
-    with open(output_directory / "clean.log", "r") as f:
-        log = f.read()
-    tsteps = list(
-        map(int, re.findall("(?<=No response for request id )[0-9]+", log))
-    )
-    tsteps = [i * 8 / 4096 for i in tsteps]
-
-    xs = [[i] * 2 for i in tsteps]
-    ys = [[0, 35] for _ in tsteps]
-    p_asdrt.multi_line(
-        xs,
-        ys,
-        line_width=1.0,
-        line_dash="4 4",
-        line_color="black",
-        line_alpha=0.5,
-    )
-
-    p_asdrt.add_tools(
-        HoverTool(
-            renderers=[r],
-            tooltips=[("Window center", "@time s"), ("ASDR", "@asdr")],
-            mode="vline",
-        ),
-        BoxZoomTool(dimensions="width"),
-    )
-
-    return column(row(p_asd, p_asdr), p_asdrt), len(raw_fnames)
+    return column(row(p_asd, p_asdr), p_asdrt), len(fnames)
 
 
 @typeo

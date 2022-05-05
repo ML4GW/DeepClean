@@ -199,9 +199,10 @@ class FrameWriter(PipelineProcess):
             return
 
         if request_id > (self._latest_seen + 1):
-            self.logger.warning(
-                f"No response for request id {self._latest_seen + 1}"
-            )
+            for i in range(1, request_id - self._latest_seen):
+                self.logger.warning(
+                    f"No response for request id {self._latest_seen + i}"
+                )
             self._latest_seen = request_id
         elif request_id < self._latest_seen:
             self.logger.warning(f"Request id {request_id} came in late")
@@ -226,7 +227,7 @@ class FrameWriter(PipelineProcess):
         # update our mask to indicate which parts of our
         # noise array have had inference performed on them
         # self._mask[start_idx : start_idx + len(x)] = 1
-        self._mask[: start_idx + len(x)] = 1
+        self._mask[start_idx : start_idx + len(x)] = 1
 
     def clean(self, noise: np.ndarray):
         # pop out the earliest strain data from our
@@ -237,12 +238,13 @@ class FrameWriter(PipelineProcess):
         # now postprocess the noise channel and
         # slice off the relevant frame to subtract
         # from the strain channel
-        if self.postprocessor is not None:
-            noise = self.postprocessor(noise)
-        noise_segment = noise[
-            -self.look_ahead - len(strain) : -self.look_ahead
-        ]
-        cleaned = strain - noise_segment
+        frame_slc = slice(-self.look_ahead - len(strain), self.look_ahead)
+        if self._mask[frame_slc].all():
+            # only clean if the current frame didn't drop any packets
+            if self.postprocessor is not None:
+                noise = self.postprocessor(noise)
+            noise_segment = noise[frame_slc]
+            strain = strain - noise_segment
 
         # increment our _frame_idx to account for
         # the frame we're about to write
@@ -254,7 +256,7 @@ class FrameWriter(PipelineProcess):
         fname = os.path.basename(strain_fname)
         _, timestamp, __ = parse_frame_name(fname)
         timeseries = TimeSeries(
-            cleaned,
+            strain,
             t0=timestamp,
             sample_rate=self.sample_rate,
             channel=self.channel_name,
@@ -324,11 +326,10 @@ class FrameWriter(PipelineProcess):
         # a full memory, then use what we have
         memory = min(self.memory, self._frame_idx)
 
-        # make sure that the full memory, the current
-        # frame, and the any future samples are all
-        # accounted for
+        # make sure that the full memory, the current frame,
+        # and the any future samples are all accounted for
         limit = memory + len(self._strains[0][1]) + self.look_ahead
-        if self._mask[:limit].all():
+        if self._mask[limit - 1] or self._mask[limit:].any():
             # clean the current frame and write it to
             # our `write_dir`. Get the name of the file
             # we wrote it to as well as the incurred latency

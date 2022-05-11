@@ -51,4 +51,4 @@ timeout = 1
 sequence_id = 1001
 
 verbose = true
-log_file = "${PROJECT_DIR}/clean.log"
+log_file = "${PROJECT_DIR}/clean.log_"

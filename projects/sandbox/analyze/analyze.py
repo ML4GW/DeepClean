@@ -116,7 +116,7 @@ def get_logs_box(output_directory: Path):
     panels = [Panel(child=text_box, title="Config")]
 
     for fname in output_directory.iterdir():
-        if fname.endswith(".log"):
+        if fname.suffix == ".log":
             with open(output_directory / fname, "r") as f:
                 text_box = PreText(
                     text=f.read(),
@@ -129,7 +129,7 @@ def get_logs_box(output_directory: Path):
                         "width": "600px",
                     },
                 )
-            panel = Panel(child=text_box, title=fname.split(".")[0].title())
+            panel = Panel(child=text_box, title=fname.stem.title())
             panels.append(panel)
 
     return Tabs(tabs=panels)
@@ -157,7 +157,7 @@ def get_asdr_vs_time(
         raw_asd = raw_timeseries[slc].asd(fftlength, overlap=overlap)
 
         if freq_low is not None:
-            freqs = clean_asd.frequencies
+            freqs = clean_asd.frequencies.value
             mask = (freq_low <= freqs) & (freqs < freq_high)
             clean_asd = clean_asd[mask]
             raw_asd = raw_asd[mask]
@@ -170,7 +170,7 @@ def plot_asds(raw_asd: "FrequencySeries", clean_asd: "FrequencySeries"):
         {
             "raw": raw_asd.value,
             "clean": clean_asd,
-            "freqs": raw_asd.freqs,
+            "freqs": raw_asd.frequencies,
         }
     )
     p = figure(
@@ -224,7 +224,7 @@ def plot_asdr(
     freq_high: Optional[float] = None,
 ):
     asdr = clean_asd / raw_asd
-    freqs = asdr.frequencies
+    freqs = asdr.frequencies.value
     asdr = asdr.value
 
     # TODO: use signal lib's frequency check, allow for multiple ranges
@@ -320,6 +320,19 @@ def plot_asdr_vs_time(
         ),
         BoxZoomTool(dimensions="width"),
     )
+
+    with open(
+        "/home/alec.gunny/deepclean/microservice-analyze/clean.log_", "r"
+    ) as f:
+        for line in iter(f.readline, ""):
+            if line.startswith("Noise prediction for strain file"):
+                t0, t = list(map(int, re.findall("[0-9]{10}", line)))
+                p.line(
+                    [t - t0, t - t0],
+                    [0, 4],
+                    line_color="black",
+                    line_alpha=0.5,
+                )
     return p
 
 
@@ -347,14 +360,14 @@ def analyze_test_data(
     fnames = sorted(clean_data_dir.iterdir())
 
     clean_timeseries = TimeSeries.read(
-        [clean_data_dir / f for f in fnames],
+        [clean_data_dir / f.name for f in fnames],
         channel=channels[0] + "-CLEANED",
     ).resample(sample_rate)
     clean_asd = clean_timeseries.asd(fftlength, overlap=overlap)
 
     raw_timeseries = TimeSeries.read(
-        [raw_data_dir / f for f in fnames],
-        channels[0],
+        [raw_data_dir / f.name for f in fnames],
+        channel=channels[0],
     ).resample(sample_rate)
     raw_asd = raw_timeseries.asd(fftlength, overlap=overlap)
 

@@ -179,25 +179,6 @@ class FrameWriter(PipelineProcess):
         appropriately filled.
         """
 
-        # throw away the first `aggregation_steps` responses
-        # since these technically corresponds to predictions
-        # from the _past_
-        if self._thrown_away < self.aggregation_steps:
-            self._thrown_away += 1
-            self.logger.debug(
-                f"Throwing away received package id {request_id}"
-            )
-
-            if self._thrown_away == self.aggregation_steps:
-                self.logger.debug(
-                    "Outputs have caught up with start of "
-                    f"timeseries after {self._thrown_away} "
-                    "responses. Done with throwing away responses."
-                )
-
-            # don't update any our arrays with this response
-            return
-
         if request_id > (self._latest_seen + 1):
             for i in range(1, request_id - self._latest_seen):
                 self.logger.warning(
@@ -208,6 +189,16 @@ class FrameWriter(PipelineProcess):
             self.logger.warning(f"Request id {request_id} came in late")
         else:
             self._latest_seen = request_id
+
+        # throw away the first `aggregation_steps` responses
+        # since these technically corresponds to predictions
+        # from the _past_
+        if request_id < self.aggregation_steps:
+            self.logger.debug(
+                f"Throwing away received package id {request_id}"
+            )
+            # don't update any our arrays with this response
+            return
 
         # use the package request id to figure out where
         # in the blank noise array we need to insert
@@ -229,7 +220,7 @@ class FrameWriter(PipelineProcess):
         # self._mask[start_idx : start_idx + len(x)] = 1
         self._mask[start_idx : start_idx + len(x)] = 1
 
-    def clean(self, noise: np.ndarray):
+    def clean(self, noise: np.ndarray, mask: np.ndarray):
         # pop out the earliest strain data from our
         # _strains tracker
         (witness_fname, strain_fname), strain = self._strains.pop(0)
@@ -238,13 +229,18 @@ class FrameWriter(PipelineProcess):
         # now postprocess the noise channel and
         # slice off the relevant frame to subtract
         # from the strain channel
-        frame_slc = slice(-self.look_ahead - len(strain), self.look_ahead)
-        if self._mask[frame_slc].all():
+        frame_slc = slice(-self.look_ahead - len(strain), -self.look_ahead)
+        if True:  # mask[:].all():
             # only clean if the current frame didn't drop any packets
             if self.postprocessor is not None:
                 noise = self.postprocessor(noise)
             noise_segment = noise[frame_slc]
             strain = strain - noise_segment
+        else:
+            self.logger.warning(
+                f"Noise prediction for strain file {strain_fname} "
+                "missing predictions, skipping clean"
+            )
 
         # increment our _frame_idx to account for
         # the frame we're about to write
@@ -329,11 +325,15 @@ class FrameWriter(PipelineProcess):
         # make sure that the full memory, the current frame,
         # and the any future samples are all accounted for
         limit = memory + len(self._strains[0][1]) + self.look_ahead
-        if self._mask[limit - 1] or self._mask[limit:].any():
+        if len(self._mask) >= limit and (
+            self._mask[limit - 1] or self._mask[limit:].any()
+        ):
             # clean the current frame and write it to
             # our `write_dir`. Get the name of the file
             # we wrote it to as well as the incurred latency
-            fname, latency = self.clean(self._noises[:limit])
+            fname, latency = self.clean(
+                self._noises[:limit], self._mask[:limit]
+            )
 
             # push these to our `out_q` for use by downstream processes
             super().process((fname, latency))

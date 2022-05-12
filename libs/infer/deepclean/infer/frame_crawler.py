@@ -37,71 +37,45 @@ def get_prefix(data_dir: Path):
 
 @dataclass
 class FrameCrawler:
-    witness_data_dir: Path
-    strain_data_dir: Path
-    start_first: bool = False
+    data_dir: Path
+    t0: Optional[float] = None
     timeout: Optional[float] = None
 
     def __post_init__(self):
-        witness_prefix, self.length = get_prefix(self.witness_data_dir)
-        strain_prefix, length = get_prefix(self.strain_data_dir)
+        prefix, self.length = get_prefix(self.data_dir)
+        self.file_format = FrameFileFormat(prefix)
 
-        if length != self.length:
-            raise ValueError(
-                "Lengths of frames in witness data directory {} "
-                "don't match length of frames in strain data "
-                "directory {}".format(self.length, length)
-            )
-
-        self.witness_format = FrameFileFormat(witness_prefix)
-        self.strain_format = FrameFileFormat(strain_prefix)
-
-        self.t0 = None
+        # t0 being None or 0 means start at the first timestamp
+        # -1 means start at the last
+        if self.t0 is None or self.t0 == 0 or self.t0 == -1:
+            matches = map(fname_re.search, self.data_dir.iterdir())
+            tstamps = [int(i.group("t0")) for i in matches if i is not None]
+            self.t0 = sorted(tstamps, reverse=self.t0 == -1)[0]
 
     def __iter__(self):
-        witness_fnames = os.listdir(self.witness_data_dir)
-        matches = map(fname_re.search, witness_fnames)
-        tstamps = [int(i.group("t0")) for i in matches if i is not None]
-
-        self.t0 = sorted(tstamps, reverse=not self.start_first)[0]
         return self
 
     def __next__(self):
-        if self.t0 is None:
-            self.__iter__()
-
-        witness_fname = self.witness_format.get_name(self.t0, self.length)
-        strain_fname = self.strain_format.get_name(self.t0, self.length)
-
-        witness_fname = self.witness_data_dir / witness_fname
-        strain_fname = self.strain_data_dir / strain_fname
+        fname = self.file_format.get_name(self.t0, self.length)
+        fname = self.data_dir / fname
 
         start_time = time.time()
-        i = 1
-        while not (
-            os.path.exists(witness_fname) and os.path.exists(strain_fname)
-        ):
+        i, interval = 1, 3
+        while not fname.exists():
             time.sleep(1e-3)
-            if (
-                self.timeout is not None
-                and (time.time() - start_time) > self.timeout
-            ):
-                raise RuntimeError(
-                    "No witness or strain file for timestamp {} "
-                    "in directories {} or {} after {}s".format(
-                        self.t0,
-                        self.witness_data_dir,
-                        self.strain_data_dir,
-                        self.timeout,
-                    )
-                )
-
-            if (time.time() - start_time) > (i * 10):
+            if (time.time() - start_time) > (i * interval):
                 logging.debug(
                     "Waiting for frame files for timestamp {}, "
-                    "{}s elapsed".format(self.t0, i * 10)
+                    "{}s elapsed".format(self.t0, i * interval)
                 )
                 i += 1
 
+            if self.timeout is None:
+                continue
+            elif (time.time() - start_time) > self.timeout:
+                raise RuntimeError(
+                    f"No frame file {fname} after {self.timeout}s"
+                )
+
         self.t0 += self.length
-        return witness_fname, strain_fname
+        return fname

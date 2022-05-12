@@ -1,12 +1,31 @@
 import time
-from multiprocessing import Queue
-from typing import Callable, Iterable, Optional, Tuple
+from typing import Callable, Iterable, Optional, Union
 
 import numpy as np
 from gwpy.timeseries import TimeSeries, TimeSeriesDict
 from hermes.stillwater import Package, PipelineProcess
 
-from deepclean.gwftools.channels import ChannelList
+
+# TODO: this should probably be a dedicated utility somewhere
+# maybe in gwftools lib? Or just in the main part of this lib?
+def load_frame(
+    fname: str, channels: Union[str, Iterable[str]], sample_rate: float
+) -> np.ndarray:
+    """Load the indicated channels from the indicated frame file"""
+
+    if isinstance(channels, str):
+        # if we don't have multiple channels, then just grab the data
+        data = TimeSeries.read(fname, channels)
+        data.resample(sample_rate)
+        data = data.value
+    else:
+        # otherwise stack the arrays
+        data = TimeSeriesDict.read(fname, channels)
+        data.resample(sample_rate)
+        data = np.stack([data[i].value for i in channels])
+
+    # return as the expected type
+    return data.astype("float32")
 
 
 class FrameLoader(PipelineProcess):
@@ -45,10 +64,9 @@ class FrameLoader(PipelineProcess):
         self,
         inference_sampling_rate: float,
         sample_rate: float,
-        channels: Iterable[str],
+        channels: Union[str, Iterable[str]],
         sequence_id: Optional[int] = None,
         preprocessor: Optional[Callable] = None,
-        strain_q: Optional[Queue] = None,
         *args,
         **kwargs,
     ) -> None:
@@ -59,52 +77,11 @@ class FrameLoader(PipelineProcess):
         self.sequence_id = sequence_id
         self.channels = channels
         self.preprocessor = preprocessor
-        self.strain_q = strain_q or Queue()
 
         self._idx = 0
         self._frame_idx = 0
         self._data = None
         self._end_next = False
-
-    def load_frame_file(
-        self, fname: str, channels: ChannelList
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        """Load the indicated channels from the indicated frame file"""
-
-        # if we don't have multiple channels,
-        # then just grab the data
-        if isinstance(channels, str) or len(channels) == 1:
-            if not isinstance(channels, str):
-                channels = channels[0]
-            data = TimeSeries.read(fname, channels)
-            data.resample(self.sample_rate)
-            data = data.value
-        else:
-            # otherwise stack the arrays
-            data = TimeSeriesDict.read(fname, channels)
-            data.resample(self.sample_rate)
-            data = np.stack([data[i].value for i in channels])
-
-        # return as the expected type
-        return data
-
-    def get_next_frame(self) -> np.ndarray:
-        # get the name of the next file to load from
-        # an upstream process, possibly raising a
-        # StopIteration if that process is done
-        witness_fname, strain_fname = super().get_package()
-
-        # load in the data and prepare it as a numpy array
-        strain = self.load_frame_file(strain_fname, self.channels[0])
-        witnesses = self.load_frame_file(witness_fname, self.channels[1:])
-
-        # send our strain data straight to the postprocessor
-        self.strain_q.put(((witness_fname, strain_fname), strain))
-
-        # apply preprocessing to the remaining channels
-        if self.preprocessor is not None:
-            witnesses = self.preprocessor(witnesses)
-        return witnesses.astype("float32")
 
     def get_package(self) -> Package:
         start = self._frame_idx * self.stride
@@ -124,7 +101,7 @@ class FrameLoader(PipelineProcess):
         ) and not sequence_end:
             # try to load in the next frame's worth of data
             try:
-                data = self.get_next_frame()
+                fname = super().get_package()
             except StopIteration:
                 # super().get_package() raised a StopIteration,
                 # so catch it and indicate that this will be
@@ -147,6 +124,7 @@ class FrameLoader(PipelineProcess):
             else:
                 # otherwise append the new data to whatever
                 # remaining data we have left to go through
+                data = load_frame(fname, self.channels, self.sample_rate)
                 if self._data is not None and start < self._data.shape[1]:
                     leftover = self._data[:, start:]
                     data = np.concatenate([leftover, data], axis=1)

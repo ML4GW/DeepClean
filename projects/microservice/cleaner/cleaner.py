@@ -5,7 +5,6 @@ from queue import Empty
 from typing import Iterable, Optional, Union
 
 from hermes.stillwater import InferenceClient
-from hermes.stillwater.utils import ExceptionWrapper
 from hermes.typeo import typeo
 
 from deepclean.gwftools.channels import ChannelList, get_channels
@@ -44,20 +43,22 @@ def main(
     log_file: Optional[str] = None,
 ):
     configure_logging(log_file, verbose)
+    logger = logging.getLogger()
+
     channels = get_channels(channels)
 
-    crawler = FrameCrawler(
-        witness_data_dir, strain_data_dir, start_first, timeout
-    )
+    t0 = 0 if start_first else -1
+    crawler = FrameCrawler(witness_data_dir, t0, timeout)
     loader = FrameLoader(
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
-        channels=channels,
+        channels=channels[1:],
         sequence_id=sequence_id,
         name="loader",
         rate=inference_rate,
         join_timeout=1,
     )
+    loader.logger = logger
 
     client = InferenceClient(
         url=url,
@@ -67,20 +68,23 @@ def main(
         name="client",
         join_timeout=1,
     )
+    client.logger = logger
 
+    # some stuff that the frame writer will need
     postprocessor = BandpassFilter(freq_low, freq_high, sample_rate)
     metadata = client.client.get_model_metadata(client.model_name)
-
     if max_latency is None:
         aggregation_steps = 0
     else:
         aggregation_steps = int(max_latency * inference_sampling_rate)
+
     writer = FrameWriter(
+        strain_data_dir,
         write_dir,
-        channel_name=channels[0] + "-CLEANED",
+        channel_name=channels[0],
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
-        strain_q=loader.strain_q,
+        t0=loader.t0,
         postprocessor=postprocessor,
         memory=memory,
         look_ahead=look_ahead,
@@ -89,22 +93,31 @@ def main(
         name="writer",
         join_timeout=1,
     )
-    time.sleep(1)
+    writer.in_q = client.out_q
+    writer.logger = logger
 
-    pipeline = loader >> client >> writer
-    with pipeline:
-        for witness_fname, strain_fname in crawler:
-            loader.in_q.put((witness_fname, strain_fname))
+    time.sleep(1)
+    with client.client.start_stream(callback=client.callback):
+        for i, witness_fname in enumerate(crawler):
+            loader.in_q.put(witness_fname)
+            if i == 0:
+                continue
+
+            for _ in range(int(inference_sampling_rate)):
+                package = loader.get_package()
+
+                client.in_q.put(package)
+                package = client.get_package()
+                client.process(package)
+
+                response = writer.get_package()
+                writer.proccess(response)
 
             try:
-                result = writer.out_q.get_nowait()
+                fname, latency = writer.out_q.get_nowait()
             except Empty:
                 continue
             else:
-                if isinstance(result, ExceptionWrapper):
-                    result.reraise()
-
-                fname, latency = result
                 logging.info(
                     "Wrote cleaned frame {} with latency {}s".format(
                         fname, latency
@@ -113,8 +126,6 @@ def main(
             finally:
                 if start_first:
                     time.sleep(inference_sampling_rate / inference_rate)
-
-        loader.in_q.put(StopIteration)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
-import os
 import time
-from queue import Empty, Queue
+from pathlib import Path
 from typing import Callable, Optional
 
 import numpy as np
@@ -8,16 +7,19 @@ from gwpy.timeseries import TimeSeries
 from hermes.stillwater import PipelineProcess
 
 from deepclean.gwftools.frames import parse_frame_name
+from deepclean.infer.asynchronous.loader import load_frame
+from deepclean.infer.frame_crawler import FrameCrawler
 
 
 class FrameWriter(PipelineProcess):
     def __init__(
         self,
-        write_dir: str,
+        data_dir: Path,
+        write_dir: Path,
         channel_name: str,
         inference_sampling_rate: float,
         sample_rate: float,
-        strain_q: Queue,
+        t0: Optional[float] = None,
         postprocessor: Optional[Callable] = None,
         memory: float = 10,
         look_ahead: float = 0.05,
@@ -36,6 +38,8 @@ class FrameWriter(PipelineProcess):
         same filename given to the associated raw strain file.
 
         Args:
+            data_dir:
+                The directory from which to read strain files to clean
             write_dir:
                 The directory to which to save the cleaned strain frames
             channel_name:
@@ -46,17 +50,6 @@ class FrameWriter(PipelineProcess):
             inference_sampling_rate:
                 The rate at which kernels are sampled from the strain
                 and witness timeseries
-            strain_q:
-                A queue from which strain data will be retrieved from
-                upstream processes
-            postprocess_pkl:
-                The path to a pickle file containing a serialized
-                `deepclean.signal.op.Op` to apply on the aggregated
-                noise predictions (including the past and future data
-                indicated by the `memory` and `look_ahead` arguments)
-                before subtraction from the strain channel. Will be
-                applied with `inverse=True`. If left as `None`, no
-                postprocessing will be applied.
             memory:
                 The number of seconds of noise predictions from
                 _before_ each frame being cleaned to include in-memory
@@ -75,209 +68,36 @@ class FrameWriter(PipelineProcess):
                 The name given by the inference server to the streaming
                 DeepClean output tensor.
         """
-        super().__init__(*args, **kwargs)
+        self.crawler = FrameCrawler(data_dir, t0, timeout=1)
 
         # make the write directory if it doesn't exist
-        os.makedirs(write_dir, exist_ok=True)
+        write_dir.makedirs(exist_ok=True)
 
         # record some of our writing parameters as-is
         self.write_dir = write_dir
-        self.channel_name = channel_name
         self.sample_rate = sample_rate
-        self.strain_q = strain_q
         self.output_name = output_name
+        self.channel_name = channel_name
 
-        # record some of the parameters of the data,
-        # mapping from time or frequency units to
-        # sample units
-        self.step_size = int(sample_rate / inference_sampling_rate)
+        # record some of the parameters of the data, mapping
+        # from time or frequency units to sample units
         self.memory = int(memory * sample_rate)
         self.look_ahead = int(look_ahead * sample_rate)
         self.aggregation_steps = aggregation_steps
 
+        self.frame_size = int(sample_rate * self.crawler.length)
+        self.stride = int(sample_rate // inference_sampling_rate)
+        self.steps_per_frame = self.frame_size // self.stride
+
         # load in our postprocessing pipeline
         self.postprocessor = postprocessor
 
-        # next we'll initialize a bunch of arrays
-        # and indices we'll need to do efficient
-        # asynchronous processing of responses
-
-        # _strains will contain a list of the strain frames
-        # that we've retrieved from `self.strain_q` but which
-        # haven't been cleaned yet
-        self._strains = []
-
-        # _noises will contain a pre-initialized array of all
-        # the noise predictions we _expect_ to get given the
-        # number of oustanding strains we have (plus any past
-        # and future data we want to keep for postprocessing
-        # purposes), which we'll populate with responses as
-        # they come in
-        self._noises = np.array([])
-
-        # _mask will be the same size as _noises and contain
-        # a boolean mask indicating which indices of _noises
-        # have been populated by a response
-        self._mask = np.array([])
-
-        # _frame_idx keeps track of where in our "infinite"
-        # timeseries the first sample of the current _noises
-        # array falls
+        self._zeros = np.zeros((self.frame_size,), dtype=np.float32)
+        self._noise = np.array([])
         self._frame_idx = 0
-
-        # _thrown away keeps track of how many initial
-        # responses we've ignored to account for aggregation
-        # on the server side
-        self._thrown_away = 0
-
         self._latest_seen = -1
 
-    def get_package(self):
-        # now get the next inferred noise estimate
-        noise_prediction = super().get_package()
-
-        # first see if we have any new strain data to collect
-        try:
-            # if we haven't begun yet, give ourselves a few
-            # seconds to wait for strain data to come in.
-            # If it doesn't, then assume something has gone wrong
-            if len(self._noises) == 0:
-                fname, strain = self.strain_q.get(True, 10)
-            else:
-                # otherwise, just immediately raise an error
-                # that we'll ignore if there's nothing there
-                fname, strain = self.strain_q.get(False)
-        except Empty:
-            if len(self._noises) == 0:
-                # if we timed out because no data has arrived
-                # yet, assume something went wrong and raise
-                raise RuntimeError("No strain data after 10 seconds")
-        else:
-            # if we there was a new strain frame available,
-            # add it to our running list of strains to clean.
-            # include the filename for metadata purposes
-            self.logger.debug(f"Adding strain file {fname} to strains")
-            self._strains.append((fname, strain))
-
-            # add blank arrays to our existing _noises
-            # and _mask arrays accounting for the noise
-            # predictions we expect to eventually use to
-            # clean the strain we just grabbed
-            zeros = np.zeros_like(strain)
-            self._noises = np.append(self._noises, zeros)
-            self._mask = np.append(self._mask, zeros)
-
-        # return the noise prediction for processing
-        # in `self.process`
-        return noise_prediction
-
-    def update_prediction_array(self, x: np.ndarray, request_id: int) -> None:
-        """
-        Update our initialized `_noises` array with the prediction
-        `x` by inserting it at the appropriate location. Update
-        our `_mask` array to indicate that this stretch has been
-        appropriately filled.
-        """
-
-        if request_id > (self._latest_seen + 1):
-            for i in range(1, request_id - self._latest_seen):
-                self.logger.warning(
-                    f"No response for request id {self._latest_seen + i}"
-                )
-            self._latest_seen = request_id
-        elif request_id < self._latest_seen:
-            self.logger.warning(f"Request id {request_id} came in late")
-        else:
-            self._latest_seen = request_id
-
-        # throw away the first `aggregation_steps` responses
-        # since these technically corresponds to predictions
-        # from the _past_
-        if request_id < self.aggregation_steps:
-            self.logger.debug(
-                f"Throwing away received package id {request_id}"
-            )
-            # don't update any our arrays with this response
-            return
-
-        # use the package request id to figure out where
-        # in the blank noise array we need to insert
-        # this prediction. Subtract the steps that we threw away
-        start_id = request_id - self.aggregation_steps
-        start_idx = int(start_id * self.step_size)
-
-        # If we've sloughed off any past data so far,
-        # make sure to account for that
-        start_idx -= max(self._frame_idx - self.memory, 0)
-
-        # now insert the response into the existing array
-        # TODO: should we check that this is all 0s to
-        # double check ourselves here?
-        self._noises[start_idx : start_idx + len(x)] = x
-
-        # update our mask to indicate which parts of our
-        # noise array have had inference performed on them
-        # self._mask[start_idx : start_idx + len(x)] = 1
-        self._mask[start_idx : start_idx + len(x)] = 1
-
-    def clean(self, noise: np.ndarray, mask: np.ndarray):
-        # pop out the earliest strain data from our
-        # _strains tracker
-        (witness_fname, strain_fname), strain = self._strains.pop(0)
-        self.logger.debug(f"Cleaning strain file {strain_fname}")
-
-        # now postprocess the noise channel and
-        # slice off the relevant frame to subtract
-        # from the strain channel
-        frame_slc = slice(-self.look_ahead - len(strain), -self.look_ahead)
-        if True:  # mask[:].all():
-            # only clean if the current frame didn't drop any packets
-            if self.postprocessor is not None:
-                noise = self.postprocessor(noise)
-            noise_segment = noise[frame_slc]
-            strain = strain - noise_segment
-        else:
-            self.logger.warning(
-                f"Noise prediction for strain file {strain_fname} "
-                "missing predictions, skipping clean"
-            )
-
-        # increment our _frame_idx to account for
-        # the frame we're about to write
-        self._frame_idx += len(strain)
-
-        # create a timeseries from the cleaned strain that
-        # we can write to a `.gwf`. Make sure to give it
-        # the same timestamp as the original file
-        fname = os.path.basename(strain_fname)
-        _, timestamp, __ = parse_frame_name(fname)
-        timeseries = TimeSeries(
-            strain,
-            t0=timestamp,
-            sample_rate=self.sample_rate,
-            channel=self.channel_name,
-        )
-
-        # write the timeseries to our `write_dir`,
-        # measure the latency from when the witness
-        # file became available and when we wrote the
-        # frame file for profiling purposes
-        write_path = os.path.join(self.write_dir, fname)
-        timeseries.write(write_path)
-        latency = time.time() - os.stat(witness_fname).st_mtime
-
-        # if moving this frame into our memory will
-        # give us more than `memory` samples, then
-        # slough off a frame from the start of our
-        # _noises and _mask arrays
-        extra = len(noise) - self.look_ahead - self.memory
-        if extra > 0:
-            self._noises = self._noises[extra:]
-            self._mask = self._mask[extra:]
-
-        return write_path, latency
-
-    def process(self, package: dict):
+    def process_package(self, package: dict):
         # grab the noise prediction from the package
         # slice out the batch and channel dimensions,
         # which will both just be 1 for this pipeline
@@ -290,50 +110,145 @@ class FrameWriter(PipelineProcess):
                     self.output_name, list(package.keys())
                 )
             )
-        else:
-            self.logger.debug(
-                f"Received response for package {package.request_id}"
-            )
+
+        request_id = package.request_id
+        self.logger.debug(f"Received response for package {request_id}")
 
         # flatten out to 1D and verify that this
         # output aligns with our expectations
         x = package.x.reshape(-1)
-        if len(x) != self.step_size:
+        if len(x) != self.stride:
             raise ValueError(
                 "Noise prediction is of wrong length {}, "
-                "expected length {}".format(len(x), self.step_size)
+                "expected length {}".format(len(x), self.stride)
             )
+
+        # now make sure that this request is arriving in order
+        if request_id < self._latest_seen:
+            self.logger.warning(f"Request id {request_id} came in late")
+        else:
+            if request_id > (self._latest_seen + 1):
+                # if we skipped some requests, log the ones we missed
+                for i in range(1, request_id - self._latest_seen):
+                    idx = self._latest_seen + i
+                    self.logger.warning(f"No response for request id {idx}")
+
+            self._latest_seen = request_id
+
+        # throw away the first `aggregation_steps` responses
+        # since these technically corresponds to predictions
+        # from the _past_
+        if request_id < self.aggregation_steps:
+            self.logger.debug(
+                f"Throwing away received package id {request_id}"
+            )
+            # don't update any our arrays with this response
+            return None, None
+        return x, request_id
+
+    def update_prediction_array(self, x: np.ndarray, request_id: int) -> None:
+        """
+        Update our initialized `_noise` array with the prediction
+        `x` by inserting it at the appropriate location. Update
+        our `_mask` array to indicate that this stretch has been
+        appropriately filled.
+        """
+
+        # use the package request id to figure out where
+        # in the blank noise array we need to insert
+        # this prediction. Subtract the steps that we threw away
+        start_id = request_id - self.aggregation_steps
+        start_idx = int(start_id * self.stride)
+
+        # If we've sloughed off any past data so far,
+        # make sure to account for that
+        start_idx -= max(self._frame_idx - self.memory, 0)
+
+        # now make sure that we have data to fill out,
+        # otherwise extend the array
+        if (start_idx + len(x)) > len(self._noise):
+            self._noise = np.append(self._noise, self._zeros)
+
+        # now insert the response into the existing array
+        # TODO: should we check that this is all 0s to
+        # double check ourselves here?
+        self._noise[start_idx : start_idx + len(x)] = x
+
+    def clean(self, noise: np.ndarray):
+        strain_fname = next(self.crawler)
+        self.logger.debug(f"Cleaning strain file {strain_fname}")
+
+        strain = load_frame(strain_fname, self.channel_name, self.sample_rate)
+        if len(strain) != self.frame_size:
+            raise ValueError(
+                "Strain from file {} has unexpected length {}".format(
+                    strain_fname, len(strain)
+                )
+            )
+
+        # apply any postprocessing to the noise channel
+        if self.postprocessor is not None:
+            noise = self.postprocessor(noise)
+
+        # now slice out just the segment we're concerned with
+        # and subtract it from the strain channel
+        start = -len(strain) - self.look_ahead
+        stop = -self.look_ahead
+        noise_segment = noise[start:stop]
+        strain = strain - noise_segment
+
+        # create a timeseries from the cleaned strain that
+        # we can write to a .gwf. Make sure to give it
+        # the same timestamp as the original file
+        timestamp = parse_frame_name(strain_fname.name)[1]
+        timeseries = TimeSeries(
+            strain,
+            t0=timestamp,
+            sample_rate=self.sample_rate,
+            channel=self.channel_name + "-CLEANED",
+        )
+
+        # write the timeseries to our `write_dir`,
+        # measure the latency from when the witness
+        # file became available and when we wrote the
+        # frame file for profiling purposes
+        write_path = self.write_dir / strain_fname
+        timeseries.write(write_path)
+        latency = time.time() - strain_fname.stat().st_mtime
+
+        # if moving this frame into our memory will
+        # give us more than `memory` samples, then
+        # slough off a frame from the start of our
+        # _noises and _mask arrays
+        extra = len(noise) - self.look_ahead - self.memory
+        if extra > 0:
+            self._noise = self._noise[extra:]
+
+        # increment our _frame_idx to account for
+        # the frame we're about to write
+        self._frame_idx += len(strain)
+
+        return write_path, latency
+
+    def process(self, package: dict):
+        # get the server response and corresponding
+        # request id from the passed package
+        response, request_id = self.process_package(package)
+        if response is None:
+            return
 
         # now insert it into our `_noises` prediction
         # array and update our `_mask` to reflect this
-        self.update_prediction_array(x, package.request_id)
+        self.update_prediction_array(response, package.request_id)
 
-        # if we don't have any strain frames to process,
-        # then we have nothing left to do
-        if len(self._strains) == 0:
-            self.logger.debug("No strains to clean, continuing")
-            return
-
-        # if we've completely performed inference on
-        # an entire frame's worth of data, postprocess
-        # the predictions and produce the cleaned estimate
-
-        # if we haven't accumulated enough frames to keep
-        # a full memory, then use what we have
-        memory = min(self.memory, self._frame_idx)
-
-        # make sure that the full memory, the current frame,
-        # and the any future samples are all accounted for
-        limit = memory + len(self._strains[0][1]) + self.look_ahead
-        if len(self._mask) >= limit and (
-            self._mask[limit - 1] or self._mask[limit:].any()
-        ):
-            # clean the current frame and write it to
-            # our `write_dir`. Get the name of the file
-            # we wrote it to as well as the incurred latency
-            fname, latency = self.clean(
-                self._noises[:limit], self._mask[:limit]
-            )
-
-            # push these to our `out_q` for use by downstream processes
-            super().process((fname, latency))
+        # TODO: this won't generalize to strides that
+        # aren't a factor of the frame size, which doesn't
+        # feel like an insane constraint. Should this be
+        # enforced explicitly somewhere?
+        steps_ahead = self.look_ahead // self.stride
+        if (request_id - steps_ahead) % self.steps_per_frame == 0:
+            # TODO: this assumes that look_ahead < frame_size,
+            # which should generally be the case right?
+            noise = self._noise[: -self.frame_size + self.look_ahead]
+            fname, latency = self.clean(noise)
+        super().process((fname, latency))

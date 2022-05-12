@@ -97,7 +97,7 @@ class FrameLoader(PipelineProcess):
         sequence_start = self._data is None
         sequence_end = self._end_next
         if (
-            sequence_start or next_stop >= self._data.shape[1]
+            sequence_start or next_stop >= self._data.shape[-1]
         ) and not sequence_end:
             # try to load in the next frame's worth of data
             try:
@@ -106,7 +106,7 @@ class FrameLoader(PipelineProcess):
                 # super().get_package() raised a StopIteration,
                 # so catch it and indicate that this will be
                 # the last inference that we'll produce
-                if next_stop == self._data.shape[1]:
+                if next_stop == self._data.shape[-1]:
                     # if the next frame will end precisely at the
                     # end of our existing data, we'll have one more
                     # frame to process after this one, so set
@@ -125,9 +125,12 @@ class FrameLoader(PipelineProcess):
                 # otherwise append the new data to whatever
                 # remaining data we have left to go through
                 data = load_frame(fname, self.channels, self.sample_rate)
-                if self._data is not None and start < self._data.shape[1]:
-                    leftover = self._data[:, start:]
-                    data = np.concatenate([leftover, data], axis=1)
+                if self._data is not None and start < self._data.shape[-1]:
+                    if self._data.ndim == 1:
+                        leftover = self._data[start:]
+                    else:
+                        leftover = self._data[:, start:]
+                    data = np.concatenate([leftover, data], axis=-1)
 
                 # reset everything
                 self._data = data
@@ -138,7 +141,11 @@ class FrameLoader(PipelineProcess):
         # the internal index to set the request
         # id for downstream processes to reconstruct
         # the order in which data should be processed
-        x = self._data[:, start:stop]
+        if self._data.ndim == 1:
+            x = self._data[start:stop]
+        else:
+            x = self._data[:, start:stop]
+
         package = Package(
             x=x,
             t0=time.time(),

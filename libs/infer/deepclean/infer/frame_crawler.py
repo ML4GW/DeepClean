@@ -48,7 +48,7 @@ class FrameCrawler:
         # t0 being None or 0 means start at the first timestamp
         # -1 means start at the last
         if self.t0 is None or self.t0 == 0 or self.t0 == -1:
-            matches = map(fname_re.search, self.data_dir.iterdir())
+            matches = map(fname_re.search, map(str, self.data_dir.iterdir()))
             tstamps = [int(i.group("t0")) for i in matches if i is not None]
             self.t0 = sorted(tstamps, reverse=self.t0 == -1)[0]
 

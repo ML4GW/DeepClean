@@ -111,7 +111,8 @@ def test_frame_loader(
         assert package.request_id == i
         assert package.sequence_start == (i == 0)
         assert package.sequence_end == ((i + 1) == num_updates)
-        assert package.x.shape[0] == (len(channels) - 1)
+        if not isinstance(channels, str):
+            assert package.x.shape[0] == num_channels
         assert package.x.shape[-1] == stride
 
         if isinstance(channels, str):
@@ -121,7 +122,7 @@ def test_frame_loader(
             package.x = package.x[None]
 
         # make sure the channel content is correct
-        for j in range(0, len(channels)):
+        for j in range(0, num_channels):
             k = j * num_frames * sample_rate
             expected = np.arange(k + i * stride, k + (i + 1) * stride)
             assert (package.x[j] == expected).all()

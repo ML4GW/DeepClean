@@ -19,9 +19,11 @@ def sample_rate(request):
     return request.param
 
 
-@pytest.fixture
-def channels():
-    return [f"channel{i}" for i in "ABCDEFG"]
+@pytest.fixture(params=["A", ["A"], list("ABCDEFG")])
+def channels(request):
+    if isinstance(request.param, str):
+        return "channel" + request.param
+    return [f"channel{i}" for i in request.param]
 
 
 @pytest.fixture
@@ -50,29 +52,35 @@ def test_frame_loader(
     if sample_rate < inference_sampling_rate:
         return
 
+    if isinstance(channels, str):
+        num_channels = 1
+    else:
+        num_channels = len(channels)
+
     # create a neat organized dummy array to check against
     num_frames = 10
     data = (
-        np.arange(num_frames * sample_rate * len(channels))
-        .reshape(len(channels), num_frames, -1)
+        np.arange(num_frames * sample_rate * num_channels)
+        .reshape(num_channels, num_frames, -1)
         .transpose(1, 0, 2)
     )
+    if isinstance(channels, str):
+        data = data[:, 0]
 
-    # write witness and strain frames using the dummy data
+    # write frames using the dummy data
     # and put the filenames into the loader's in_q
     for i, frame in enumerate(data):
-        strain = ts(frame[0], channels[0])
-        witness = TimeSeriesDict(
-            {i: ts(j, i) for i, j in zip(channels[1:], frame[1:])}
-        )
+        if isinstance(channels, str):
+            timeseries = ts(frame, channels)
+        else:
+            assert len(frame.shape) == 2
+            timeseries = TimeSeriesDict(
+                {i: ts(j, i) for i, j in zip(channels, frame)}
+            )
 
-        strain_fname = str(write_dir / f"strain-{i}.gwf")
-        witness_fname = str(write_dir / f"witness-{i}.gwf")
-
-        strain.write(strain_fname)
-        witness.write(witness_fname)
-
-        loader.in_q.put((witness_fname, strain_fname))
+        fname = write_dir / f"{i}.gwf"
+        timeseries.write(fname)
+        loader.in_q.put(fname)
 
     # put in a StopIteration to keep loader.get_package()
     # from waiting for a new package indefinitely
@@ -106,35 +114,18 @@ def test_frame_loader(
         assert package.x.shape[0] == (len(channels) - 1)
         assert package.x.shape[-1] == stride
 
+        if isinstance(channels, str):
+            # verify shape and add dimension to make
+            # loop below more general
+            assert len(package.x.shape) == 1
+            package.x = package.x[None]
+
         # make sure the channel content is correct
-        for j in range(0, len(channels) - 1):
-            # offset for the (j+1)th channel
-            k = (j + 1) * num_frames * sample_rate
+        for j in range(0, len(channels)):
+            k = j * num_frames * sample_rate
             expected = np.arange(k + i * stride, k + (i + 1) * stride)
             assert (package.x[j] == expected).all()
 
     # make sure there's nothing else in the out_q
     with pytest.raises(Empty):
         loader.out_q.get_nowait()
-
-    # now process the data the loader put into its
-    # strain q during that last loop
-    for i in range(num_frames):
-        try:
-            fnames, strain = loader.strain_q.get_nowait()
-        except Empty:
-            raise ValueError(
-                "Expected {} strains, only found {}".format(num_frames, i)
-            )
-        witness_fname, strain_fname = fnames
-
-        # make sure the filenames are properly ordered and named
-        assert witness_fname.endswith(f"witness-{i}.gwf")
-        assert strain_fname.endswith(f"strain-{i}.gwf")
-
-        # make sure the strain has the right shape and content
-        assert len(strain.shape) == 1
-        assert len(strain) == sample_rate
-
-        expected = np.arange(i * sample_rate, (i + 1) * sample_rate)
-        assert (strain == expected).all()

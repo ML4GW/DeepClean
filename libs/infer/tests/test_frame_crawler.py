@@ -74,24 +74,21 @@ def test_frame_crawler(
             FrameCrawler(data_dir, data_dir)
         return
 
-    # TODO: add check for mismatched lengths
-    # between the two data directories
-    crawler = FrameCrawler(
-        data_dir, data_dir, start_first=start_first, timeout=0.1
-    )
+    # TODO: check for arbitrary t0
+    t0 = 0 if start_first else -1
+    crawler = FrameCrawler(data_dir, t0, timeout=0.1)
     assert crawler.length == frame_length
 
     iterated = iter(crawler)
     for i in range(10):
-        witness_fname, strain_fname = next(iterated)
-        expected_tstamp = timestamp + (i if start_first else 9) * frame_length
-        for fname in [witness_fname, strain_fname]:
-            assert fname.parent == data_dir
+        fname = next(iterated)
+        assert fname.parent == data_dir
 
-            prfx, t0, length = parse_frame_name(fname)
-            assert prfx == prefix
-            assert t0 == expected_tstamp
-            assert length == frame_length
+        prfx, t0, length = parse_frame_name(fname)
+        expected_tstamp = timestamp + (i if start_first else 9) * frame_length
+        assert prfx == prefix
+        assert t0 == expected_tstamp
+        assert length == frame_length
 
         if not start_first:
             break

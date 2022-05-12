@@ -142,8 +142,8 @@ class FrameLoader(PipelineProcess):
         package = Package(
             x=x,
             t0=time.time(),
-            sequence_id=self.sequence_id,
             request_id=self._idx,
+            sequence_id=self.sequence_id,
             sequence_start=sequence_start,
             sequence_end=sequence_end,
         )

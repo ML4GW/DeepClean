@@ -1,6 +1,5 @@
 import logging
 from dataclasses import dataclass
-from multiprocessing import Queue
 from queue import Empty
 
 import numpy as np
@@ -39,6 +38,7 @@ def aggregation_steps(request):
 
 @pytest.fixture
 def dataset(
+    read_dir,
     write_dir,
     aggregation_steps,
     sample_rate,
@@ -56,47 +56,30 @@ def dataset(
     # break the non-negative parts of x into frame-sized
     # chunks that will be our dummy "strain"
     strains = np.split(x[throw_away:], num_frames)
+    for i, strain in enumerate(strains):
+        ts = TimeSeries(strain, dt=1 / sample_rate)
+        ts.write(read_dir / f"{start_timestamp + i}-{frame_length}.gwf")
 
     # break all of x up into update-sized chunks
-    # that will be our dummy "witnesses"
+    # that will be our dummy "witnesses," pass
+    # all the updates as dummy package objects
+    # into the writer's in_q for processing
     updates = np.split(x, (len(x) / sample_rate) * inference_sampling_rate)
-
-    strain_packages = []
-    for i, strain in enumerate(strains):
-        fname = f"{start_timestamp + i}-{frame_length}.gwf"
-        witness_fname = write_dir / ("witness-" + fname)
-        strain_fname = write_dir / ("strain-" + fname)
-
-        # the package the writer expects in the strain
-        # queue is a tuple of a (tuple of matching witness
-        # and strain filenames) and the strain frame array
-        fnames = (str(witness_fname), str(strain_fname))
-        package = (fnames, strain)
-        strain_packages.append(package)
-
-        # need to be able to os.stat witness fnames for latency
-        with open(witness_fname, "w"):
-            pass
-
-    # now pass all the updates as dummy package objects
-    # into the writer's main in_q for processing
-    update_packages = []
+    packages = []
     for i, update in enumerate(updates):
         package = Package(update, i)
-        update_packages.append(package)
-    return strain_packages, update_packages
+        packages.append(package)
+    return package
 
 
 def pass_dataset(writer, dataset):
-    strains, updates = dataset
-    for strain in strains:
-        writer.strain_q.put(strain)
-    for update in updates:
+    for update in dataset:
         writer.in_q.put({writer.output_name: update})
 
 
 @pytest.fixture(scope="function")
 def writer(
+    read_dir,
     write_dir,
     channel_name,
     inference_sampling_rate,
@@ -107,11 +90,11 @@ def writer(
     postprocessor,
 ):
     return FrameWriter(
+        read_dir,
         write_dir,
         channel_name=channel_name,
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
-        strain_q=Queue(),
         postprocessor=postprocessor,
         memory=memory,
         look_ahead=look_ahead,

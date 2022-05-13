@@ -1,4 +1,3 @@
-import os
 import shutil
 from pathlib import Path
 
@@ -8,7 +7,15 @@ import pytest
 @pytest.fixture(scope="function")
 def write_dir():
     tmp_dir = Path(__file__).resolve().parent / "tmp"
-    os.makedirs(tmp_dir)
+    tmp_dir.makedirs()
+    yield tmp_dir
+    shutil.rmtree(tmp_dir)
+
+
+@pytest.fixture(scope="function")
+def read_dir(write_dir):
+    tmp_dir = write_dir / "read"
+    tmp_dir.makedirs()
     yield tmp_dir
     shutil.rmtree(tmp_dir)
 

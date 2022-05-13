@@ -46,6 +46,7 @@ def dataset(
     start_timestamp,
     num_frames,
     frame_length,
+    channel_name,
 ):
     # build a dummy arange array for testing, but
     # add negative elements to the start that we
@@ -57,8 +58,10 @@ def dataset(
     # chunks that will be our dummy "strain"
     strains = np.split(x[throw_away:], num_frames)
     for i, strain in enumerate(strains):
-        ts = TimeSeries(strain, dt=1 / sample_rate)
-        ts.write(read_dir / f"{start_timestamp + i}-{frame_length}.gwf")
+        ts = TimeSeries(strain, dt=1 / sample_rate, channel=channel_name)
+        tstamp = start_timestamp + i * frame_length
+        fname = f"H1:STRAIN-{tstamp}-{frame_length}.gwf"
+        ts.write(read_dir / fname)
 
     # break all of x up into update-sized chunks
     # that will be our dummy "witnesses," pass
@@ -69,7 +72,7 @@ def dataset(
     for i, update in enumerate(updates):
         package = Package(update, i)
         packages.append(package)
-    return package
+    return packages
 
 
 def pass_dataset(writer, dataset):
@@ -88,6 +91,7 @@ def writer(
     look_ahead,
     aggregation_steps,
     postprocessor,
+    dataset,  # noqa
 ):
     return FrameWriter(
         read_dir,
@@ -111,8 +115,14 @@ def sync_writer(writer, dataset):
         pass_dataset(writer, dataset)
         yield writer
     finally:
-        writer.in_q.close()
-        writer.out_q.close()
+        for q in [writer.in_q, writer.out_q]:
+            while True:
+                try:
+                    q.get_nowait()
+                except Empty:
+                    break
+            q.close()
+            q.join_thread()
 
 
 @pytest.fixture
@@ -129,7 +139,7 @@ def validate_fname(
     def _validate_fname(fname, i):
         # make sure the frame name is correct
         _, t0, length = parse_frame_name(fname)
-        assert t0 == (start_timestamp + i)
+        assert t0 == (start_timestamp + i * frame_length)
         assert length == frame_length
 
         # the last frame will still get processed
@@ -145,7 +155,7 @@ def validate_fname(
 
         # now read in the written frame and validate
         # that it matches our expectations
-        ts = TimeSeries.read(fname, channel=channel_name)
+        ts = TimeSeries.read(fname, channel=channel_name + "-CLEANED")
         assert ts.t0.value == t0
         assert (ts.dt.value * len(ts)) == length
 
@@ -179,7 +189,7 @@ def test_writer(
     # the corresponding frames in order and run
     # our standard frame validater to ensure that
     # the frames have the right shape and content
-    for i in range(num_frames):
+    for i in range(num_frames - 1):
         try:
             fname, _ = writer.out_q.get_nowait()
         except Empty:

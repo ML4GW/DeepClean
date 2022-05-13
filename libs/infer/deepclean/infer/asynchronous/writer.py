@@ -68,10 +68,11 @@ class FrameWriter(PipelineProcess):
                 The name given by the inference server to the streaming
                 DeepClean output tensor.
         """
+        super().__init__(*args, **kwargs)
         self.crawler = FrameCrawler(data_dir, t0, timeout=1)
 
         # make the write directory if it doesn't exist
-        write_dir.makedirs(exist_ok=True)
+        write_dir.mkdir(parents=True, exist_ok=True)
 
         # record some of our writing parameters as-is
         self.write_dir = write_dir
@@ -239,16 +240,19 @@ class FrameWriter(PipelineProcess):
 
         # now insert it into our `_noises` prediction
         # array and update our `_mask` to reflect this
-        self.update_prediction_array(response, package.request_id)
+        self.update_prediction_array(response, request_id)
 
         # TODO: this won't generalize to strides that
         # aren't a factor of the frame size, which doesn't
         # feel like an insane constraint. Should this be
         # enforced explicitly somewhere?
-        steps_ahead = self.look_ahead // self.stride
-        if (request_id - steps_ahead) % self.steps_per_frame == 0:
-            # TODO: this assumes that look_ahead < frame_size,
-            # which should generally be the case right?
-            noise = self._noise[: -self.frame_size + self.look_ahead]
+        steps_ahead = (self.look_ahead - 1) // self.stride + 1
+        step_idx = request_id - steps_ahead - self.aggregation_steps
+        div, rem = divmod(step_idx, self.steps_per_frame)
+        if div > 0 and rem == 0:
+            idx = min(self.memory, self._frame_idx)
+            idx += self.frame_size + self.look_ahead
+            noise = self._noise[:idx]
+
             fname, latency = self.clean(noise)
-        super().process((fname, latency))
+            super().process((fname, latency))

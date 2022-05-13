@@ -5,19 +5,31 @@ import pytest
 
 
 @pytest.fixture(scope="function")
-def write_dir():
-    tmp_dir = Path(__file__).resolve().parent / "tmp"
-    tmp_dir.makedirs()
-    yield tmp_dir
-    shutil.rmtree(tmp_dir)
+def tmpdir():
+    tmpdir = Path(__file__).resolve().parent / "tmp"
+    tmpdir.mkdir(parents=True)
+    yield tmpdir
+    shutil.rmtree(tmpdir)
+
+
+@pytest.fixture(params=[True])  # , False])
+def write_dir_exists(request):
+    return request.param
 
 
 @pytest.fixture(scope="function")
-def read_dir(write_dir):
-    tmp_dir = write_dir / "read"
-    tmp_dir.makedirs()
-    yield tmp_dir
-    shutil.rmtree(tmp_dir)
+def write_dir(tmpdir, write_dir_exists):
+    write_dir = tmpdir / "write"
+    if write_dir_exists:
+        write_dir.mkdir(parents=True)
+    return write_dir
+
+
+@pytest.fixture(scope="function")
+def read_dir(tmpdir):
+    read_dir = tmpdir / "read"
+    read_dir.mkdir(parents=True)
+    return read_dir
 
 
 @pytest.fixture(params=[10])  # , 100])

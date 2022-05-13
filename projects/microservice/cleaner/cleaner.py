@@ -84,7 +84,7 @@ def main(
         channel_name=channels[0],
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
-        t0=loader.t0,
+        t0=crawler.t0,
         postprocessor=postprocessor,
         memory=memory,
         look_ahead=look_ahead,
@@ -97,7 +97,8 @@ def main(
     writer.logger = logger
 
     time.sleep(1)
-    with client.client.start_stream(callback=client.callback):
+    try:
+        client.client.start_stream(callback=client.callback)
         for i, witness_fname in enumerate(crawler):
             loader.in_q.put(witness_fname)
             if i == 0:
@@ -108,10 +109,10 @@ def main(
 
                 client.in_q.put(package)
                 package = client.get_package()
-                client.process(package)
+                client.process(*package)
 
                 response = writer.get_package()
-                writer.proccess(response)
+                writer.process(response)
 
             try:
                 fname, latency = writer.out_q.get_nowait()
@@ -126,6 +127,21 @@ def main(
             finally:
                 if start_first:
                     time.sleep(inference_sampling_rate / inference_rate)
+    finally:
+        client.client.close()
+        for p in [loader, client, writer]:
+            for q in [p.in_q, p.out_q]:
+                while True:
+                    try:
+                        q.get_nowait()
+                    except (Empty, ValueError):
+                        break
+
+                try:
+                    q.close()
+                except ValueError:
+                    pass
+                q.join_thread()
 
 
 if __name__ == "__main__":

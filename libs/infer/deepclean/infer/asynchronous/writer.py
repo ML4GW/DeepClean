@@ -213,7 +213,7 @@ class FrameWriter(PipelineProcess):
         # measure the latency from when the witness
         # file became available and when we wrote the
         # frame file for profiling purposes
-        write_path = self.write_dir / strain_fname
+        write_path = self.write_dir / strain_fname.name
         timeseries.write(write_path)
         latency = time.time() - strain_fname.stat().st_mtime
 

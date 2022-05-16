@@ -123,7 +123,7 @@ verbose = true
 
 [tool.typeo.scripts.analyze]
 raw_data_dir = "${DATA_DIR}/llhoft"
-clean_data_dir = "${PROJECT_DIR}/production" # cleaned"
+clean_data_dir = "${PROJECT_DIR}/cleaned"
 output_directory = "${PROJECT_DIR}"
 channels = "${base.channels}"
 sample_rate = "${base.sample_rate}"

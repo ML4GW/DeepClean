@@ -15,14 +15,40 @@ from deepclean.logging import configure_logging
 from deepclean.signal.filter import BandpassFilter
 
 
+class DummyQueue:
+    def __init__(self):
+        self.package = None
+
+    def put(self, package):
+        self.package = package
+
+    def get_nowait(self):
+        if self.package is None:
+            raise Empty
+
+        package = self.package
+        self.package = None
+        return package
+
+
 @contextmanager
-def stream(client, *processes):
+def stream(loader, client, writer):
     """
     Context for taking care of a lot of the business that usually
     gets dealt with in the `PipelineProcess.run` method
     """
+
+    # hack the client callback to do the accumulation,
+    # postprocessing, and writing in the callback thread
+    client.out_q = writer.in_q = DummyQueue()
+
+    def callback(result, error):
+        client.callback(result, error)
+        response = writer.get_package()
+        writer.process(response)
+
     try:
-        client.client.start_stream(callback=client.callback)
+        client.client.start_stream(callback=callback)
         yield client
     finally:
         # close the stream between the client and server
@@ -30,7 +56,7 @@ def stream(client, *processes):
 
         # for each process, empty all the incoming
         # and outgoing queues, then close and join them
-        for p in processes:
+        for p in [loader, client, writer]:
             for q in [p.in_q, p.out_q]:
                 while True:
                     try:
@@ -97,7 +123,6 @@ def main(
         channels=channels[1:],
         sequence_id=sequence_id,
         name="loader",
-        rate=inference_rate,
         join_timeout=1,
     )
 
@@ -154,7 +179,7 @@ def main(
     writer.in_q = client.out_q
 
     time.sleep(1)
-    with stream(client, loader, client, writer):
+    with stream(loader, client, writer):
         for i, witness_fname in enumerate(crawler):
             loader.in_q.put(witness_fname)
 
@@ -171,12 +196,7 @@ def main(
                 client.in_q.put(package)
                 package = client.get_package()
                 client.process(*package)
-                time.sleep(0.5 / inference_rate)
-
-            # process them all as they come back
-            for _ in range(int(inference_sampling_rate)):
-                response = writer.get_package()
-                writer.process(response)
+                time.sleep(1 / inference_rate)
 
             # check to see if the writer produced any new
             # cleaned frames. Move on if not

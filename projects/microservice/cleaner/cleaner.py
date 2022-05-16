@@ -171,6 +171,7 @@ def main(
                 client.in_q.put(package)
                 package = client.get_package()
                 client.process(*package)
+                time.sleep(0.5 / inference_rate)
 
             # process them all as they come back
             for _ in range(int(inference_sampling_rate)):

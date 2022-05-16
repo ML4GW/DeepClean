@@ -361,7 +361,7 @@ def analyze_test_data(
 
     clean_timeseries = TimeSeries.read(
         [clean_data_dir / f.name for f in fnames],
-        channel=channels[0],  # + "-CLEANED",
+        channel=channels[0] + "-CLEANED",
     ).resample(sample_rate)
     clean_asd = clean_timeseries.asd(fftlength, overlap=overlap)
 

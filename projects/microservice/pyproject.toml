@@ -27,7 +27,7 @@ sample_rate = 4096
 
 [tool.typeo.scripts.clean]
 url = "localhost:8001"
-model_name = "deepclean-stream"
+model_name = "deepclean-stream-0.5"
 model_version = 1
 
 witness_data_dir = "${DATA_DIR}/lldetchar"
@@ -40,7 +40,7 @@ inference_sampling_rate = 512
 inference_rate = 1024
 sample_rate = "${base.sample_rate}"
 
-max_latency = 0.75
+max_latency = 0.5
 freq_low = 55
 freq_high = 65 
 memory = 10

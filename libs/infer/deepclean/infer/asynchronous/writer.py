@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 from gwpy.timeseries import TimeSeries
@@ -98,7 +98,26 @@ class FrameWriter(PipelineProcess):
         self._frame_idx = 0
         self._latest_seen = -1
 
-    def process_package(self, package: dict):
+    def process_package(self, package: dict) -> Tuple[np.ndarray, int]:
+        """
+        Parse the response from the server to get
+        the noise prediction and the corresponding
+        request id. Ensure that the request id falls
+        in the expected order and if not, log the ids
+        that we missed.
+
+        Args:
+            package:
+                Dictionary of model responses returned by
+                `hermes.stillwater.client.InferenceClient`
+                process, mapping from output name to a
+                `hermes.stillwater.Package` containing the
+                corresponding numpy array and request id.
+        Returns:
+            The numpy array of the server response
+            The corresponding request id associated with the response
+        """
+
         # grab the noise prediction from the package
         # slice out the batch and channel dimensions,
         # which will both just be 1 for this pipeline
@@ -134,17 +153,20 @@ class FrameWriter(PipelineProcess):
                     idx = self._latest_seen + i
                     self.logger.warning(f"No response for request id {idx}")
 
+            # update `self._latest_seen` to reflect whatever
+            # the new latest request id is
             self._latest_seen = request_id
 
-        # throw away the first `aggregation_steps` responses
-        # since these technically corresponds to predictions
-        # from the _past_
         if request_id < self.aggregation_steps:
+            # throw away the first `aggregation_steps` responses, since
+            # these technically corresponds to predictions from the _past_.
+            # Return `None`s so that we know not to update our internal arrays
             self.logger.debug(
                 f"Throwing away received package id {request_id}"
             )
-            # don't update any our arrays with this response
             return None, None
+
+        # otherwise return the parsed array and its request id
         return x, request_id
 
     def update_prediction_array(self, x: np.ndarray, request_id: int) -> None:
@@ -175,7 +197,28 @@ class FrameWriter(PipelineProcess):
         # double check ourselves here?
         self._noise[start_idx : start_idx + len(x)] = x
 
-    def clean(self, noise: np.ndarray):
+    def clean(self, noise: np.ndarray) -> Tuple[Path, float]:
+        """
+        Grab a new strain file, use the provided timeseries of
+        noise predictions to clean it, then write the cleaned
+        strain to a .gwf file. Return the name of this file as
+        well as the time delta in seconds between when the
+        strain file was written and when the cleaned strain file
+        completes writing for profiling purposes.
+
+        Args:
+            noise:
+                The timeseries of DeepClean noise predictions,
+                including any past and future data needed for
+                postprocessing before subtraction.
+        Returns:
+            The name of the file the cleaned strain was written to
+            The time delta in seconds between the creation timestamp
+                of the raw strain file and the time at which file
+                writing completed in this process.
+        """
+
+        # use our frame crawler
         strain_fname = next(self.crawler)
         self.logger.debug(f"Cleaning strain file {strain_fname}")
 
@@ -246,9 +289,28 @@ class FrameWriter(PipelineProcess):
         # aren't a factor of the frame size, which doesn't
         # feel like an insane constraint. Should this be
         # enforced explicitly somewhere?
+        # compute how many update steps are contained in the
+        # `look_ahead` period, taking the _ceiling_ rather than
+        # floor if we need to.
         steps_ahead = (self.look_ahead - 1) // self.stride + 1
+
+        # then offset this by the number of steps we threw
+        # away up front (self.aggregation_steps) and subtract
+        # them from the request_id to get the index of cleanable
+        # data (data which has at least `look_ahead` samples in
+        # front of it)
         step_idx = request_id - steps_ahead - self.aggregation_steps
+
+        # modulate by the number of steps in each frame to
+        # see if the current cleanable index is at the end
+        # of a frame.
         div, rem = divmod(step_idx, self.steps_per_frame)
+
+        # if so (and if div > 0 i.e. the cleanable index
+        # is not at 0), cut off the first
+        # memory + frame_size + look_ahead worth of data
+        # and use this to clean the next strain file
+        # we can find.
         if div > 0 and rem == 0:
             idx = min(self.memory, self._frame_idx)
             idx += self.frame_size + self.look_ahead

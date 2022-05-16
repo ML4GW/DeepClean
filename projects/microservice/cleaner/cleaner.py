@@ -1,5 +1,6 @@
 import logging
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from queue import Empty
 from typing import Iterable, Optional, Union
@@ -12,6 +13,40 @@ from deepclean.infer.asynchronous import FrameLoader, FrameWriter
 from deepclean.infer.frame_crawler import FrameCrawler
 from deepclean.logging import configure_logging
 from deepclean.signal.filter import BandpassFilter
+
+
+@contextmanager
+def stream(client, *processes):
+    """
+    Context for taking care of a lot of the business that usually
+    gets dealt with in the `PipelineProcess.run` method
+    """
+    try:
+        client.client.start_stream(callback=client.callback)
+        yield client
+    finally:
+        # close the stream between the client and server
+        client.client.close()
+
+        # for each process, empty all the incoming
+        # and outgoing queues, then close and join them
+        for p in processes:
+            for q in [p.in_q, p.out_q]:
+                while True:
+                    try:
+                        q.get_nowait()
+                    except (Empty, ValueError):
+                        # empty means there's nothing left to get,
+                        # ValueError means this queue has already
+                        # been closed (likely because it's the
+                        # out_q of an earlier process)
+                        break
+
+                try:
+                    q.close()
+                except ValueError:
+                    pass
+                q.join_thread()
 
 
 @typeo
@@ -41,14 +76,21 @@ def main(
     look_ahead: float = 0.5,
     verbose: bool = False,
     log_file: Optional[str] = None,
-):
+) -> None:
     configure_logging(log_file, verbose)
     logger = logging.getLogger()
 
     channels = get_channels(channels)
 
+    # create a frame crawler which will start at either the first
+    # first or last timestep available in the witness data directory
     t0 = 0 if start_first else -1
     crawler = FrameCrawler(witness_data_dir, t0, timeout)
+
+    # create a frame loader which will take filenames returned
+    # by the crawler and load them into numpy arrays using
+    # just the witness channels, then iterate through this array
+    # in (1 / inference_sampling_rate)-sized updates
     loader = FrameLoader(
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
@@ -58,8 +100,14 @@ def main(
         rate=inference_rate,
         join_timeout=1,
     )
+
+    # for this and all other processes here, manually
+    # set the logger since this normally gets set during
+    # `PipelineProcess.run`
     loader.logger = logger
 
+    # create an inference client which take these updates
+    # and use them to make inference requests to the server
     client = InferenceClient(
         url=url,
         model_name=model_name,
@@ -78,6 +126,12 @@ def main(
     else:
         aggregation_steps = int(max_latency * inference_sampling_rate)
 
+    # finally create a file writer which takes the
+    # response returned by the server and turns them
+    # into a timeseries of noise predictions which can
+    # be subtracted from strain data. Use the initial
+    # timestamp utilized by the crawler to crawl through
+    # the strain data directory in the same order
     writer = FrameWriter(
         strain_data_dir,
         write_dir,
@@ -93,17 +147,24 @@ def main(
         name="writer",
         join_timeout=1,
     )
-    writer.in_q = client.out_q
     writer.logger = logger
 
+    # pipe the output of the client process to the input
+    # of the writer process
+    writer.in_q = client.out_q
+
     time.sleep(1)
-    try:
-        client.client.start_stream(callback=client.callback)
+    with stream(client, loader, client, writer):
         for i, witness_fname in enumerate(crawler):
             loader.in_q.put(witness_fname)
+
+            # always keep one extra frame in `loader.in_q`
+            # so that it doesn't keep hitting stop iterations
+            # when it gets to the end of a frame
             if i == 0:
                 continue
 
+            # submit all the inference requests up front
             for _ in range(int(inference_sampling_rate)):
                 package = loader.get_package()
 
@@ -111,9 +172,13 @@ def main(
                 package = client.get_package()
                 client.process(*package)
 
+            # process them all as they come back
+            for _ in range(int(inference_sampling_rate)):
                 response = writer.get_package()
                 writer.process(response)
 
+            # check to see if the writer produced any new
+            # cleaned frames. Move on if not
             try:
                 fname, latency = writer.out_q.get_nowait()
             except Empty:
@@ -124,24 +189,6 @@ def main(
                         fname, latency
                     )
                 )
-            finally:
-                if start_first:
-                    time.sleep(inference_sampling_rate / inference_rate)
-    finally:
-        client.client.close()
-        for p in [loader, client, writer]:
-            for q in [p.in_q, p.out_q]:
-                while True:
-                    try:
-                        q.get_nowait()
-                    except (Empty, ValueError):
-                        break
-
-                try:
-                    q.close()
-                except ValueError:
-                    pass
-                q.join_thread()
 
 
 if __name__ == "__main__":

@@ -36,7 +36,7 @@ train_t0 = 1239939250
 train_duration = 2000
 verbose = false
 
-max_latency = 0.75
+max_latency = 0.5
 infer_kernel_length = 1
 infer_kernel_stride = 0.001953125
 
@@ -91,14 +91,14 @@ channels = "${base.channels}"
 kernel_length = "${base.infer_kernel_length}"
 stride_length = "${base.infer_kernel_stride}"
 sample_rate = "${base.sample_rate}"
-max_latency = "${base.max_latency}"
+max_latency = [0.25, 0.5, 0.75]
 instances = 6
 verbose = "${base.verbose}"
 commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.infer]
 url = "localhost:8001"
-model_name = "deepclean-stream"
+model_name = "deepclean-stream-${base.max_latency}"
 output_directory = "${PROJECT_DIR}"
 model_repo_dir = "${MODEL_REPOSITORY}"
 
@@ -123,7 +123,7 @@ verbose = true
 
 [tool.typeo.scripts.analyze]
 raw_data_dir = "${DATA_DIR}/llhoft"
-clean_data_dir = "${PROJECT_DIR}/production"  # cleaned"
+clean_data_dir = "${PROJECT_DIR}/cleaned"
 output_directory = "${PROJECT_DIR}"
 channels = "${base.channels}"
 sample_rate = "${base.sample_rate}"

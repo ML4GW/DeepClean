@@ -15,7 +15,7 @@ from deepclean.signal.filter import FREQUENCY, BandpassFilter
 
 
 def write_frames(frames, write_dir: Path, fnames: str, channel: str):
-    os.makedirs(write_dir, exist_ok=True)
+    write_dir.mkdir(parents=True, exist_ok=True)
     for fname, frame in zip(fnames, frames):
         # use the filename and channel name from the
         # strain data for the cleaned frame. TODO:

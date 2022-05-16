@@ -70,10 +70,10 @@ def make_ensemble(
         else:
             # pipe the output of the existing snapshotter
             # model to DeepClean's witness input
-            ensemble.pipe(
-                list(snapshotter.outputs.values())[0],
-                deepclean.inputs["witness"],
-            )
+            stream = list(snapshotter.inputs.values())[0]
+            snapshot = list(snapshotter.outputs.values())[0]
+            ensemble.add_input(stream)
+            ensemble.pipe(snapshot, deepclean.inputs["witness"])
     else:
         # if there does already exist an ensemble by
         # the given name, make sure it has DeepClean

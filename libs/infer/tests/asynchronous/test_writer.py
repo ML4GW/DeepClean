@@ -1,4 +1,5 @@
 import logging
+import time
 from dataclasses import dataclass
 from queue import Empty
 
@@ -91,7 +92,7 @@ def writer(
     look_ahead,
     aggregation_steps,
     postprocessor,
-    dataset,  # noqa
+    dataset,  # noqa: including as arg to make sure it gets created
 ):
     return FrameWriter(
         read_dir,
@@ -121,6 +122,15 @@ def sync_writer(writer, dataset):
                     q.get_nowait()
                 except Empty:
                     break
+
+            # without a sleep there's a risk of getting
+            # a BrokenPipeError if you're not using the
+            # absolute latest version of Python, see the
+            # discussion here:
+            # https://github.com/python/cpython/pull/31913
+            # Once this PR comes standard, we shouldn't need
+            # to empty the queue manually anymore
+            time.sleep(0.01)
             q.close()
             q.join_thread()
 
@@ -210,22 +220,22 @@ def test_writer(
         writer.out_q.get_nowait()
 
 
-def test_writer_async(
-    num_frames,
-    frame_length,
-    look_ahead,
-    validate_fname,
-    start_timestamp,
-    async_writer,
-    dataset,
-):
-    return
-    # writer = async_writer
-    # total_length = num_frames * frame_length
-    # for i, (fname, _) in enumerate(writer):
-    #     validate_fname(fname, i)
+# def test_writer_async(
+#     num_frames,
+#     frame_length,
+#     look_ahead,
+#     validate_fname,
+#     start_timestamp,
+#     async_writer,
+#     dataset,
+# ):
+#     return
+# writer = async_writer
+# total_length = num_frames * frame_length
+# for i, (fname, _) in enumerate(writer):
+#     validate_fname(fname, i)
 
-    #     # if the next frame won't have enough data to
-    #     # be processed the loop will hang, so break here
-    #     if ((i + 2) * frame_length + look_ahead) >= total_length:
-    #         break
+#     # if the next frame won't have enough data to
+#     # be processed the loop will hang, so break here
+#     if ((i + 2) * frame_length + look_ahead) >= total_length:
+#         break

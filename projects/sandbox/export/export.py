@@ -1,11 +1,13 @@
 import logging
-import os
-from typing import Callable, List, Optional, Union
+from pathlib import Path
+from typing import Callable, Iterable, Optional, Union
 
 import hermes.quiver as qv
 import torch
 
 from deepclean.architectures import architecturize
+from deepclean.export import PrePostDeepClean
+from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.logging import configure_logging
 
 
@@ -68,10 +70,10 @@ def make_ensemble(
         else:
             # pipe the output of the existing snapshotter
             # model to DeepClean's witness input
-            ensemble.pipe(
-                list(snapshotter.outputs.values())[0],
-                deepclean.inputs["witness"],
-            )
+            stream = list(snapshotter.inputs.values())[0]
+            snapshot = list(snapshotter.outputs.values())[0]
+            ensemble.add_input(stream)
+            ensemble.pipe(snapshot, deepclean.inputs["witness"])
     else:
         # if there does already exist an ensemble by
         # the given name, make sure it has DeepClean
@@ -128,12 +130,13 @@ def make_ensemble(
 def export(
     architecture: Callable,
     repository_directory: str,
-    channels: Union[str, List[str]],
-    weights: str,
+    output_directory: Path,
+    channels: ChannelList,
     kernel_length: float,
     stride_length: float,
     sample_rate: float,
-    max_latency: Union[float, List[float]],
+    max_latency: Union[float, Iterable[float]],
+    weights: Optional[Path] = None,
     streams_per_gpu: int = 1,
     instances: Optional[int] = None,
     platform: qv.Platform = qv.Platform.ONNX,
@@ -153,15 +156,13 @@ def export(
         repository_directory:
             Directory to which to save the models and their
             configs
+        output_directory:
+            Path to save logs. If `weights` is `None`, this
+            directory is assumed to contain a file `"weights.pt"`.
         channels:
             A list of channel names used by DeepClean, with the
             strain channel first, or the path to a text file
             containing this list separated by newlines
-        weights:
-            Path to a set of trained weights with which to
-            initialize the network architecture. If this path
-            is a directory, it should contain a file called
-            `"weights.pt"`.
         kernel_length:
             The length, in seconds, of the input to DeepClean
         stride_length:
@@ -183,6 +184,11 @@ def export(
             between the start timestamp of the update streamed to
             the snapshotter and the resulting prediction returned by
             the ensemble model.
+        weights:
+            Path to a set of trained weights with which to
+            initialize the network architecture. If left as
+            `None`, a file called `"weights.pt"` will be looked
+            for in the `output_directory`.
         streams_per_gpu:
             The number of snapshot states to host per GPU during
             inference
@@ -198,20 +204,23 @@ def export(
             `INFO` verbosity.
     """
 
-    # standardize the weights filename
-    # use the directory the weights are hosted in
-    # as the directory to direct our logs
-    if os.path.isdir(weights):
-        output_directory = weights
-        weights = os.path.join(output_directory, "weights.pt")
-    else:
-        output_directory = os.path.dirname(weights)
-    configure_logging(os.path.join(output_directory, "export.log"), verbose)
+    # load the channel names from a file if necessary
+    channels = get_channels(channels)
+
+    # if we didn't specify a weights filename, assume
+    # that a "weights.pt" lives in our output directory
+    if weights is None:
+        weights = output_directory / "weights.pt"
+    if not weights.exists():
+        raise FileNotFoundError(f"No weights file '{weights}'")
+
+    configure_logging(output_directory / "export.log", verbose)
 
     # instantiate the architecture and initialize
     # its weights with the trained values
     logging.info(f"Creating model and loading weights from {weights}")
     nn = architecture(len(channels) - 1)
+    nn = PrePostDeepClean(nn)
     nn.load_state_dict(torch.load(weights))
     nn.eval()
 

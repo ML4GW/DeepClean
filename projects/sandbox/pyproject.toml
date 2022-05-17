@@ -1,4 +1,4 @@
-[tool.runner]
+[tool.pinto]
 steps = [
     "train:train:autoencoder",
     "export:export-model:autoencoder",
@@ -8,7 +8,7 @@ steps = [
 
 [tool.typeo.base]
 channels = [
-    "H1:GDS-CALIB_STRAIN",
+    "H1:GDS-CALIB_STRAIN_CLEAN",
     "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
     "H1:ASC-INP1_P_INMON",
     "H1:ASC-INP1_Y_INMON",
@@ -49,31 +49,31 @@ autoencoder = {}
 
 [tool.typeo.scripts.train]
 channels = "${base.channels}"
-output_directory = "${PROJECT_DIRECTORY}"
+output_directory = "${PROJECT_DIR}"
 sample_rate = "${base.sample_rate}"
-t0 = "${base.train_t0}"
-duration = "${base.train_duration}"
+# t0 = "${base.train_t0}"
+# duration = "${base.train_duration}"
 
 # TODO: add typeo fix which allows multiple wildcards
 # and then replace this 2000 with "${base.train_duration}"
-data_directory = "data/${base.train_t0}/2000"
+data_directory = "${TRAIN_DATA_DIR}"
 valid_frac = 0.25
 
 kernel_length = 8
 kernel_stride = 0.25
 chunk_length = 0
 
-filt_fl = "${base.freq_low}"
-filt_fh = "${base.freq_high}"
-filt_order = 8
+freq_low = "${base.freq_low}"
+freq_high = "${base.freq_high}"
+filter_order = 8
 
 batch_size = 32
 max_epochs = 500
 lr = 3.2e-2
 weight_decay = 1e-5
-patience = 25
+patience = 8
 factor = 0.2
-early_stop = 100
+early_stop = 50
 
 fftlength = 2
 overlap = 1
@@ -86,32 +86,35 @@ commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.export-model]
 repository_directory = "${MODEL_REPOSITORY}"
+output_directory = "${PROJECT_DIR}"
 channels = "${base.channels}"
-weights = "${PROJECT_DIRECTORY}"
 kernel_length = "${base.infer_kernel_length}"
 stride_length = "${base.infer_kernel_stride}"
 sample_rate = "${base.sample_rate}"
-max_latency = "${base.max_latency}"
+max_latency = [0.25, 0.5, 0.75]
 instances = 6
 verbose = "${base.verbose}"
 commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.infer]
 url = "localhost:8001"
-model_name = "deepclean-stream"
-train_directory = "${PROJECT_DIRECTORY}"
+model_name = "deepclean-stream-${base.max_latency}"
+output_directory = "${PROJECT_DIR}"
 model_repo_dir = "${MODEL_REPOSITORY}"
 
-witness_data_dir = "${DATA_DIR}/lldetchar/H1"
-strain_data_dir = "${DATA_DIR}/llhoft/H1"
+witness_data_dir = "${DATA_DIR}/lldetchar"
+strain_data_dir = "${DATA_DIR}/llhoft"
 channels = "${base.channels}"
+
 kernel_length = "${base.infer_kernel_length}"
 stride_length = "${base.infer_kernel_stride}"
 sample_rate = "${base.sample_rate}"
+freq_low = "${base.freq_low}"
+freq_high = "${base.freq_high}"
 
 max_latency = "${base.max_latency}"
-filter_memory = 10
-filter_lead_time = 0.5
+memory = 10
+look_ahead = 0.5
 
 gpus = [6]
 max_frames = 101
@@ -119,9 +122,9 @@ sequence_id = 1001
 verbose = true
 
 [tool.typeo.scripts.analyze]
-raw_data_dir = "${DATA_DIR}/llhoft/H1"
-clean_data_dir = "${PROJECT_DIRECTORY}/cleaned"
-output_directory = "${PROJECT_DIRECTORY}"
+raw_data_dir = "${DATA_DIR}/llhoft"
+clean_data_dir = "${PROJECT_DIR}/cleaned"
+output_directory = "${PROJECT_DIR}"
 channels = "${base.channels}"
 sample_rate = "${base.sample_rate}"
 fftlength = 10

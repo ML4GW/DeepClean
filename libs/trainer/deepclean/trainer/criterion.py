@@ -5,6 +5,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from deepclean.signal.filter import normalize_frequencies
+
 
 class TorchWelch(nn.Module):
     def __init__(
@@ -104,37 +106,7 @@ class PSDLoss(nn.Module):
             sample_rate, fftlength, overlap, asd=asd, device=device
         )
         if freq_low is not None and freq_high is not None:
-            # we specified both high and low frequency ranges,
-            # so parse them out
-            if isinstance(freq_low, (int, float)):
-                # wrap scalar values in a list for generality
-                freq_low = [freq_low]
-
-                # enforce that freq_high is also a scalar
-                if not isinstance(freq_high, (int, float)):
-                    raise ValueError(
-                        "'freq_low' and 'freq_high' values {} and {} "
-                        "are incompatible.".format(freq_low, freq_high)
-                    )
-                freq_high = [freq_high]
-            else:
-                # freq_low is an iterable, so verify
-                # that freq_high is also iterable
-                try:
-                    if not len(freq_low) == len(freq_high):
-                        raise ValueError(
-                            "Lengths of 'freq_low' and 'freq_high' {} and {} "
-                            "are incompatible.".format(
-                                len(freq_low), len(freq_high)
-                            )
-                        )
-                except TypeError:
-                    # one of the two above couldn't have its
-                    # __len__ evaluated, so there's some incompatibility
-                    raise ValueError(
-                        "'freq_low' and 'freq_high' values {} and {} "
-                        "are incompatible.".format(freq_low, freq_high)
-                    )
+            freq_low, freq_high = normalize_frequencies(freq_low, freq_high)
 
             # since we specified frequency ranges, build a mask
             # to zero out the frequencies we don't care about
@@ -176,7 +148,7 @@ class PSDLoss(nn.Module):
 
 
 class CompositePSDLoss(nn.Module):
-    """ PSD + MSE Loss with weight """
+    """PSD + MSE Loss with weight"""
 
     def __init__(
         self,

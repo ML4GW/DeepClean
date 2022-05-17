@@ -21,7 +21,7 @@ jobs:
         - ${{ github.workspace }}:/github/workspace
     strategy:
       matrix:
-        lib: [architectures, signal, trainer]
+        lib: [architectures, signal, export, gwftools, trainer, infer]
     steps:
       - uses: actions/checkout@v2
         with:

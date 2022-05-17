@@ -53,6 +53,19 @@ type = "directory"
 url = "../../../libs/architectures"
 
 [[package]]
+name = "deepclean.gwftools"
+version = "0.0.1"
+description = "Utilites for managing gwf file conventions"
+category = "main"
+optional = false
+python-versions = "^3.8,<3.10"
+develop = true
+
+[package.source]
+type = "directory"
+url = "../../../libs/gwftools"
+
+[[package]]
 name = "deepclean.logging"
 version = "0.0.1"
 description = "Utilities for standardizing logging practices"
@@ -92,14 +105,14 @@ python-versions = "^3.8,<3.10"
 develop = true
 
 [package.dependencies]
-"deepclean.architectures" = {path = "../architectures", develop = true, optional = true}
+"deepclean.architectures" = {path = "../architectures", develop = true}
 "deepclean.signal" = {path = "../signal", develop = true}
-"hermes.typeo" = {path = "../../gw-iaas/libs/hermes/hermes.typeo", develop = true, optional = true}
+"hermes.typeo" = {path = "../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
 matplotlib = "^3.5.1"
 torch = "^1.0"
 
 [package.extras]
-wrapper = ["hermes.typeo @ ../../gw-iaas/libs/hermes/hermes.typeo", "deepclean.architectures @ ../architectures"]
+wrapper = ["hermes.typeo", "deepclean.architectures"]
 
 [package.source]
 type = "directory"
@@ -354,7 +367,7 @@ python-versions = ">=3.6"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "2589e47a4cbc41e1ace562368685b1f55adfab59eb334419005b191fdea22a06"
+content-hash = "052bfe6cae6f1ef29413b915eafc7ea0e12fd7a51f13d8ea280468389901642a"
 
 [metadata.files]
 atomicwrites = [
@@ -374,6 +387,7 @@ cycler = [
     {file = "cycler-0.11.0.tar.gz", hash = "sha256:9c87405839a19696e837b3b818fed3f5f69f16f1eec1a1ad77e043dcea9c772f"},
 ]
 "deepclean.architectures" = []
+"deepclean.gwftools" = []
 "deepclean.logging" = []
 "deepclean.signal" = []
 "deepclean.trainer" = []

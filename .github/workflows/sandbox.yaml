@@ -43,7 +43,7 @@ jobs:
         $CONNECTION
         /bin/bash -c
         "echo hey! &&
-        PROJECT_DIRECTORY=$PROJECT_DIR
+        PROJECT_DIR=$PROJECT_DIR
         DATA_DIR=$DATA_DIR
         MODEL_REPOSITORY=$MODEL_REPOSITORY
         deepclean --verbose run $WORK_DIR/src/projects/sandbox"

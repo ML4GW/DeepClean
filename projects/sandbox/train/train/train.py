@@ -1,8 +1,9 @@
 import os
-from typing import List, Optional, Union
+from typing import Optional
 
 from train.data_utils import get_data
 
+from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.logging import configure_logging
 from deepclean.trainer.wrapper import trainify
 
@@ -16,7 +17,7 @@ from deepclean.trainer.wrapper import trainify
 # execution and parsing
 @trainify
 def main(
-    channels: Union[str, List[str]],
+    channels: ChannelList,
     output_directory: str,
     sample_rate: float,
     data_directory: Optional[str] = None,
@@ -110,9 +111,7 @@ def main(
         train_fname = valid_fname = None
 
     # read channels from text file if one was specified
-    if isinstance(channels, str):
-        with open(channels, "r") as f:
-            channels = [i for i in f.read().splitlines() if i]
+    channels = get_channels(channels)
 
     # grab training arrays either from local data
     # or from NDS2 server if it doesn't exist locally

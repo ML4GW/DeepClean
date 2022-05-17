@@ -11,8 +11,9 @@ train = "train.train:main"
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 
-"deepclean.trainer" = {path = "../../../libs/trainer", develop = true, extras=["wrapper"]}
+"deepclean.gwftools" = {path = "../../../libs/gwftools", develop = true}
 "deepclean.logging" = {path = "../../../libs/logging", develop = true}
+"deepclean.trainer" = {path = "../../../libs/trainer", develop = true, extras=["wrapper"]}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

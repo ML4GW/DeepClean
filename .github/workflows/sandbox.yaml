@@ -36,6 +36,7 @@ jobs:
       name: Run experiment remotely
       env:
         PROJECT_DIR: ${{ env.WORK_DIR }}/results
+        TRAIN_DATA_DIR: ${{ env.WORK_DIR }}/../data
         DATA_DIR: ${{ secrets.DATA_DIRECTORY }}
         MODEL_REPOSITORY: ${{ env.WORK_DIR }}/repo
       run: >
@@ -45,8 +46,9 @@ jobs:
         "echo hey! &&
         PROJECT_DIR=$PROJECT_DIR
         DATA_DIR=$DATA_DIR
+        TRAIN_DATA_DIR=$TRAIN_DATA_DIR
         MODEL_REPOSITORY=$MODEL_REPOSITORY
-        deepclean --verbose run $WORK_DIR/src/projects/sandbox"
+        pinto --verbose run $WORK_DIR/src/projects/sandbox"
     -
       name: Copy results
       env:

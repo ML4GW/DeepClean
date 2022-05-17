@@ -151,7 +151,7 @@ def validate_fname(
         # production, so just exit the loop because
         # the validation will fail
         if (i + 1) == num_frames:
-            return True
+            return
 
         # now read in the written frame and validate
         # that it matches our expectations
@@ -220,8 +220,11 @@ def test_writer_async(
     dataset,
 ):
     writer = async_writer
+    total_length = num_frames * frame_length
     for i, (fname, _) in enumerate(writer):
-        if validate_fname(fname, i):
-            break
-        elif (i + 2) == num_frames and look_ahead >= frame_length:
+        validate_fname(fname, i)
+
+        # if the next frame won't have enough data to
+        # be processed the loop will hang, so break here
+        if ((i + 2) * frame_length + look_ahead) >= total_length:
             break

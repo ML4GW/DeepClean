@@ -115,22 +115,22 @@ def get_logs_box(output_directory: Path):
         )
     panels = [Panel(child=text_box, title="Config")]
 
-    for fname in output_directory.iterdir():
-        if fname.suffix == ".log":
-            with open(output_directory / fname, "r") as f:
-                text_box = PreText(
-                    text=f.read(),
-                    height=1,
-                    width=1,
-                    style={
-                        "overflow-y": "scroll",
-                        "height": "250px",
-                        "overflow-x": "scroll",
-                        "width": "600px",
-                    },
-                )
-            panel = Panel(child=text_box, title=fname.stem.title())
-            panels.append(panel)
+    fnames = output_directory.iterdir()
+    logs = filter(lambda f: f.suffix == ".log", fnames)
+    for fname in logs:
+        text_box = PreText(
+            text=fname.read_text(),
+            height=1,
+            width=1,
+            style={
+                "overflow-y": "scroll",
+                "height": "250px",
+                "overflow-x": "scroll",
+                "width": "600px",
+            },
+        )
+        panel = Panel(child=text_box, title=fname.stem.title())
+        panels.append(panel)
 
     return Tabs(tabs=panels)
 
@@ -320,19 +320,6 @@ def plot_asdr_vs_time(
         ),
         BoxZoomTool(dimensions="width"),
     )
-
-    with open(
-        "/home/alec.gunny/deepclean/microservice-analyze/clean.log_", "r"
-    ) as f:
-        for line in iter(f.readline, ""):
-            if line.startswith("Noise prediction for strain file"):
-                t0, t = list(map(int, re.findall("[0-9]{10}", line)))
-                p.line(
-                    [t - t0, t - t0],
-                    [0, 4],
-                    line_color="black",
-                    line_alpha=0.5,
-                )
     return p
 
 
@@ -359,9 +346,11 @@ def analyze_test_data(
     # of the raw files, so use those to get the filenames
     fnames = sorted(clean_data_dir.iterdir())
 
+    # TODO: why doesnt adding "-CLEANED" to the channel work?
+    # something is going wrong in the inference script
     clean_timeseries = TimeSeries.read(
         [clean_data_dir / f.name for f in fnames],
-        channel=channels[0] + "-CLEANED",
+        channel=channels[0],
     ).resample(sample_rate)
     clean_asd = clean_timeseries.asd(fftlength, overlap=overlap)
 

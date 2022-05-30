@@ -50,7 +50,8 @@ class FrameFileFormat:
     @classmethod
     def from_frame_file(cls, frame_file: PATH_LIKE):
         prefix, _, __ = parse_frame_name(frame_file)
-        return cls(prefix, Path(frame_file).suffix)
+        suffix = Path(frame_file).suffix[1:]
+        return cls(prefix, suffix)
 
     def get_name(self, timestamp: int, length: int):
         if int(timestamp) != timestamp:

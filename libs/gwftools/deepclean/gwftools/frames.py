@@ -49,7 +49,7 @@ class FrameFileFormat:
 
     @classmethod
     def from_frame_file(cls, frame_file: PATH_LIKE):
-        prefix, _, __, suffix = parse_frame_name(frame_file)
+        prefix, _, __ = parse_frame_name(frame_file)
         return cls(prefix, Path(frame_file).suffix)
 
     def get_name(self, timestamp: int, length: int):

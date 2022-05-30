@@ -7,9 +7,8 @@ on:
       - main
 
 jobs:
+  # tests the libraries that our projects depend on
   library-ci-tests:
-    # TODO: why do we enforce this again?
-    if: github.repository_owner == 'ML4GW'
     runs-on: ubuntu-latest
     permissions:
       packages: read
@@ -33,8 +32,10 @@ jobs:
           test_dir: /github/workspace/libs/${{ matrix.lib }}
         run: pinto run $test_dir pytest $test_dir/tests
 
+  # if all the libraries pass, tests the projects
+  # that depend on them
   project-ci-tests:
-    if: github.repository_owner == 'ML4GW'
+    needs: library-ci-tests
     runs-on: ubuntu-latest
     permissions:
       packages: read

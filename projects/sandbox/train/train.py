@@ -1,4 +1,5 @@
 import logging
+import re
 from pathlib import Path
 from typing import Dict, Optional, Sequence
 
@@ -11,19 +12,25 @@ from deepclean.gwftools.frames import fname_re
 from deepclean.logging import configure_logging
 from deepclean.trainer.wrapper import trainify
 
-FAKE_ID = "FAKE_SINE_FREQ"
+FAKE_REGEX = re.compile(r"FAKE_SINE_FREQ_(?P<freq>\d+POINT\d+)HZ")
 
 
 def make_fake_sines(
     channels: Sequence[str], t0: float, duration: float, sample_rate: float
 ) -> Dict[str, np.ndarray]:
-    time = np.linspace(t0, t0 + duration, int(duration * sample_rate))
+    time = np.arange(t0, t0 + duration, 1 / sample_rate)
 
     data = {}
     for channel in channels:
-        # TODO: use regex
-        f0 = float(channel.split("_")[-1].split("HZ")[0].replace("POINT", "."))
-        data[channel] = np.sin(2 * np.pi * f0 * time)
+        freq = FAKE_REGEX.search(channel)
+        if freq is None:
+            raise ValueError(
+                f"Fake sine channel '{channel}' not properly formatted"
+            )
+
+        freq = freq.group("freq")
+        freq = float(freq.replace("POINT", " ."))
+        data[channel] = np.sin(2 * np.pi * freq * time)
     return data
 
 
@@ -36,8 +43,8 @@ def fetch(
 ) -> Dict[str, np.ndarray]:
     logging.info(f"Fetching {duration}s of data starting at timestamp {t0}")
 
-    real_channels = [i for i in channels if FAKE_ID not in i]
-    fake_channels = [i for i in channels if FAKE_ID in i]
+    fake_channels = list(filter(FAKE_REGEX.fullmatch, channels))
+    real_channels = [i for i in channels if i not in fake_channels]
 
     # get data and resample
     # TODO: do any logic about data quality?
@@ -69,7 +76,7 @@ def read(
             try:
                 dataset = f[channel]
             except KeyError:
-                if FAKE_ID in channel:
+                if FAKE_REGEX.fullmatch(channel) is not None:
                     # if the channel is missing because it's a
                     # fake sinusoid, generate it now
                     fake_data = make_fake_sines(

@@ -29,7 +29,7 @@ def make_fake_sines(
             )
 
         freq = freq.group("freq")
-        freq = float(freq.replace("POINT", " ."))
+        freq = float(freq.replace("POINT", "."))
         data[channel] = np.sin(2 * np.pi * freq * time)
     return data
 

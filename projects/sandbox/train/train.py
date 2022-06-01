@@ -237,37 +237,51 @@ def main(
 
     if data_path is not None and data_path.is_file() and not force_download:
         data = read(data_path, channels, t0, duration, sample_rate)
-    else:
-        # in any other situation: no data path, data path isn't
-        # an existing file, or always download: always download
+    elif data_path is not None:
+        # we specified a data path of some kind, figure
+        # out if it refers to a file or a directory
+        match = fname_re.search(data_path.name)
+
+        if data_path.is_file() or match is not None:
+            # either the path refers to an existing file,
+            # or to a path whose name is formatted like a file
+            if not data_path.is_file() and match.group("suffix") != "gwf":
+                # the file doesn't exist yet, but it's a valid
+                # filename because it doesn't end in .gwf. Make
+                # the path to the directory containing this file
+                # if it doesn't exist yet
+                data_path.parent.mkdir(parents=True, exist_ok=True)
+            elif not data_path.is_file():
+                # the file dosn't exist yet, but it's formatted like
+                # a GWF file and we're dealing with HDF5s, so let's
+                # raise an error to keep from muddying the waters
+                raise ValueError("Can't create data file {data_path}")
+        elif match is None or data_path.is_dir():
+            # either data_path is an existing directory
+            # or data_path's terminal path node isn't formatted
+            # like a frame filename, so we'll assume that it
+            # refers to a directory and make a default filename
+            fname = f"deepclean_train-{t0}-{duration}.h5"
+            data_path.mkdir(parents=True, exist_ok=True)
+            data_path = data_path / fname
+
+        if data_path.exists() and not force_download:
+            # if the data exists and we're not forcing a fresh
+            # download, attempt to read the existing data
+            data = read(data_path, channels, t0, duration, sample_rate)
+        else:
+            # otherwise, download the data and
+            # write it to the specified path
+            data = fetch(channels, t0, duration, sample_rate)
+            write(data, data_path, t0, sample_rate)
+    elif data_path is None:
+        # otherwise we didn't specify a path at all,
+        # so don't bother reading or writing the data
+        # and just download it into memory
         data = fetch(channels, t0, duration, sample_rate)
 
-        # if we specified a data_path, we'll need
-        # to write the data we downloaded to it
-        if data_path is not None:
-            # figure out where to write it to
-            match = fname_re.search(data_path.name)
-            if match is None or data_path.is_dir():
-                # either data_path is an existing directory
-                # or data_path's terminal path node isn't formatted
-                # like a frame filename, so we'll assume that it
-                # refers to a directory and make a default filename
-                fname = f"deepclean_train-{t0}-{duration}.h5"
-                data_path.mkdir(parents=True, exist_ok=True)
-                data_path = data_path / fname
-            if match is not None and match.suffix == "gwf":
-                # This is formatted like a filename, but the
-                # suffix is GWF, and let's not be naming HDF5
-                # files like they're GWF files
-                raise ValueError("Can't create data file {data_path}")
-            elif match is not None:
-                # otherwise this refers to a file explicitly, so
-                # make sure that the intended directory exists
-                data_path.parent.mkdir(parents=True, exist_ok=True)
-
-            write(data, fname, t0, sample_rate)
-
-    X = np.stack([data[chan] for chan in channels[1:]])
+    # create the input and target arrays from the collected data
+    X = np.stack([data[channel] for channel in channels[1:]])
     y = data[channels[0]]
 
     # if we didn't specify to create any validation data,
@@ -275,9 +289,11 @@ def main(
     if valid_frac is None:
         return X, y
 
+    # otherwise carve off the last `valid_frac * duration`
+    # seconds worth of data for validation
     split = int(valid_frac * sample_rate * duration)
-    train_X, valid_X = np.split(X, split, axis=1)
-    train_y, valid_y = np.split(y, split)
+    train_X, valid_X = np.split(X, [split], axis=1)
+    train_y, valid_y = np.split(y, [split])
     return train_X, train_y, valid_X, valid_y
 
 

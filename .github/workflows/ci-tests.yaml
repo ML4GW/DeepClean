@@ -30,7 +30,7 @@ jobs:
         name: run ${{ matrix.lib }} tests
         env:
           test_dir: /github/workspace/libs/${{ matrix.lib }}
-        run: pinto run $test_dir pytest $test_dir/tests
+        run: pinto run $test_dir pytest $test_dir/tests -x
 
   # if all the libraries pass, tests the projects
   # that depend on them
@@ -57,4 +57,4 @@ jobs:
         name: run ${{ matrix.project }} tests
         env:
           test_dir: /github/workspace/libs/${{ matrix.project }}
-        run: pinto run $test_dir pytest $test_dir/tests
+        run: pinto run $test_dir pytest $test_dir/tests -x

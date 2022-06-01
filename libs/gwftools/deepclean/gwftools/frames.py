@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Tuple, Union
+from typing import Literal, Tuple, Union
 
 PATH_LIKE = Union[str, Path]
 
@@ -13,7 +13,7 @@ fname_re = re.compile(
     f"(?P<prefix>{prefix_re})-"
     f"(?P<t0>{t0_re})-"
     f"(?P<length>{length_re})"
-    ".gwf$"
+    ".(?P<suffix>gwf|hdf5|h5)$"
 )
 
 
@@ -21,7 +21,7 @@ def parse_frame_name(fname: PATH_LIKE) -> Tuple[str, int, int]:
     """Use the name of a frame file to infer its initial timestamp and length
 
     Expects frame names to follow a standard nomenclature
-    where the name of the frame file ends {prefix}_timestamp}-{length}.gwf
+    where the name of the frame file ends {prefix}_{timestamp}-{length}.gwf
 
     Args:
         fname: The name of the frame file
@@ -38,18 +38,20 @@ def parse_frame_name(fname: PATH_LIKE) -> Tuple[str, int, int]:
     if match is None:
         raise ValueError(f"Could not parse frame filename {fname}")
 
-    prefix, t0, length = match.groups()
+    prefix, t0, length, _ = match.groups()
     return prefix, int(t0), int(length)
 
 
 @dataclass
 class FrameFileFormat:
     prefix: str
+    suffix: Literal["gwf", "hdf5", "h5"] = "gwf"
 
     @classmethod
     def from_frame_file(cls, frame_file: PATH_LIKE):
         prefix, _, __ = parse_frame_name(frame_file)
-        return cls(prefix)
+        suffix = Path(frame_file).suffix[1:]
+        return cls(prefix, suffix)
 
     def get_name(self, timestamp: int, length: int):
         if int(timestamp) != timestamp:
@@ -68,4 +70,4 @@ class FrameFileFormat:
         elif not 1 <= len(str(length)) < 5:
             raise ValueError(f"Frame length {length} invalid")
 
-        return f"{self.prefix}-{timestamp}-{length}.gwf"
+        return f"{self.prefix}-{timestamp}-{length}.{self.suffix}"

@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,12 +7,18 @@ from typing import Optional
 from deepclean.gwftools.frames import FrameFileFormat, fname_re
 
 
+def _is_gwf(match):
+    return match is not None and match.group("suffix") == "gwf"
+
+
 def get_prefix(data_dir: Path):
-    if not os.path.exists(data_dir):
+    if not data_dir.exists():
         raise FileNotFoundError("No data directory '{data_dir}'")
 
-    fnames = os.listdir(data_dir)
-    matches = [i for i in map(fname_re.search, fnames) if i is not None]
+    fnames = map(str, data_dir.iterdir())
+    matches = map(fname_re.search, fnames)
+    matches = list(filter(_is_gwf, matches))
+
     if len(matches) == 0:
         raise ValueError(f"No valid .gwf files in data directory '{data_dir}'")
 

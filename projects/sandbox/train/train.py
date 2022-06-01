@@ -126,18 +126,20 @@ def read(
 
 
 def write(
-    data: Dict[str, np.ndarray], fname: str, sample_rate: float, t0: float
+    data: Dict[str, np.ndarray], fname: Path, sample_rate: float, t0: float
 ) -> None:
     """Write to HDF5 format"""
 
     logging.info(f"Writing data to {fname}")
-    with h5py.File(fname, "w") as f:
+    with h5py.File(str(fname), "w") as f:
         for channel, x in data.items():
+            # don't write fake sinusoids
+            if FAKE_REGEX.fullmatch(channel) is not None:
+                continue
+
             dset = f.create_dataset(channel, data=x, compression="gzip")
             dset.attrs["sample_rate"] = sample_rate
             dset.attrs["t0"] = t0
-            dset.attrs["channel"] = channel
-            dset.attrs["name"] = channel
 
 
 # note that this function decorator acts both to

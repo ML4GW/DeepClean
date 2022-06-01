@@ -8,7 +8,7 @@ steps = [
 
 [tool.typeo.base]
 channels = [
-    "H1:GDS-CALIB_STRAIN_CLEAN",
+    "H1:GDS-CALIB_STRAIN",
     "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
     "H1:ASC-INP1_P_INMON",
     "H1:ASC-INP1_Y_INMON",

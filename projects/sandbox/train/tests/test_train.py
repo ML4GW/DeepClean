@@ -53,8 +53,8 @@ def fake_channels(fake_freqs):
 def fake_channel_test_fn(fake_freqs, fake_channels, t0, duration, sample_rate):
     """Create a fixture function for validating fake sinusoids"""
 
-    def test_fn(result, dur=duration):
-        time = np.arange(t0, t0 + dur, 1 / sample_rate)
+    def test_fn(result, dur=duration, offset=0):
+        time = np.arange(t0, t0 + dur, 1 / sample_rate) + offset
         for freq, channel in zip(fake_freqs, fake_channels):
             y = result[channel]
             assert len(y) == (dur * sample_rate)
@@ -83,12 +83,12 @@ def real_waveforms(real_channels, t0, duration, sample_rate, oversample):
 
 @pytest.fixture
 def real_channel_test_fn(real_channels, t0, duration, sample_rate, oversample):
-    def test_fn(result, dur=duration):
+    def test_fn(result, dur=duration, offset=0):
         for i, channel in enumerate(real_channels):
             y = result[channel]
             assert len(y) == (dur * sample_rate)
 
-            expected = np.arange(dur * sample_rate) + i
+            expected = np.arange(dur * sample_rate) + i + offset * sample_rate
             if oversample == 1:
                 assert np.isclose(y, expected, rtol=1e-9).all()
             else:
@@ -200,7 +200,7 @@ def test_write(
     data.update({i: j for i, j in zip(real_channels, real_waveforms)})
 
     fname = tmpdir / "data.h5"
-    train.write(data, fname, sample_rate * oversample, t0)
+    train.write(data, fname, t0, sample_rate * oversample)
 
     with h5py.File(fname, "r") as f:
         assert len(list(f.keys())) == 2
@@ -233,6 +233,14 @@ def test_main(
     channels = ["strain"] + real_channels + fake_channels
     strain = -np.arange(0, duration * sample_rate, 1 / oversample)
 
+    def verify_strain(strain, witnesses, offset=0):
+        assert strain.ndim == 1
+        assert len(strain) == witnesses.shape[1]
+
+        expected = -np.arange(len(strain)) - offset * sample_rate
+        slc = slice(4, -4, 2) if oversample == 0.5 else slice(None, None)
+        assert np.isclose(strain[slc], expected[slc], rtol=1e-9).all()
+
     def verify_outputs(outputs):
         if valid_frac is not None:
             assert len(outputs) == 4
@@ -241,15 +249,23 @@ def test_main(
             train_dict = {
                 channel: x for channel, x in zip(sorted(channels[1:]), train_X)
             }
-            # valid_dict = {
-            #     channel: x for channel, x in
-            #     zip(sorted(channels[1:]), valid_X)
-            # }
-            real_channel_test_fn(train_dict, int((1 - valid_frac) * duration))
-            fake_channel_test_fn(train_dict, int((1 - valid_frac) * duration))
+            valid_dict = {
+                channel: x for channel, x in zip(sorted(channels[1:]), valid_X)
+            }
+
+            train_length = (1 - valid_frac) * duration
+            valid_length = duration - train_length
+            real_channel_test_fn(train_dict, train_length)
+            fake_channel_test_fn(train_dict, train_length)
+
+            real_channel_test_fn(valid_dict, valid_length, train_length)
+            fake_channel_test_fn(valid_dict, valid_length, train_length)
+
+            # now check the strain data
+            verify_strain(train_y, train_X)
+            verify_strain(valid_y, valid_X, train_length)
 
             # TODO: check valid data too
-            # TODO: check strain data
 
         else:
             assert len(outputs) == 2
@@ -259,8 +275,7 @@ def test_main(
             }
             real_channel_test_fn(train_dict)
             fake_channel_test_fn(train_dict)
-
-            # TODO: check strain data
+            verify_strain(train_y, train_X)
 
     # create a patch for the TimeSeriesDict.get function
     # that just returns some pre-determined data

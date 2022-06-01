@@ -237,9 +237,12 @@ def main(
     configure_logging(output_directory / "train.log", verbose)
     channels = get_channels(channels)
 
-    if data_path is not None and data_path.is_file() and not force_download:
-        data = read(data_path, channels, t0, duration, sample_rate)
-    elif data_path is not None:
+    if data_path is None:
+        # we didn't specify a path at all,
+        # so don't bother reading or writing the data
+        # and just download it into memory
+        data = fetch(channels, t0, duration, sample_rate)
+    else:
         # we specified a data path of some kind, figure
         # out if it refers to a file or a directory
         match = fname_re.search(data_path.name)
@@ -267,7 +270,7 @@ def main(
             data_path.mkdir(parents=True, exist_ok=True)
             data_path = data_path / fname
 
-        if data_path.exists() and not force_download:
+        if data_path.is_file() and not force_download:
             # if the data exists and we're not forcing a fresh
             # download, attempt to read the existing data
             data = read(data_path, channels, t0, duration, sample_rate)
@@ -276,11 +279,6 @@ def main(
             # write it to the specified path
             data = fetch(channels, t0, duration, sample_rate)
             write(data, data_path, t0, sample_rate)
-    elif data_path is None:
-        # otherwise we didn't specify a path at all,
-        # so don't bother reading or writing the data
-        # and just download it into memory
-        data = fetch(channels, t0, duration, sample_rate)
 
     # create the input and target arrays from the collected data
     X = np.stack([data[channel] for channel in channels[1:]])

@@ -116,11 +116,10 @@ def test_fetch(
 ):
     # create a patch for the TimeSeriesDict.get function
     # that just returns some pre-determined data
+    dt = 1 / (sample_rate * oversample)
     ts_dict = {}
     for channel, waveform in zip(real_channels, real_waveforms):
-        ts_dict[channel] = TimeSeries(
-            waveform, dt=(sample_rate * oversample) ** -1
-        )
+        ts_dict[channel] = TimeSeries(waveform, dt=dt)
     ts_dict = TimeSeriesDict(ts_dict)
 
     # test the fetch function with the patched `get` method
@@ -211,5 +210,166 @@ def test_write(
             assert dataset.attrs["sample_rate"] == sample_rate * oversample
 
 
-def test_main():
-    return
+@pytest.fixture(params=[None, 0.1, 0.25])
+def valid_frac(request):
+    return request.param
+
+
+def test_main(
+    tmpdir,
+    real_channels,
+    real_waveforms,
+    real_channel_test_fn,
+    fake_channels,
+    fake_channel_test_fn,
+    t0,
+    duration,
+    sample_rate,
+    oversample,
+    valid_frac,
+):
+    channels = ["strain"] + real_channels + fake_channels
+    strain = -np.arange(0, duration * sample_rate, 1 / oversample)
+
+    def verify_outputs(outputs):
+        if valid_frac is not None:
+            assert len(outputs) == 4
+            train_X, train_y, valid_X, valid_y = outputs
+
+            train_dict = {
+                channel: x for channel, x in zip(sorted(channels[1:]), train_X)
+            }
+            # valid_dict = {
+            #     channel: x for channel, x in
+            #     zip(sorted(channels[1:]), valid_X)
+            # }
+            real_channel_test_fn(train_dict, int((1 - valid_frac) * duration))
+            fake_channel_test_fn(train_dict, int((1 - valid_frac) * duration))
+
+            # TODO: check valid data too
+            # TODO: check strain data
+
+        else:
+            assert len(outputs) == 2
+            train_X, train_y = outputs
+            train_dict = {
+                channel: x for channel, x in zip(sorted(channels[1:]), train_X)
+            }
+            real_channel_test_fn(train_dict)
+            fake_channel_test_fn(train_dict)
+
+            # TODO: check strain data
+
+    # create a patch for the TimeSeriesDict.get function
+    # that just returns some pre-determined data
+    dt = 1 / (sample_rate * oversample)
+    ts_dict = {}
+    for channel, waveform in zip(real_channels, real_waveforms):
+        ts_dict[channel] = TimeSeries(waveform, dt=dt)
+    ts_dict["strain"] = TimeSeries(strain, dt=dt)
+    ts_dict = TimeSeriesDict(ts_dict)
+
+    # create a dummy function which will generate the data
+    # with `get` patched using different choices of `data_path`
+    # and `force_download` and verify both the output as well
+    # as whether `get` was called when it's expected to get called
+    @patch("gwpy.timeseries.TimeSeriesDict.get", return_value=ts_dict)
+    def run_fn(data_path, force_download, is_called, mock):
+        output = train.main(
+            channels,
+            t0,
+            duration,
+            sample_rate,
+            output_directory=tmpdir,
+            data_path=data_path,
+            force_download=force_download,
+        )
+
+        if is_called:
+            mock.assert_called_once_with(
+                ["strain"] + real_channels,
+                t0,
+                t0 + duration,
+                nproc=4,
+                allow_tape=True,
+            )
+        else:
+            mock.assert_not_called()
+
+        verify_outputs(output)
+
+    # first case: data path is None
+    run_fn(None, False, is_called=True)
+
+    # second case: data path is a directory which exists
+    # but which doesn't have the relevant file in it
+    run_fn(tmpdir, False, is_called=True)
+
+    # validate that the file got created
+    fname = tmpdir / f"deepclean_train-{t0}-{duration}.h5"
+    assert fname.is_file()
+
+    # third case: data path is a directory which exists
+    # and does contain the relevant file
+    run_fn(tmpdir, False, is_called=False)
+
+    # fourth case: data path is a directory which
+    # exists and contains the relevant file,
+    # but force_download is true
+    run_fn(tmpdir, True, is_called=True)
+
+    # fifth case: data path is an explicit filename
+    # which already exists
+    new_fname = tmpdir / "data.h5"
+    shutil.move(fname, new_fname)
+    run_fn(new_fname, False, is_called=False)
+
+    # sixth case: data path is an explicit filename
+    # which already exists but force_download=True
+    run_fn(new_fname, True, is_called=True)
+
+    # seventh case: data path is an explicit filename
+    # which does _not_ exist, but which has a valid
+    # filename format
+    for suffix in ["h5", "hdf5"]:
+        new_fname = tmpdir / f"some_prefix-{t0}-{duration}.{suffix}"
+
+        # validate all of the potential exists/force_download
+        # possibilities here
+        run_fn(new_fname, False, is_called=True)
+        run_fn(new_fname, False, is_called=False)
+        run_fn(new_fname, True, is_called=True)
+
+        # make sure that nothing funky happens if force_download
+        # is True but the file doesn't exist
+        new_fname.unlink()
+        run_fn(new_fname, True, is_called=True)
+        assert new_fname.is_file()
+
+    # eighth case: data path is an explicit filename
+    # which does _not_ exist, but which has an _invalid_
+    # filename format (ends in .gwf)
+    bad_fname = tmpdir / f"some_prefix-{t0}-{duration}.gwf"
+    with pytest.raises(ValueError) as exc_info:
+        # is_called value shouldn't matter here because
+        # a ValueError will be raised before we can check
+        run_fn(bad_fname, False, is_called=None)
+    assert str(exc_info) == f"Can't create data file {bad_fname}"
+
+    # ninth and final case: data path is a directory
+    # which does not exist yet, make sure it gets created
+    # and contains the file
+    subdir = tmpdir / "subdirectory"
+    run_fn(subdir, False, is_called=True)
+
+    assert subdir.is_dir()
+    fname = subdir / f"deepclean_train-{t0}-{duration}.h5"
+    assert fname.is_file()
+
+    # double check that if the directory doesn't exist
+    # but force_download is True, nothing funny happens
+    fname.unlink()
+    subdir.rmdir()
+    run_fn(subdir, True, is_called=True)
+    assert subdir.is_dir()
+    assert fname.is_file()

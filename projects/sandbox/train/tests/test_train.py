@@ -51,9 +51,8 @@ def fake_channels(fake_freqs):
 def fake_channel_test_fn(fake_freqs, fake_channels, t0, duration, sample_rate):
     """Create a fixture function for validating fake sinusoids"""
 
-    time = np.arange(t0, t0 + duration, 1 / sample_rate)
-
     def test_fn(result, dur=duration):
+        time = np.arange(t0, t0 + dur, 1 / sample_rate)
         for freq, channel in zip(fake_freqs, fake_channels):
             y = result[channel]
             assert len(y) == (dur * sample_rate)
@@ -81,14 +80,17 @@ def real_waveforms(real_channels, t0, duration, sample_rate, oversample):
 
 
 @pytest.fixture
-def real_channel_test_fn(real_channels, t0, duration, sample_rate):
+def real_channel_test_fn(real_channels, t0, duration, sample_rate, oversample):
     def test_fn(result, dur=duration):
         for i, channel in enumerate(real_channels):
             y = result[channel]
             assert len(y) == (dur * sample_rate)
 
             expected = np.arange(dur * sample_rate) + i
-            assert np.isclose(y, expected, rtol=1e-9).all()
+            if oversample == 1:
+                assert np.isclose(y, expected, rtol=1e-9).all()
+            else:
+                assert np.isclose(y[4:-4:2], expected[4:-4:2], rtol=1e-9).all()
 
     return test_fn
 
@@ -114,19 +116,22 @@ def test_fetch(
 ):
     # create a patch for the TimeSeriesDict.get function
     # that just returns some pre-determined data
-    def get_patch(channels, t0, tf, **kwargs):
-        result = {}
-        for channel, waveform in zip(real_channels, real_waveforms):
-            result[channel] = TimeSeries(
-                waveform, dt=(sample_rate * oversample) ** -1
-            )
-        return TimeSeriesDict(result)
+    ts_dict = {}
+    for channel, waveform in zip(real_channels, real_waveforms):
+        ts_dict[channel] = TimeSeries(
+            waveform, dt=(sample_rate * oversample) ** -1
+        )
+    ts_dict = TimeSeriesDict(ts_dict)
 
     # test the fetch function with the patched `get` method
     channels = fake_channels + real_channels
-    with patch("gwpy.timeseries.TimeSeriesDict.get", new=get_patch) as mock:
+    with patch(
+        "gwpy.timeseries.TimeSeriesDict.get", return_value=ts_dict
+    ) as mock:
         result = train.fetch(channels, t0, duration, sample_rate)
-    mock.assert_called_once_with(real_channels, t0, t0 + duration)
+    mock.assert_called_once_with(
+        real_channels, t0, t0 + duration, nproc=4, allow_tape=True
+    )
 
     # make sure we have all the channels we expect
     assert len(result) == len(channels)

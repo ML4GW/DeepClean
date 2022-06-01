@@ -1,3 +1,4 @@
+import logging
 import shutil
 from pathlib import Path
 from unittest.mock import patch
@@ -14,12 +15,13 @@ def tmpdir():
     tmpdir = Path(__file__).resolve().parent / "tmp"
     tmpdir.mkdir(parents=True, exist_ok=False)
     yield tmpdir
+    logging.shutdown()
     shutil.rmtree(tmpdir)
 
 
 @pytest.fixture
 def t0():
-    return 10
+    return 1234567890
 
 
 @pytest.fixture
@@ -282,12 +284,13 @@ def test_main(
             sample_rate,
             output_directory=tmpdir,
             data_path=data_path,
+            valid_frac=valid_frac,
             force_download=force_download,
         )
 
         if is_called:
             mock.assert_called_once_with(
-                ["strain"] + real_channels,
+                ["strain"] + sorted(real_channels),
                 t0,
                 t0 + duration,
                 nproc=4,
@@ -299,11 +302,11 @@ def test_main(
         verify_outputs(output)
 
     # first case: data path is None
-    run_fn(None, False, is_called=True)
+    run_fn(None, False, True)
 
     # second case: data path is a directory which exists
     # but which doesn't have the relevant file in it
-    run_fn(tmpdir, False, is_called=True)
+    run_fn(tmpdir, False, True)
 
     # validate that the file got created
     fname = tmpdir / f"deepclean_train-{t0}-{duration}.h5"
@@ -311,22 +314,22 @@ def test_main(
 
     # third case: data path is a directory which exists
     # and does contain the relevant file
-    run_fn(tmpdir, False, is_called=False)
+    run_fn(tmpdir, False, False)
 
     # fourth case: data path is a directory which
     # exists and contains the relevant file,
     # but force_download is true
-    run_fn(tmpdir, True, is_called=True)
+    run_fn(tmpdir, True, True)
 
     # fifth case: data path is an explicit filename
     # which already exists
     new_fname = tmpdir / "data.h5"
     shutil.move(fname, new_fname)
-    run_fn(new_fname, False, is_called=False)
+    run_fn(new_fname, False, False)
 
     # sixth case: data path is an explicit filename
     # which already exists but force_download=True
-    run_fn(new_fname, True, is_called=True)
+    run_fn(new_fname, True, True)
 
     # seventh case: data path is an explicit filename
     # which does _not_ exist, but which has a valid
@@ -336,14 +339,16 @@ def test_main(
 
         # validate all of the potential exists/force_download
         # possibilities here
-        run_fn(new_fname, False, is_called=True)
-        run_fn(new_fname, False, is_called=False)
-        run_fn(new_fname, True, is_called=True)
+        run_fn(new_fname, False, True)
+        assert new_fname.is_file()
+
+        run_fn(new_fname, False, False)
+        run_fn(new_fname, True, True)
 
         # make sure that nothing funky happens if force_download
         # is True but the file doesn't exist
         new_fname.unlink()
-        run_fn(new_fname, True, is_called=True)
+        run_fn(new_fname, True, True)
         assert new_fname.is_file()
 
     # eighth case: data path is an explicit filename
@@ -353,14 +358,14 @@ def test_main(
     with pytest.raises(ValueError) as exc_info:
         # is_called value shouldn't matter here because
         # a ValueError will be raised before we can check
-        run_fn(bad_fname, False, is_called=None)
-    assert str(exc_info) == f"Can't create data file {bad_fname}"
+        run_fn(bad_fname, False, None)
+    assert str(exc_info.value) == f"Can't create data file {bad_fname}"
 
     # ninth and final case: data path is a directory
     # which does not exist yet, make sure it gets created
     # and contains the file
     subdir = tmpdir / "subdirectory"
-    run_fn(subdir, False, is_called=True)
+    run_fn(subdir, False, True)
 
     assert subdir.is_dir()
     fname = subdir / f"deepclean_train-{t0}-{duration}.h5"
@@ -370,6 +375,6 @@ def test_main(
     # but force_download is True, nothing funny happens
     fname.unlink()
     subdir.rmdir()
-    run_fn(subdir, True, is_called=True)
+    run_fn(subdir, True, True)
     assert subdir.is_dir()
     assert fname.is_file()

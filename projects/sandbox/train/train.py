@@ -126,7 +126,7 @@ def read(
 
 
 def write(
-    data: Dict[str, np.ndarray], fname: Path, sample_rate: float, t0: float
+    data: Dict[str, np.ndarray], fname: Path, t0: float, sample_rate: float
 ) -> None:
     """Write to HDF5 format"""
 
@@ -260,7 +260,7 @@ def main(
                 # the file dosn't exist yet, but it's formatted like
                 # a GWF file and we're dealing with HDF5s, so let's
                 # raise an error to keep from muddying the waters
-                raise ValueError("Can't create data file {data_path}")
+                raise ValueError(f"Can't create data file {data_path}")
         elif match is None or data_path.is_dir():
             # either data_path is an existing directory
             # or data_path's terminal path node isn't formatted
@@ -291,7 +291,7 @@ def main(
 
     # otherwise carve off the last `valid_frac * duration`
     # seconds worth of data for validation
-    split = int(valid_frac * sample_rate * duration)
+    split = int((1 - valid_frac) * sample_rate * duration)
     train_X, valid_X = np.split(X, [split], axis=1)
     train_y, valid_y = np.split(y, [split])
     return train_X, train_y, valid_X, valid_y

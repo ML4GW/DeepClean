@@ -56,5 +56,5 @@ jobs:
       -
         name: run ${{ matrix.project }} tests
         env:
-          test_dir: /github/workspace/libs/${{ matrix.project }}
+          test_dir: /github/workspace/projects/${{ matrix.project }}
         run: pinto run $test_dir pytest $test_dir/tests -x

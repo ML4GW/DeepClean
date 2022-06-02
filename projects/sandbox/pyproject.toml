@@ -32,8 +32,6 @@ channels = [
     "H1:ASC-CSOFT_Y_INMON"
 ]
 sample_rate = 4096
-train_t0 = 1243278913
-train_duration = 4096
 verbose = false
 
 max_latency = 0.5
@@ -48,23 +46,28 @@ freq_high = 65
 autoencoder = {}
 
 [tool.typeo.scripts.train]
-channels = "${base.channels}"
+# paths
 output_directory = "${PROJECT_DIR}"
-sample_rate = "${base.sample_rate}"
-t0 = "${base.train_t0}"
-duration = "${base.train_duration}"
+data_path = "${TRAIN_DATA_DIR}"
 
-data_directory = "${TRAIN_DATA_DIR}"
+# data parameters
+channels = "${base.channels}"
+t0 = 1243278913
+duration = 4096
 valid_frac = 0.25
 
+# data loading parameters
+sample_rate = "${base.sample_rate}"
 kernel_length = 8
 kernel_stride = 0.25
 chunk_length = 0
 
+# preprocessing parameters
 freq_low = "${base.freq_low}"
 freq_high = "${base.freq_high}"
 filter_order = 8
 
+# optimization parameters
 batch_size = 32
 max_epochs = 500
 lr = 3.2e-2
@@ -73,13 +76,17 @@ patience = 8
 factor = 0.2
 early_stop = 50
 
+# criterion parameters
 fftlength = 2
 overlap = 1
 alpha = 1.0
 
+# miscellaneous parameters
 device = "cuda"
 profile = false
 verbose = "${base.verbose}"
+
+# architecture subcommands
 commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.export-model]
@@ -117,7 +124,7 @@ look_ahead = 0.5
 gpus = [6]
 max_frames = 101
 sequence_id = 1001
-verbose = true
+verbose = "${base.verbose}"
 
 [tool.typeo.scripts.analyze]
 raw_data_dir = "${DATA_DIR}/llhoft"

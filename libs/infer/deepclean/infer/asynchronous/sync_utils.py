@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from queue import Empty, Queue
 from typing import TYPE_CHECKING, Iterable
 
-from hermes.stillwater.utils import ExceptionWrapper
+from hermes.stillwater.utils import ExceptionWrapper, Throttle
 
 if TYPE_CHECKING:
     from bbhnet.infer.asynchronous import FrameLoader, FrameWriter
@@ -50,7 +50,6 @@ def stream(
     client: "InferenceClient",
     writer: "FrameWriter",
     inference_sampling_rate: float,
-    inferenc_rate: float,
 ) -> Iterable:
     loader = synchronize(loader)
 
@@ -72,14 +71,21 @@ def stream(
         except Exception as e:
             writer.out_q.put(ExceptionWrapper(e))
 
-    def pipeline(crawler):
+    def pipeline(crawler, inference_rate):
         frame_it = iter(crawler)
         fname = next(frame_it)
         loader.in_q.put(fname)
 
+        throttle = Throttle(inference_rate)
         while True:
             fname = next(crawler)
-            for package in load(fname):
+            package_it = load(fname)
+            for _ in throttle:
+                try:
+                    package = next(package_it)
+                except StopIteration:
+                    break
+
                 # need to do this whole rigamaroll because
                 # client.get_package performs some setting
                 # up of inputs and what not that we'll need

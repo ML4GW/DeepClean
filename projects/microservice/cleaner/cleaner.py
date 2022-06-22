@@ -194,10 +194,8 @@ def main(
 
     # start a streaming connection to the server that passes
     # server responses to the writer in a callback thread
-    with stream(
-        loader, client, writer, inference_sampling_rate, inference_rate
-    ) as pipeline:
-        for fname, latency in pipeline(crawler):
+    with stream(loader, client, writer, inference_sampling_rate) as pipeline:
+        for fname, latency in pipeline(crawler, inference_rate):
             if fname is not None:
                 logging.info(
                     f"Wrote cleaned frame {fname} with latency {latency}s"

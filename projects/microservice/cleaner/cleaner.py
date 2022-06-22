@@ -1,8 +1,5 @@
 import logging
-import time
-from contextlib import contextmanager
 from pathlib import Path
-from queue import Empty
 from typing import Iterable, Optional, Union
 
 from hermes.stillwater import InferenceClient
@@ -10,81 +7,10 @@ from hermes.typeo import typeo
 
 from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.infer.asynchronous import FrameLoader, FrameWriter
+from deepclean.infer.asynchronous.sync_utils import stream
 from deepclean.infer.frame_crawler import FrameCrawler
 from deepclean.logging import configure_logging
 from deepclean.signal.filter import BandpassFilter
-
-
-class DummyQueue:
-    def __init__(self):
-        self.package = None
-
-    def put(self, package):
-        self.package = package
-
-    def get_nowait(self):
-        if self.package is None:
-            raise Empty
-
-        package = self.package
-        self.package = None
-        return package
-
-
-@contextmanager
-def stream(loader, client, writer):
-    """
-    Context for taking care of a lot of the business that usually
-    gets dealt with in the `PipelineProcess.run` method
-    """
-
-    # hack the client callback to do the accumulation,
-    # postprocessing, and writing in the callback thread
-    client.out_q = writer.in_q = DummyQueue()
-
-    def callback(result, error):
-        client.callback(result, error)
-        time.sleep(1e-5)
-
-        try:
-            response = writer.get_package()
-            writer.process(response)
-        except Exception as e:
-            writer.out_q.put(str(e))
-
-    # assign each of the processes a logger
-    for p in [loader, client, writer]:
-        logger = logging.getLogger(p.name)
-        p.logger = logger
-
-    # start the stream with the custom callback in a
-    # try-catch to make sure everything gets cleaned up
-    try:
-        client.client.start_stream(callback=callback)
-        yield
-    finally:
-        # close the stream between the client and server
-        client.client.close()
-
-        # for each process, empty all the incoming
-        # and outgoing queues, then close and join them
-        for p in [loader, client, writer]:
-            for q in [p.in_q, p.out_q]:
-                while True:
-                    try:
-                        q.get_nowait()
-                    except (Empty, ValueError):
-                        # empty means there's nothing left to get,
-                        # ValueError means this queue has already
-                        # been closed (likely because it's the
-                        # out_q of an earlier process)
-                        break
-
-                try:
-                    q.close()
-                except ValueError:
-                    pass
-                q.join_thread()
 
 
 @typeo
@@ -268,43 +194,14 @@ def main(
 
     # start a streaming connection to the server that passes
     # server responses to the writer in a callback thread
-    with stream(loader, client, writer):
-        for i, witness_fname in enumerate(crawler):
-            loader.in_q.put(witness_fname)
-            time.sleep(1e-5)
-
-            # always keep one extra frame in `loader.in_q`
-            # so that it doesn't keep hitting stop iterations
-            # when it gets to the end of a frame
-            if i == 0:
-                continue
-
-            # submit all the inference requests up front
-            for _ in range(int(inference_sampling_rate)):
-                package = loader.get_package()
-
-                client.in_q.put(package)
-                time.sleep(1e-5)
-                package = client.get_package()
-                client.process(*package)
-
-                # sleep to keep from overloading the server
-                time.sleep(1 / inference_rate)
-
-            # check to see if the writer produced any new
-            # cleaned frames. Move on if not
-            try:
-                result = writer.out_q.get_nowait()
-            except Empty:
-                continue
-            else:
-                if isinstance(result, str):
-                    raise RuntimeError(result)
-                fname, latency = result
-
-            logging.info(
-                f"Wrote cleaned frame {fname} with latency {latency}s"
-            )
+    with stream(
+        loader, client, writer, inference_sampling_rate, inference_rate
+    ) as pipeline:
+        for fname, latency in pipeline(crawler):
+            if fname is not None:
+                logging.info(
+                    f"Wrote cleaned frame {fname} with latency {latency}s"
+                )
 
 
 if __name__ == "__main__":

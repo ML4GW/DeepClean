@@ -44,8 +44,13 @@ def stream(loader, client, writer):
 
     def callback(result, error):
         client.callback(result, error)
-        response = writer.get_package()
-        writer.process(response)
+        time.sleep(1e-5)
+
+        try:
+            response = writer.get_package()
+            writer.process(response)
+        except Exception as e:
+            writer.out_q.put(str(e))
 
     # assign each of the processes a logger
     for p in [loader, client, writer]:
@@ -266,6 +271,7 @@ def main(
     with stream(loader, client, writer):
         for i, witness_fname in enumerate(crawler):
             loader.in_q.put(witness_fname)
+            time.sleep(1e-5)
 
             # always keep one extra frame in `loader.in_q`
             # so that it doesn't keep hitting stop iterations
@@ -278,6 +284,7 @@ def main(
                 package = loader.get_package()
 
                 client.in_q.put(package)
+                time.sleep(1e-5)
                 package = client.get_package()
                 client.process(*package)
 
@@ -287,9 +294,13 @@ def main(
             # check to see if the writer produced any new
             # cleaned frames. Move on if not
             try:
-                fname, latency = writer.out_q.get_nowait()
+                result = writer.out_q.get_nowait()
             except Empty:
                 continue
+            else:
+                if isinstance(result, str):
+                    raise RuntimeError(result)
+                fname, latency = result
 
             logging.info(
                 f"Wrote cleaned frame {fname} with latency {latency}s"

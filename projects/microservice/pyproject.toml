@@ -1,6 +1,6 @@
 [tool.typeo.base]
 channels = [
-    "H1:GDS-CALIB_STRAIN_CLEAN",
+    "H1:GDS-CALIB_STRAIN",
     "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
     "H1:ASC-INP1_P_INMON",
     "H1:ASC-INP1_Y_INMON",
@@ -50,5 +50,5 @@ start_first = true
 timeout = 1
 sequence_id = 1001
 
-verbose = true
+verbose = false
 log_file = "${PROJECT_DIR}/clean.log_"

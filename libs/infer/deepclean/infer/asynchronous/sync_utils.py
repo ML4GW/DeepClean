@@ -7,11 +7,13 @@ prefer to use in methods that work synchronously.
 """
 
 import logging
+import time
 from contextlib import contextmanager
+from itertools import chain
 from queue import Empty, Queue
 from typing import TYPE_CHECKING, Iterable
 
-from hermes.stillwater.utils import ExceptionWrapper, Throttle
+from hermes.stillwater.utils import ExceptionWrapper
 
 if TYPE_CHECKING:
     from bbhnet.infer.asynchronous import FrameLoader, FrameWriter
@@ -51,15 +53,18 @@ def stream(
     writer: "FrameWriter",
     inference_sampling_rate: float,
 ) -> Iterable:
-    loader = synchronize(loader)
+    synchronize(loader)
 
     def load(fname):
         loader.in_q.put(fname)
-        for _ in range(int(inference_sampling_rate)):
+        for i in range(int(inference_sampling_rate)):
             yield loader.get_package()
 
-    client = synchronize(client)
-    writer = synchronize(writer)
+    synchronize(client)
+    synchronize(writer)
+    writer.in_q = client.out_q
+
+    # we actually do need a legitimate queue for the writer
     writer.out_q = Queue()
 
     def callback(result, error):
@@ -75,17 +80,15 @@ def stream(
         frame_it = iter(crawler)
         fname = next(frame_it)
         loader.in_q.put(fname)
+        package = loader.get_package()
 
-        throttle = Throttle(inference_rate)
         while True:
             fname = next(crawler)
             package_it = load(fname)
-            for _ in throttle:
-                try:
-                    package = next(package_it)
-                except StopIteration:
-                    break
+            if package is None:
+                package = next(package_it)
 
+            for package in chain([package], package_it):
                 # need to do this whole rigamaroll because
                 # client.get_package performs some setting
                 # up of inputs and what not that we'll need
@@ -95,6 +98,8 @@ def stream(
                 client.in_q.put(package)
                 package = client.get_package()
                 client.process(*package)
+                time.sleep(1 / inference_rate)
+            package = None
 
             # now all the requests are in-flight or being
             # processed in the callback thread, so see if
@@ -103,13 +108,13 @@ def stream(
                 result = writer.out_q.get_nowait()
             except Empty:
                 yield None, None
-
-            # check if what got raised is actually an error
-            # and reraise it (with traceback) if so. Otherwise
-            # return the written filename and its latency
-            if isinstance(result, ExceptionWrapper):
-                result.reraise()
-            yield result
+            else:
+                # check if what got raised is actually an error
+                # and reraise it (with traceback) if so. Otherwise
+                # return the written filename and its latency
+                if isinstance(result, Exception):  # ExceptionWrapper):
+                    raise result  # result.reraise()
+                yield result
 
     with client.client:
         client.client.start_stream(callback=callback)

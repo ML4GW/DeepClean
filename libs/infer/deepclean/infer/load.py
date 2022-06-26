@@ -1,9 +1,9 @@
 import logging
-import time
 from typing import Iterable, Union
 
 import numpy as np
 from gwpy.timeseries import TimeSeries, TimeSeriesDict
+
 from hermes.stillwater import Package
 
 
@@ -29,17 +29,16 @@ def load_frame(
 
 def frame_iterator(
     crawler: Iterable,
-    stride: int,
     channels: Union[str, Iterable[str]],
     sample_rate: float,
-    sequence_id: int,
+    inference_sampling_rate: float,
 ) -> Package:
+    stride = int(sample_rate / inference_sampling_rate)
+
     if isinstance(channels, str):
         data = np.array([])
-        x = np.zeros((stride,))
     else:
         data = np.array([[] * len(channels)])
-        x = np.zeros((len(channels), stride))
     slc = np.arange(stride)
 
     # manually iterate through the frame crawler so
@@ -48,7 +47,6 @@ def frame_iterator(
     fname_it = iter(crawler)
     fname = next(fname_it)
 
-    idx = 0
     sequence_end = False
     while True:
         logging.debug(f"Loading frame file {fname}")
@@ -57,21 +55,7 @@ def frame_iterator(
 
         num_steps = (data.shape[-1] - 1) // stride
         for i in range(num_steps - 1):
-            # since we're buffering results to an output array
-            # to save on data copies, we'll take 1 less stride
-            # than we _might_ be able to in order to ensure that
-            # the last stride isn't too short to be copied
-            data.take(slc + i * stride, out=x, axis=-1)
-
-            # build a package to send to downstream processes
-            package = Package(
-                x=x,
-                t0=time.time(),
-                request_id=idx,
-                sequence_id=sequence_id,
-                sequence_start=idx == 0,
-                sequence_end=sequence_end,
-            )
+            x = data.take(slc + i * stride, axis=-1)
 
             # this basically checks if the next step will
             # be the last full stride of data we'll be able
@@ -86,8 +70,7 @@ def frame_iterator(
                     # that the sequence has terminated
                     sequence_end = True
 
-            yield package
-            idx += 1
+            yield x, sequence_end
 
         # if we've run out of frames to load, kill the loop
         if sequence_end:

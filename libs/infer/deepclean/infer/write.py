@@ -23,7 +23,6 @@ class FrameWriter:
         memory: float = 10,
         look_ahead: float = 0.05,
         aggregation_steps: int = 0,
-        output_name: str = "aggregator",
     ) -> None:
         """Asynchronous DeepClean predictions postprocessor and frame writer
 
@@ -61,9 +60,6 @@ class FrameWriter:
             aggregation_steps:
                 The number of overlapping timesteps over which overlapping
                 segments are averaged on the inference server
-            output_name:
-                The name given by the inference server to the streaming
-                DeepClean output tensor.
         """
         self.crawler = FrameCrawler(data_dir, t0, timeout=1)
 
@@ -73,7 +69,6 @@ class FrameWriter:
         # record some of our writing parameters as-is
         self.write_dir = write_dir
         self.sample_rate = sample_rate
-        self.output_name = output_name
         self.channel_name = channel_name
 
         # record some of the parameters of the data, mapping
@@ -94,7 +89,9 @@ class FrameWriter:
         self._frame_idx = 0
         self._latest_seen = -1
 
-    def validate_package(self, package: dict) -> Tuple[np.ndarray, int]:
+    def validate_response(
+        self, noise_prediction: np.ndarray, request_id: int, sequence_id: int
+    ) -> Tuple[np.ndarray, int]:
         """
         Parse the response from the server to get
         the noise prediction and the corresponding
@@ -102,37 +99,14 @@ class FrameWriter:
         in the expected order and if not, log the ids
         that we missed.
 
-        Args:
-            package:
-                Dictionary of model responses returned by
-                `hermes.stillwater.client.InferenceClient`
-                process, mapping from output name to a
-                `hermes.stillwater.Package` containing the
-                corresponding numpy array and request id.
         Returns:
             The numpy array of the server response
-            The corresponding request id associated with the response
         """
-
-        # grab the noise prediction from the package
-        # slice out the batch and channel dimensions,
-        # which will both just be 1 for this pipeline
-        try:
-            package = package[self.output_name]
-        except KeyError:
-            raise ValueError(
-                "No output named {} returned by server, "
-                "available tensors are {}".format(
-                    self.output_name, list(package.keys())
-                )
-            )
-
-        request_id = package.request_id
         self.logger.debug(f"Received response for package {request_id}")
 
         # flatten out to 1D and verify that this
         # output aligns with our expectations
-        x = package.x.reshape(-1)
+        x = noise_prediction.reshape(-1)
         if len(x) != self.stride:
             raise ValueError(
                 "Noise prediction is of wrong length {}, "
@@ -160,10 +134,10 @@ class FrameWriter:
             self.logger.debug(
                 f"Throwing away received package id {request_id}"
             )
-            return None, None
+            return None
 
         # otherwise return the parsed array and its request id
-        return x, request_id
+        return x
 
     def update_prediction_array(self, x: np.ndarray, request_id: int) -> None:
         """
@@ -270,16 +244,21 @@ class FrameWriter:
 
         return write_path, latency
 
-    def __call__(self, package: dict):
+    def __call__(
+        self,
+        noise_prediction: dict,
+        request_id: int,
+        *args,
+    ):
         # get the server response and corresponding
         # request id from the passed package
-        response, request_id = self.validate_package(package)
-        if response is None:
+        noise_prediction = self.validate_response(noise_prediction, request_id)
+        if noise_prediction is None:
             return
 
         # now insert it into our `_noises` prediction
         # array and update our `_mask` to reflect this
-        self.update_prediction_array(response, request_id)
+        self.update_prediction_array(noise_prediction, request_id)
 
         # TODO: this won't generalize to strides that
         # aren't a factor of the frame size, which doesn't

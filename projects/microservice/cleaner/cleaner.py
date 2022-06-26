@@ -1,16 +1,16 @@
 import logging
+import time
 from pathlib import Path
 from typing import Iterable, Optional, Union
 
-from hermes.stillwater import InferenceClient
-from hermes.typeo import typeo
-
 from deepclean.gwftools.channels import ChannelList, get_channels
-from deepclean.infer.asynchronous import FrameLoader, FrameWriter
-from deepclean.infer.asynchronous.sync_utils import stream
 from deepclean.infer.frame_crawler import FrameCrawler
+from deepclean.infer.load import frame_iterator
+from deepclean.infer.write import FrameWriter
 from deepclean.logging import configure_logging
 from deepclean.signal.filter import BandpassFilter
+from hermes.aeriel.client import InferenceClient
+from hermes.typeo import typeo
 
 
 @typeo
@@ -138,44 +138,22 @@ def main(
     t0 = 0 if start_first else -1
     crawler = FrameCrawler(witness_data_dir, t0, timeout)
 
-    # create a frame loader which will take filenames returned
-    # by the crawler and load them into numpy arrays using
-    # just the witness channels, then iterate through this array
-    # in (1 / inference_sampling_rate)-sized updates
-    loader = FrameLoader(
-        inference_sampling_rate=inference_sampling_rate,
-        sample_rate=sample_rate,
-        channels=channels[1:],
-        sequence_id=sequence_id,
-        name="loader",
-        join_timeout=1,
+    # now an iterator that will load the filenames produced
+    # by the crawler and split them into stream-sized chunks
+    frame_it = frame_iterator(
+        crawler, channels[1:], sample_rate, inference_sampling_rate
     )
 
-    # create an inference client which take these updates
-    # and use them to make inference requests to the server
-    client = InferenceClient(
-        url=url,
-        model_name=model_name,
-        model_version=model_version,
-        profile=False,
-        name="client",
-        join_timeout=1,
-    )
-
-    # some stuff that the frame writer will need
-    postprocessor = BandpassFilter(freq_low, freq_high, sample_rate)
-    metadata = client.client.get_model_metadata(client.model_name)
-    if max_latency is None:
-        aggregation_steps = 0
-    else:
-        aggregation_steps = int(max_latency * inference_sampling_rate)
-
-    # finally create a file writer which takes the
-    # response returned by the server and turns them
+    # now create a file writer which takes the
+    # responses returned by the server and turns them
     # into a timeseries of noise predictions which can
     # be subtracted from strain data. Use the initial
     # timestamp utilized by the crawler to crawl through
     # the strain data directory in the same order
+    if max_latency is None:
+        aggregation_steps = 0
+    else:
+        aggregation_steps = int(max_latency * inference_sampling_rate)
     writer = FrameWriter(
         strain_data_dir,
         write_dir,
@@ -183,23 +161,42 @@ def main(
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
         t0=crawler.t0,
-        postprocessor=postprocessor,
+        postprocessor=BandpassFilter(freq_low, freq_high, sample_rate),
         memory=memory,
         look_ahead=look_ahead,
         aggregation_steps=aggregation_steps,
-        output_name=metadata.outputs[0].name,
-        name="writer",
-        join_timeout=1,
+    )
+
+    # finally create an inference client which will stream
+    # the updates produced by the frame iterator to the
+    # inference server and pass the responses to the writer
+    # as a callback in a separate thread
+    client = InferenceClient(
+        address=url,
+        model_name=model_name,
+        model_version=model_version,
+        callback=writer,
     )
 
     # start a streaming connection to the server that passes
     # server responses to the writer in a callback thread
-    with stream(loader, client, writer, inference_sampling_rate) as pipeline:
-        for fname, latency in pipeline(crawler, inference_rate):
-            if fname is not None:
-                logging.info(
-                    f"Wrote cleaned frame {fname} with latency {latency}s"
-                )
+    with client:
+        for request_id, (x, sequence_end) in enumerate(frame_it):
+            client.infer(
+                x,
+                request_id,
+                sequence_id,
+                sequence_start=request_id == 0,
+                sequence_end=sequence_end,
+            )
+            time.sleep(0.95 / inference_rate)
+
+            # check if any files have been written or if the
+            # client's callback thread has raised any exceptions
+            response = client.get()
+            if response is not None:
+                fname, latency = response
+                logging.info("Wrote file {fname} with latency {latency}s")
 
 
 if __name__ == "__main__":

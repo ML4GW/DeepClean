@@ -3,10 +3,12 @@ import shutil
 from pathlib import Path
 from unittest.mock import patch
 
+import h5py
 import numpy as np
 import pytest
-import train
 from gwpy.timeseries import TimeSeries, TimeSeriesDict
+
+from deepclean.gwftools import io
 
 
 @pytest.fixture(scope="function")
@@ -93,13 +95,56 @@ def real_channel_test_fn(real_channels, t0, duration, sample_rate, oversample):
             else:
                 assert np.isclose(y[4:-4:2], expected[4:-4:2], rtol=1e-9).all()
 
-
-@pytest.fixture(params=[None, 0.1, 0.25])
-def valid_frac(request):
-    return request.param
+    return test_fn
 
 
-def test_main(
+def test_make_fake_sines(
+    fake_freqs, fake_channels, fake_channel_test_fn, t0, duration, sample_rate
+):
+    result = io.make_fake_sines(fake_channels, t0, duration, sample_rate)
+    assert len(result) == 2
+    fake_channel_test_fn(result)
+
+
+def test_fetch(
+    real_channels,
+    real_waveforms,
+    real_channel_test_fn,
+    fake_channels,
+    fake_channel_test_fn,
+    t0,
+    duration,
+    sample_rate,
+    oversample,
+):
+    # create a patch for the TimeSeriesDict.get function
+    # that just returns some pre-determined data
+    dt = 1 / (sample_rate * oversample)
+    ts_dict = {}
+    for channel, waveform in zip(real_channels, real_waveforms):
+        ts_dict[channel] = TimeSeries(waveform, dt=dt)
+    ts_dict = TimeSeriesDict(ts_dict)
+
+    # test the fetch function with the patched `get` method
+    channels = fake_channels + real_channels
+    with patch(
+        "gwpy.timeseries.TimeSeriesDict.get", return_value=ts_dict
+    ) as mock:
+        result = io.fetch(channels, t0, duration, sample_rate)
+    mock.assert_called_once_with(
+        real_channels, t0, t0 + duration, nproc=4, allow_tape=True
+    )
+
+    # make sure we have all the channels we expect
+    assert len(result) == len(channels)
+
+    # verify that the data for each set of channels
+    # got created correctly
+    fake_channel_test_fn(result)
+    real_channel_test_fn(result)
+
+
+def test_read(
     tmpdir,
     real_channels,
     real_waveforms,
@@ -110,54 +155,93 @@ def test_main(
     duration,
     sample_rate,
     oversample,
-    valid_frac,
+):
+    fname = tmpdir / "data.h5"
+    with h5py.File(fname, "w") as f:
+        for channel, waveform in zip(real_channels, real_waveforms):
+            dataset = f.create_dataset(channel, data=waveform)
+            dataset.attrs["sample_rate"] = sample_rate * oversample
+            dataset.attrs["t0"] = t0
+
+    channels = real_channels + fake_channels
+    result = io.read(fname, channels, t0, duration, sample_rate)
+    assert len(result) == len(channels)
+
+    fake_channel_test_fn(result)
+    real_channel_test_fn(result)
+
+    # ensure that using a shorter duration is allowed
+    result = io.read(fname, channels, t0, duration - 1, sample_rate)
+    assert len(result) == len(channels)
+
+    fake_channel_test_fn(result, duration - 1)
+    real_channel_test_fn(result, duration - 1)
+
+    # ensure that using too _long_ of a duration raises an error
+    with pytest.raises(ValueError) as exc_info:
+        io.read(fname, channels, t0, duration + 1, sample_rate)
+    assert f"{duration}s worth of data" in str(exc_info)
+
+    # make sure that non-matching t0s raises an error
+    with pytest.raises(ValueError) as exc_info:
+        io.read(fname, channels, t0 - 1, duration, sample_rate)
+    assert f"has initial GPS timestamp {t0}" in str(exc_info)
+
+
+def test_write(
+    tmpdir,
+    real_channels,
+    real_waveforms,
+    fake_channels,
+    t0,
+    sample_rate,
+    oversample,
+):
+    data = {channel: None for channel in fake_channels}
+    data.update({i: j for i, j in zip(real_channels, real_waveforms)})
+
+    fname = tmpdir / "data.h5"
+    io.write(data, fname, t0, sample_rate * oversample)
+
+    with h5py.File(fname, "r") as f:
+        assert len(list(f.keys())) == 2
+        for channel, waveform in zip(real_channels, real_waveforms):
+            dataset = f[channel]
+            assert (dataset[:] == waveform).all()
+
+            assert dataset.attrs["t0"] == t0
+            assert dataset.attrs["sample_rate"] == sample_rate * oversample
+
+
+def test_find(
+    tmpdir,
+    real_channels,
+    real_waveforms,
+    real_channel_test_fn,
+    fake_channels,
+    fake_channel_test_fn,
+    t0,
+    duration,
+    sample_rate,
+    oversample,
 ):
     channels = ["strain"] + real_channels + fake_channels
     strain = -np.arange(0, duration * sample_rate, 1 / oversample)
 
-    def verify_strain(strain, witnesses, offset=0):
+    def verify_strain(strain):
         assert strain.ndim == 1
-        assert len(strain) == witnesses.shape[1]
+        assert len(strain) == int(oversample * duration * sample_rate)
 
-        expected = -np.arange(len(strain)) - offset * sample_rate
+        expected = -np.arange(len(strain))
         slc = slice(4, -4, 2) if oversample == 0.5 else slice(None, None)
         assert np.isclose(strain[slc], expected[slc], rtol=1e-9).all()
 
     def verify_outputs(outputs):
-        if valid_frac is not None:
-            assert len(outputs) == 4
-            train_X, train_y, valid_X, valid_y = outputs
-
-            train_dict = {
-                channel: x for channel, x in zip(sorted(channels[1:]), train_X)
-            }
-            valid_dict = {
-                channel: x for channel, x in zip(sorted(channels[1:]), valid_X)
-            }
-
-            train_length = (1 - valid_frac) * duration
-            valid_length = duration - train_length
-            real_channel_test_fn(train_dict, train_length)
-            fake_channel_test_fn(train_dict, train_length)
-
-            real_channel_test_fn(valid_dict, valid_length, train_length)
-            fake_channel_test_fn(valid_dict, valid_length, train_length)
-
-            # now check the strain data
-            verify_strain(train_y, train_X)
-            verify_strain(valid_y, valid_X, train_length)
-
-            # TODO: check valid data too
-
-        else:
-            assert len(outputs) == 2
-            train_X, train_y = outputs
-            train_dict = {
-                channel: x for channel, x in zip(sorted(channels[1:]), train_X)
-            }
-            real_channel_test_fn(train_dict)
-            fake_channel_test_fn(train_dict)
-            verify_strain(train_y, train_X)
+        assert len(outputs) == len(channels)
+        strain = outputs.pop("strain")
+        real_channel_test_fn(outputs)
+        fake_channel_test_fn(outputs)
+        verify_strain(strain)
 
     # create a patch for the TimeSeriesDict.get function
     # that just returns some pre-determined data
@@ -174,14 +258,12 @@ def test_main(
     # as whether `get` was called when it's expected to get called
     @patch("gwpy.timeseries.TimeSeriesDict.get", return_value=ts_dict)
     def run_fn(data_path, force_download, is_called, mock):
-        output = train.main(
+        output = io.find(
             channels,
             t0,
             duration,
             sample_rate,
-            output_directory=tmpdir,
             data_path=data_path,
-            valid_frac=valid_frac,
             force_download=force_download,
         )
 

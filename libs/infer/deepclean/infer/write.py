@@ -1,3 +1,4 @@
+import logging
 import time
 from pathlib import Path
 from typing import Callable, Optional, Tuple
@@ -89,8 +90,10 @@ class FrameWriter:
         self._frame_idx = 0
         self._latest_seen = -1
 
+        self.logger = logging.getLogger("Frame Writer")
+
     def validate_response(
-        self, noise_prediction: np.ndarray, request_id: int, sequence_id: int
+        self, noise_prediction: np.ndarray, request_id: int
     ) -> Tuple[np.ndarray, int]:
         """
         Parse the response from the server to get
@@ -292,4 +295,4 @@ class FrameWriter:
 
             fname, latency = self.clean(noise)
             return fname, latency
-        return None, None
+        return None

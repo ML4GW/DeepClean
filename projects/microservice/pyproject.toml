@@ -37,7 +37,7 @@ write_dir = "${PROJECT_DIR}/production"
 channels = "${base.channels}"
 kernel_length = 1
 inference_sampling_rate = 512
-inference_rate = 1024
+inference_rate = 512
 sample_rate = "${base.sample_rate}"
 
 max_latency = 0.5

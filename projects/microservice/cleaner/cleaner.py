@@ -196,7 +196,7 @@ def main(
             response = client.get()
             if response is not None:
                 fname, latency = response
-                logging.info("Wrote file {fname} with latency {latency}s")
+                logging.info(f"Wrote file {fname} with latency {latency}s")
 
 
 if __name__ == "__main__":

@@ -36,9 +36,9 @@ def frame_iterator(
     stride = int(sample_rate / inference_sampling_rate)
 
     if isinstance(channels, str):
-        data = np.array([])
+        data = np.array([], dtype="float32")
     else:
-        data = np.array([[] * len(channels)])
+        data = np.array([[] for _ in channels], dtype="float32")
     slc = np.arange(stride)
 
     # manually iterate through the frame crawler so

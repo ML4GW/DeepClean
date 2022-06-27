@@ -13,9 +13,10 @@ python = "^3.8,<3.10"
 
 "deepclean.logging" = {path = "../../../libs/logging", develop = true}
 "deepclean.infer" = {path = "../../../libs/infer", develop = true}
-"deepclean.serve" = {path = "../../../libs/serve", develop = true}
 "deepclean.signal" = {path = "../../../libs/signal", develop = true}
-"hermes.typeo" = {path = "../../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
+
+"hermes.aeriel" = {path = "../../../hermes/hermes/hermes.aeriel", develop = true, extras = ["serve"]}
+"hermes.typeo" = "^0.1.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

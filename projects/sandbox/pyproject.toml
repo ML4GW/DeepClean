@@ -112,7 +112,7 @@ output_directory = "${PROJECT_DIR}"
 model_repo_dir = "${MODEL_REPOSITORY}"
 data_path = "${DATA_DIR}"
 
-t0 = "{base.test_t0}"
+t0 = "${base.test_t0}"
 duration = "${base.test_duration}"
 channels = "${base.channels}"
 kernel_length = 1

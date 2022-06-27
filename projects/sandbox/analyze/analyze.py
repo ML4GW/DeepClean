@@ -231,7 +231,8 @@ def plot_asdr(
     clean_spec = clean_timeseries.spectrogram(window_length, fftlength)
 
     freqs = raw_spec.frequencies.value
-    asdr = raw_spec.value / clean_spec.value
+    psdr = clean_spec.value / raw_spec.value
+    asdr = psdr**0.5
     percentiles = [25, 50, 75]
     low, med, high = np.percentile(asdr, percentiles, axis=0)
 
@@ -246,7 +247,7 @@ def plot_asdr(
             "freq_low and freq_high must both be either None or float"
         )
 
-    source = ColumnDataSource({"asdr": asdr, "freqs": freqs})
+    source = ColumnDataSource({"asdr": med, "freqs": freqs})
     p = figure(
         height=300,
         width=600,
@@ -309,13 +310,31 @@ def analyze_test_data(
     # of the raw files, so use those to get the filenames
     fnames = sorted(clean_data_dir.iterdir())
 
-    clean_timeseries = TimeSeries.read(
-        [clean_data_dir / f.name for f in fnames],
-        channel=channels[0] + "-CLEANED",
-    ).resample(sample_rate)
+    ts = None
+    num_frames = 0
+    for f in fnames:
+        if not f.name.startswith("STRAIN"):
+            continue
+        try:
+            y = TimeSeries.read(f, channel=channels[0] + "-CLEANED")
+        except ValueError:
+            raise ValueError(
+                "No channel {} in frame file {}".format(
+                    channels[0], clean_data_dir / f.name
+                )
+            )
+        y = y.resample(sample_rate)
+        if ts is None:
+            ts = y
+        else:
+            ts = ts.append(y)
+        num_frames += 1
+
+    clean_timeseries = ts
     clean_asd = clean_timeseries.asd(fftlength, overlap=overlap)
 
     raw_timeseries = raw_timeseries[: len(clean_timeseries)]
+    raw_timeseries = TimeSeries(raw_timeseries, dt=1 / sample_rate)
     raw_asd = raw_timeseries.asd(fftlength, overlap=overlap)
 
     p_asd = plot_asds(raw_asd, clean_asd)
@@ -327,7 +346,7 @@ def analyze_test_data(
         freq_low,
         freq_high,
     )
-    return row(p_asd, p_asdr), len(fnames)
+    return row(p_asd, p_asdr), num_frames
 
 
 @typeo
@@ -395,7 +414,7 @@ def main(
     clean_data_dir = clean_data_dir or output_directory / "cleaned"
 
     raw_data = find(
-        channels[0], t0, duration, sample_rate, data_path=raw_data_path
+        channels[:1], t0, duration, sample_rate, data_path=raw_data_path
     )
     raw_data = raw_data[channels[0]]
 

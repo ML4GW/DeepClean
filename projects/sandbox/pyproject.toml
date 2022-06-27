@@ -130,7 +130,7 @@ sequence_id = 1001
 verbose = "${base.verbose}"
 
 [tool.typeo.scripts.analyze]
-raw_data_dir = "${DATA_DIR}"
+raw_data_path = "${DATA_DIR}"
 clean_data_dir = "${PROJECT_DIR}/cleaned"
 output_directory = "${PROJECT_DIR}"
 

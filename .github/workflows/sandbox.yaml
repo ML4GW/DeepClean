@@ -36,8 +36,7 @@ jobs:
       name: Run experiment remotely
       env:
         PROJECT_DIR: ${{ env.WORK_DIR }}/results
-        TRAIN_DATA_DIR: ${{ env.WORK_DIR }}/../data
-        DATA_DIR: ${{ secrets.DATA_DIRECTORY }}
+        DATA_DIR: ${{ env.WORK_DIR }}/../data
         MODEL_REPOSITORY: ${{ env.WORK_DIR }}/repo
       run: >
         ssh -o StrictHostKeyChecking=no -t
@@ -46,7 +45,6 @@ jobs:
         "echo hey! &&
         PROJECT_DIR=$PROJECT_DIR
         DATA_DIR=$DATA_DIR
-        TRAIN_DATA_DIR=$TRAIN_DATA_DIR
         MODEL_REPOSITORY=$MODEL_REPOSITORY
         pinto --verbose run $WORK_DIR/src/projects/sandbox"
     -

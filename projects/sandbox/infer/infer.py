@@ -1,29 +1,43 @@
+# TODO: complete documentation
 import logging
-import os
+import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import List, Optional, Union
+from tempfile import TemporaryDirectory
+from typing import List, Optional
 
 import numpy as np
-from gwpy.timeseries import TimeSeries, TimeSeriesDict
-from hermes.typeo import typeo
-from tritonclient import grpc as triton
+from gwpy.timeseries import TimeSeries
 
-import deepclean.infer.pseudo as infer
+from deepclean.gwftools.channels import ChannelList, get_channels
+from deepclean.gwftools.io import find
+from deepclean.infer.write import FrameWriter
 from deepclean.logging import configure_logging
-from deepclean.serve import serve
 from deepclean.signal.filter import FREQUENCY, BandpassFilter
+from hermes.aeriel.client import InferenceClient
+from hermes.aeriel.serve import serve
+from hermes.typeo import typeo
 
 
-def write_frames(frames, write_dir: Path, fnames: str, channel: str):
-    write_dir.mkdir(parents=True, exist_ok=True)
-    for fname, frame in zip(fnames, frames):
-        # use the filename and channel name from the
-        # strain data for the cleaned frame. TODO:
-        # should we introduce "DC" somewhere?
-        fname = write_dir / fname
-        ts = TimeSeries(frame, channel=channel)
-        ts.write(fname)
-        logging.debug(f"Wrote frame file '{fname}'")
+@contextmanager
+def write_strain(
+    strain: np.ndarray,
+    num_frames: int,
+    stride: int,
+    sample_rate: float,
+    channel: str,
+):
+    # since the FrameWriter class loads strain data internally,
+    # split the strain channel into 1s frames and write them to
+    # a temporary directory for the writer to load them
+    strain = strain[: int(num_frames * sample_rate)]
+    strain = np.split(strain, num_frames)
+    with TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        for i, y in enumerate(strain):
+            ts = TimeSeries(y, dt=1 / sample_rate, channel=channel)
+            ts.write(tmpdir / "STRAIN-{t0 + i}_1.gwf")
+        yield tmpdir
 
 
 @typeo
@@ -31,22 +45,24 @@ def main(
     url: str,
     model_repo_dir: str,
     model_name: str,
+    channels: ChannelList,
+    t0: float,
+    duration: float,
+    data_path: Path,
     output_directory: Path,
-    witness_data_dir: Path,
-    strain_data_dir: Path,
-    channels: Union[str, List[str]],
     kernel_length: float,
-    stride_length: float,
+    inference_sampling_rate: float,
     sample_rate: float,
     max_latency: float,
     memory: float,
     look_ahead: float,
     freq_low: FREQUENCY,
     freq_high: FREQUENCY,
+    model_version: int = -1,
     sequence_id: int = 1001,
+    force_download: bool = False,
     verbose: bool = False,
     gpus: Optional[List[int]] = None,
-    max_frames: Optional[int] = None,
 ):
     """
     Serve up the models from the indicated model repository
@@ -64,19 +80,6 @@ def main(
             Model to which to send streaming inference requests
         output_directory:
             Directory to save logs and cleaned frames
-        witness_data_dir:
-            A directory containing one-second-long gravitational
-            wave frame files corresponding to witness data as
-            inputs to DeepClean. Files should be named identically
-            except for their end which should take the form
-            `<GPS timestamp>_<length of frame>.gwf`.
-        strain_data_dir:
-            A directory containing one-second-long gravitational
-            wave frame files corresponding to the strain data
-            to be cleaned. The same rules about naming conventions
-            apply as those outlined for the files in `witness_data_dir`,
-            with the added stipulation that each timestamp should have
-            a matching file in `witness_data_dir`.
         channels:
             A list of channel names used by DeepClean, with the
             strain channel first, or the path to a text file
@@ -129,129 +132,89 @@ def main(
             `INFO` verbosity.
         gpus:
             The indices of the GPUs to use for inference
-        max_frames:
-            The maximum number of files from `witness_data_dir` and
-            `strain_data_dir` to clean.
     """
 
     # load the channels from a file if we specified one
-    if isinstance(channels, str) or len(channels) == 1:
-        if isinstance(channels, str):
-            channels = [channels]
-
-        with open(channels[0], "r") as f:
-            channels = [i for i in f.read().splitlines() if i]
-
+    channels = get_channels(channels)
     configure_logging(output_directory / "infer.log", verbose)
 
-    # launch a singularity container in a separate thread
-    # that runs the server, captures its logs, and waits until
-    # the server comes online before entering the context
+    # launch a singularity container hosting the server and
+    # take care of some data bookkeeping while we wait for
+    # it to come online
     with serve(
         model_repo_dir,
         gpus=gpus,
         log_file=output_directory / "server.log",
-        wait=True,
-    ):
-        # connect to the server at the given url
-        client = triton.InferenceServerClient(url)
-
-        # TODO: some checks to make sure that the filenames match,
-        # or just more intelligent logic to iterate through these.
-        # How many assumptions about the naming conventions do
-        # we want to make?
-        witness_fnames = sorted(os.listdir(witness_data_dir))
-        strain_fnames = sorted(os.listdir(strain_data_dir))
-        N = min(max_frames or np.inf, len(witness_fnames))
-
-        strains = np.array([])
-        request_id = 0
-        remainder = None
-
-        # do actual inference in a context that maintains a
-        # connection to the server to make sure the snapshot
-        # state is updated sequentially and responses are handled
-        # in a separate thread (managed by the `callback` returned here,
-        # which will maintain the model's predictions in-memory in a
-        # `predictions` attribute)
-        logging.info("Beginning inference request submissions")
-        with infer.begin_inference(client, model_name) as (input, callback):
-            for i in range(N):
-                # grab the ith filenames for processing
-                witness_fname = witness_data_dir / witness_fnames[i]
-                strain_fname = strain_data_dir / strain_fnames[i]
-                logging.debug(
-                    "Reading frames '{}' and '{}'".format(
-                        strain_fname, witness_fname
-                    )
-                )
-
-                # load in and preprocess the witnesses
-                X = TimeSeriesDict.read(witness_fname, channels[1:])
-                X = X.resample(sample_rate)
-                X = np.stack([X[i].value for i in sorted(channels[1:])])
-                X = X.astype("float32")
-
-                # tack on any leftover witnesses from the last
-                # frame that weren't sufficiently long to make
-                # an inference request
-                if remainder is not None:
-                    X = np.conatenate([remainder, X], axis=-1)
-
-                # load in the corresponding strain data
-                # and tack it on to our running array
-                y = TimeSeries.read(strain_fname, channels[0])
-                y = y.resample(sample_rate)
-                strains = np.append(strains, y)
-
-                # make a series of inference requests using the
-                # the witnesses. The outputs will be tacked on
-                # to the `predictions` attribute of our `callback`
-                remainder, request_id = infer.submit_for_inference(
-                    client=client,
-                    input=input,
-                    X=X,
-                    stride=int(stride_length * sample_rate),
-                    initial_request_id=request_id,
-                    sequence_id=sequence_id,
-                    model_name=model_name,
-                    sequence_end=False,  # TODO: best way to do this?
-                    callback=callback,
-                )
-
-                # check to see if the server raised an error
-                # that got processed by our callback
-                if callback.error is not None:
-                    raise RuntimeError(callback.error)
-
-        # if we did some server-side aggregation, we need to get
-        # rid of the first few update steps since they technically
-        # correspond to times _before_ the input data began
-        update_steps = max_latency // stride_length
-        stride_size = sample_rate * stride_length
-        throw_away = int(update_steps * stride_size)
-        postprocessor = BandpassFilter(freq_low, freq_high, sample_rate)
-
-        # now clean the processed timeseries in an
-        # online fashion and break into frames
-        logging.info("Producing cleaned frames from inference outputs")
-        cleaned_frames = infer.online_postprocess(
-            callback.predictions[throw_away:],
-            strains[:-throw_away],
-            frame_length=1,  # TODO: best way to do this?
-            postprocessor=postprocessor,
-            memory=memory,
-            look_ahead=look_ahead,
-            sample_rate=sample_rate,
+        wait=False,
+    ) as instance:
+        # load all of the test data into memory
+        data = find(
+            channels,
+            t0,
+            duration + max_latency + look_ahead,
+            sample_rate,
+            data_path=data_path,
+            force_download=force_download,
         )
 
-        # now write these frames to the directory where
-        # all our training outputs go. TODO: should this
-        # be an optional param that defaults to this value?
-        write_dir = output_directory / "cleaned"
-        logging.info(f"Writing cleaned frames to '{write_dir}'")
-        channel_name = channels[0] + "-CLEANED"
-        write_frames(cleaned_frames, write_dir, strain_fnames, channel_name)
+        # extract the non-strain channels into our input array
+        X = np.stack([data[channel] for channel in channels[1:]])
+        stride = int(sample_rate // inference_sampling_rate)
+        num_steps = int(X.shape[-1] // stride)
+
+        # since the FrameWriter class loads strain data internally,
+        # split the strain channel into 1s frames and write them to
+        # a temporary directory for the writer to load them
+        y = data[channels[0]]
+        with write_strain(
+            y, duration, stride, sample_rate, channels[0]
+        ) as tmpdir:
+            # set up a file writer to use as a callback
+            # for the client to handle server responses
+            if max_latency is None:
+                aggregation_steps = 0
+            else:
+                aggregation_steps = int(max_latency * inference_sampling_rate)
+            writer = FrameWriter(
+                tmpdir,
+                output_directory / "cleaned",
+                channel_name=channels[0],
+                inference_sampling_rate=inference_sampling_rate,
+                sample_rate=sample_rate,
+                t0=t0,
+                postprocessor=BandpassFilter(freq_low, freq_high, sample_rate),
+                memory=memory,
+                look_ahead=look_ahead,
+                aggregation_steps=aggregation_steps,
+            )
+
+            # wait for the server to come online so we can
+            # connect to it with our client, then run inference
+            instance.wait()
+            client = InferenceClient(
+                address=url,
+                model_name=model_name,
+                model_version=model_version,
+                callback=writer,
+            )
+            with client:
+                for i in range(num_steps):
+                    x = X[:, i * stride : (i + 1) * stride]
+                    client.infer(
+                        x,
+                        request_id=i,
+                        sequence_id=sequence_id,
+                        sequence_start=i == 0,
+                        sequence_end=i == (num_steps - 1),
+                    )
+                    time.sleep(0.95 / inference_sampling_rate)
+
+                    # check if any files have been written or if the
+                    # client's callback thread has raised any exceptions
+                    response = client.get()
+                    if response is not None:
+                        fname, latency = response
+                        logging.info(f"Wrote file {fname}")
 
 
 if __name__ == "__main__":

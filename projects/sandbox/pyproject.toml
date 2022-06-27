@@ -130,11 +130,15 @@ sequence_id = 1001
 verbose = "${base.verbose}"
 
 [tool.typeo.scripts.analyze]
-raw_data_dir = "${DATA_DIR}/llhoft"
+raw_data_dir = "${DATA_DIR}"
 clean_data_dir = "${PROJECT_DIR}/cleaned"
 output_directory = "${PROJECT_DIR}"
+
 channels = "${base.channels}"
+t0 = "${base.test_t0}"
+duration = 4097
 sample_rate = "${base.sample_rate}"
+window_length = 60
 fftlength = 10
 
 freq_low = "${base.freq_low}"

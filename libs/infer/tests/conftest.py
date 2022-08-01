@@ -9,7 +9,10 @@ def tmpdir():
     tmpdir = Path(__file__).resolve().parent / "tmp"
     tmpdir.mkdir(parents=True)
     yield tmpdir
-    shutil.rmtree(tmpdir)
+    try:
+        shutil.rmtree(tmpdir)
+    except Exception:
+        raise ValueError(list(tmpdir.iterdir()))
 
 
 @pytest.fixture(params=[True])  # , False])

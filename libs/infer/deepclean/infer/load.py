@@ -13,12 +13,12 @@ def load_frame(
     if isinstance(channels, str):
         # if we don't have multiple channels, then just grab the data
         data = TimeSeries.read(fname, channels)
-        data.resample(sample_rate)
+        data = data.resample(sample_rate)
         data = data.value
     else:
         # otherwise stack the arrays
         data = TimeSeriesDict.read(fname, channels)
-        data.resample(sample_rate)
+        data = data.resample(sample_rate)
         data = np.stack([data[i].value for i in channels])
 
     # return as the expected type

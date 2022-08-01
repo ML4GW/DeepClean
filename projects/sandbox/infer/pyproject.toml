@@ -18,6 +18,7 @@ python = "^3.8,<3.10"
 "hermes.aeriel" = {path = "../../../hermes/hermes/hermes.aeriel", develop = true, extras = ["serve"]}
 "hermes.typeo" = "^0.1.5"
 
+
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
 

@@ -62,6 +62,7 @@ def main(
     freq_high: FREQUENCY,
     model_version: int = -1,
     sequence_id: int = 1001,
+    inference_rate: Optional[float] = None,
     force_download: bool = False,
     verbose: bool = False,
     gpus: Optional[List[int]] = None,
@@ -139,6 +140,7 @@ def main(
     # load the channels from a file if we specified one
     channels = get_channels(channels)
     configure_logging(output_directory / "infer.log", verbose)
+    inference_rate = inference_rate or 0.95 * inference_sampling_rate
 
     # launch a singularity container hosting the server and
     # take care of some data bookkeeping while we wait for
@@ -209,7 +211,7 @@ def main(
                         sequence_start=i == 0,
                         sequence_end=i == (num_steps - 1),
                     )
-                    time.sleep(0.95 / inference_sampling_rate)
+                    time.sleep(0.95 / inference_rate)
 
                     # check if any files have been written or if the
                     # client's callback thread has raised any exceptions

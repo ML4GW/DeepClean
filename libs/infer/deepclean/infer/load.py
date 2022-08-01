@@ -4,8 +4,6 @@ from typing import Iterable, Union
 import numpy as np
 from gwpy.timeseries import TimeSeries, TimeSeriesDict
 
-from hermes.stillwater import Package
-
 
 def load_frame(
     fname: str, channels: Union[str, Iterable[str]], sample_rate: float
@@ -32,7 +30,7 @@ def frame_iterator(
     channels: Union[str, Iterable[str]],
     sample_rate: float,
     inference_sampling_rate: float,
-) -> Package:
+) -> np.ndarray:
     stride = int(sample_rate / inference_sampling_rate)
 
     if isinstance(channels, str):

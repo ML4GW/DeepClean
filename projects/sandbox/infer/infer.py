@@ -140,7 +140,7 @@ def main(
     # load the channels from a file if we specified one
     channels = get_channels(channels)
     configure_logging(output_directory / "infer.log", verbose)
-    inference_rate = inference_rate or 0.95 * inference_sampling_rate
+    inference_rate = inference_rate or 1.05 * inference_sampling_rate
 
     # launch a singularity container hosting the server and
     # take care of some data bookkeeping while we wait for
@@ -169,10 +169,10 @@ def main(
         # since the FrameWriter class loads strain data internally,
         # split the strain channel into 1s frames and write them to
         # a temporary directory for the writer to load them
-        y = data[channels[0]]
-        with write_strain(
-            y, t0, duration, stride, sample_rate, channels[0]
-        ) as tmpdir:
+        tmpdir = write_strain(
+            data[channels[0]], t0, duration, stride, sample_rate, channels[0]
+        )
+        with tmpdir:
             # set up a file writer to use as a callback
             # for the client to handle server responses
             if max_latency is None:
@@ -211,7 +211,7 @@ def main(
                         sequence_start=i == 0,
                         sequence_end=i == (num_steps - 1),
                     )
-                    time.sleep(0.95 / inference_rate)
+                    time.sleep(1 / inference_rate)
 
                     # check if any files have been written or if the
                     # client's callback thread has raised any exceptions

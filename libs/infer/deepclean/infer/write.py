@@ -25,7 +25,7 @@ class FrameWriter:
         look_ahead: float = 0.05,
         aggregation_steps: int = 0,
     ) -> None:
-        """Asynchronous DeepClean predictions postprocessor and frame writer
+        """DeepClean predictions postprocessor and frame writer
 
         Asynchronous process for concatenating averaged
         responses from a streaming DeepClean model, post-

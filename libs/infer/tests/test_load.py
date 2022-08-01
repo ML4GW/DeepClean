@@ -55,7 +55,7 @@ def test_load_frame(write_dir, channels, ts, sample_rate):
 def test_frame_iterator(
     write_dir, channels, ts, sample_rate, inference_sampling_rate
 ):
-    # TODO: turn this into a check in loader __init__
+    # TODO: turn this into a check in frame_iterator
     if sample_rate < inference_sampling_rate:
         return
 
@@ -89,9 +89,8 @@ def test_frame_iterator(
         timeseries.write(fname)
         fnames.append(fname)
 
-    crawler = fnames
     it = load.frame_iterator(
-        crawler, channels, sample_rate, inference_sampling_rate
+        fnames, channels, sample_rate, inference_sampling_rate
     )
     stride = int(sample_rate // inference_sampling_rate)
     num_updates = int(num_frames * sample_rate // stride)
@@ -99,13 +98,20 @@ def test_frame_iterator(
     for i, (x, sequence_end) in enumerate(it):
         if isinstance(channels, str):
             assert x.shape == (stride,)
-            assert (x == np.arange(stride) * (i + 1)).all()
+            start = i * stride
+            stop = start + stride
+            assert (x == np.arange(start, stop)).all(), i
         else:
             assert x.shape == (num_channels, stride)
             for j, row in enumerate(x):
-                start = i * num_channels + j
+                channel_offset = sample_rate * 10 * j
+                start = channel_offset + i * stride
                 stop = start + stride
-                assert (x == np.arange(start, stop)).all()
+                assert (row == np.arange(start, stop)).all(), (i, j)
 
-        assert sequence_end == ((i + 1) == num_updates)
+        assert sequence_end == ((i + 1) == num_updates), (
+            sequence_end,
+            i,
+            num_updates,
+        )
     assert sequence_end

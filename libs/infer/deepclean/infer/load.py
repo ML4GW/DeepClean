@@ -51,8 +51,8 @@ def frame_iterator(
         frame = load_frame(fname, channels, sample_rate)
         data = np.append(data, frame, axis=-1)
 
-        num_steps = (data.shape[-1] - 1) // stride
-        for i in range(num_steps - 1):
+        num_steps = data.shape[-1] // stride
+        for i in range(num_steps):
             x = data.take(slc + i * stride, axis=-1)
 
             # this basically checks if the next step will

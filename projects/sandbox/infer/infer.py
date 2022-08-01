@@ -22,6 +22,7 @@ from hermes.typeo import typeo
 @contextmanager
 def write_strain(
     strain: np.ndarray,
+    t0: float,
     num_frames: int,
     stride: int,
     sample_rate: float,
@@ -36,7 +37,8 @@ def write_strain(
         tmpdir = Path(tmpdir)
         for i, y in enumerate(strain):
             ts = TimeSeries(y, dt=1 / sample_rate, channel=channel)
-            ts.write(tmpdir / "STRAIN-{t0 + i}_1.gwf")
+            tstamp = int(t0 + i)
+            ts.write(tmpdir / f"STRAIN-{tstamp}-1.gwf")
         yield tmpdir
 
 
@@ -46,8 +48,8 @@ def main(
     model_repo_dir: str,
     model_name: str,
     channels: ChannelList,
-    t0: float,
-    duration: float,
+    t0: int,
+    duration: int,
     data_path: Path,
     output_directory: Path,
     kernel_length: float,
@@ -167,7 +169,7 @@ def main(
         # a temporary directory for the writer to load them
         y = data[channels[0]]
         with write_strain(
-            y, duration, stride, sample_rate, channels[0]
+            y, t0, duration, stride, sample_rate, channels[0]
         ) as tmpdir:
             # set up a file writer to use as a callback
             # for the client to handle server responses
@@ -181,7 +183,7 @@ def main(
                 channel_name=channels[0],
                 inference_sampling_rate=inference_sampling_rate,
                 sample_rate=sample_rate,
-                t0=t0,
+                t0=int(t0),
                 postprocessor=BandpassFilter(freq_low, freq_high, sample_rate),
                 memory=memory,
                 look_ahead=look_ahead,

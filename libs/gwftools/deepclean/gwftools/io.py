@@ -177,7 +177,9 @@ def find(
             # or data_path's terminal path node isn't formatted
             # like a frame filename, so we'll assume that it
             # refers to a directory and make a default filename
-            fname = f"deepclean_train-{t0}-{duration}.h5"
+            t0 = int(t0) if int(t0) == t0 else t0
+            duration = int(duration) if int(duration) == duration else duration
+            fname = f"deepclean-{t0}-{duration}.h5"
             data_path.mkdir(parents=True, exist_ok=True)
             data_path = data_path / fname
 

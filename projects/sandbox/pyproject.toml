@@ -112,7 +112,7 @@ output_directory = "${PROJECT_DIR}"
 model_repo_dir = "${MODEL_REPOSITORY}"
 data_path = "${DATA_DIR}"
 
-t0 = "{base.test_t0}"
+t0 = "${base.test_t0}"
 duration = "${base.test_duration}"
 channels = "${base.channels}"
 kernel_length = 1
@@ -130,7 +130,7 @@ sequence_id = 1001
 verbose = "${base.verbose}"
 
 [tool.typeo.scripts.analyze]
-raw_data_dir = "${DATA_DIR}"
+raw_data_path = "${DATA_DIR}"
 clean_data_dir = "${PROJECT_DIR}/cleaned"
 output_directory = "${PROJECT_DIR}"
 

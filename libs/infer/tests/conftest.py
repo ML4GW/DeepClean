@@ -47,6 +47,11 @@ def sample_rate(request):
     return request.param
 
 
+@pytest.fixture(params=[128, 768, 1024])
+def inference_sampling_rate(request):
+    return request.param
+
+
 @pytest.fixture(params=[2, 10])
 def memory(request):
     return request.param

@@ -16,10 +16,6 @@ tritonclient = {extras = ["all"], version = "^2.18.0"}
 "deepclean.gwftools" = {path = "../gwftools", develop = true}
 "deepclean.signal" = {path = "../signal", develop = true}
 
-[tool.poetry.dependencies."hermes.stillwater"]
-path = "../../hermes/hermes/hermes.stillwater"
-develop = true
-
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
 

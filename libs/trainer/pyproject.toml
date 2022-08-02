@@ -12,6 +12,7 @@ packages = [
 python = "^3.8,<3.10"
 torch = "^1.0"
 matplotlib = "^3.5.1"
+numpy = "<1.23"
 
 # include signal processing libraries
 # for preprocessing steps
@@ -24,10 +25,7 @@ matplotlib = "^3.5.1"
 
 "deepclean.export" = {path = "../export", develop = true}
 
-"hermes.typeo" = {version = "^0.1.5", optional = true}
-
-[tool.poetry.extras]
-wrapper = ["hermes.typeo"]
+"hermes.typeo" = "^0.1.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

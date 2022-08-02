@@ -2,9 +2,9 @@ import logging
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Union
 
-import hermes.quiver as qv
 import torch
 
+import hermes.quiver as qv
 from deepclean.architectures import architecturize
 from deepclean.export import PrePostDeepClean
 from deepclean.gwftools.channels import ChannelList, get_channels

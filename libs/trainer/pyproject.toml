@@ -12,7 +12,6 @@ packages = [
 python = "^3.8,<3.10"
 torch = "^1.0"
 matplotlib = "^3.5.1"
-numpy = "<1.23"
 
 # include signal processing libraries
 # for preprocessing steps
@@ -24,6 +23,7 @@ numpy = "<1.23"
 "deepclean.architectures" = {path = "../architectures", develop = true}
 
 "deepclean.export" = {path = "../export", develop = true}
+"deepclean.base" = {path = "../base", develop = true}
 
 "hermes.typeo" = "^0.1.5"
 

@@ -10,6 +10,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
+"deepclean.base" = {path = "../base", develop = true}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

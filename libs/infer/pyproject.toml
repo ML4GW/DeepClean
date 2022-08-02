@@ -10,9 +10,9 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
-numpy = "<1.23"
 tritonclient = {extras = ["all"], version = "^2.18.0"}
 
+"deepclean.base" = {path = "../base", develop = true}
 "deepclean.gwftools" = {path = "../gwftools", develop = true}
 "deepclean.signal" = {path = "../signal", develop = true}
 

@@ -24,7 +24,7 @@ matplotlib = "^3.5.1"
 
 "deepclean.export" = {path = "../export", develop = true}
 
-"hermes.typeo" = {version = "^0.1", optional = true}
+"hermes.typeo" = {version = "^0.1.5", optional = true}
 
 [tool.poetry.extras]
 wrapper = ["hermes.typeo"]

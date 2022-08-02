@@ -10,11 +10,11 @@ analyze = "analyze:main"
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
-numpy = "^1.21"
-scipy = "<1.8"
 bokeh = "^2.3"
-"hermes.typeo" = {path = "../../../gw-iaas/libs/hermes/hermes.typeo", develop = true}
+"hermes.typeo" = "^0.1.5"
+
 "deepclean.gwftools" = {path = "../../../libs/gwftools", develop = true}
+"deepclean.base" = {path = "../../../libs/base", develop = true}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

@@ -111,16 +111,11 @@ name = "hermes-typeo"
 version = "0.1.5"
 description = "Utilities for running functions as scripts"
 category = "main"
-optional = false
-python-versions = "^3.8"
-develop = true
+optional = true
+python-versions = ">=3.8,<4.0"
 
 [package.dependencies]
-toml = "^0.10.2"
-
-[package.source]
-type = "directory"
-url = "../../gw-iaas/libs/hermes/hermes.typeo"
+toml = ">=0.10.2,<0.11.0"
 
 [[package]]
 name = "iniconfig"
@@ -331,10 +326,13 @@ category = "main"
 optional = false
 python-versions = ">=3.6"
 
+[extras]
+wrapper = ["hermes.typeo"]
+
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "0c4299d4b8b32bc2e41f0a068fcfde53034cfb19f0fcade9c93e053bb03c00d3"
+content-hash = "789b2644cc7b2fd85a02b4f8226127f64393a23b202f6c9642ed88f92163cddb"
 
 [metadata.files]
 atomicwrites = [
@@ -360,7 +358,10 @@ fonttools = [
     {file = "fonttools-4.31.2-py3-none-any.whl", hash = "sha256:2df636a3f402ef14593c6811dac0609563b8c374bd7850e76919eb51ea205426"},
     {file = "fonttools-4.31.2.zip", hash = "sha256:236b29aee6b113e8f7bee28779c1230a86ad2aac9a74a31b0aedf57e7dfb62a4"},
 ]
-hermes-typeo = []
+hermes-typeo = [
+    {file = "hermes.typeo-0.1.5-py3-none-any.whl", hash = "sha256:a1fff2eeb257fb6f4f4b4b397681f2eddee59a4b8b3dd275f0fd9dac38e3371b"},
+    {file = "hermes.typeo-0.1.5.tar.gz", hash = "sha256:8bd1d97a698c0e99a7d2a6b3b082c8b8290aea1bf0e6a44548752ca178a8c73e"},
+]
 iniconfig = [
     {file = "iniconfig-1.1.1-py2.py3-none-any.whl", hash = "sha256:011e24c64b7f47f6ebd835bb12a743f2fbe9a26d4cecaa7f53bc4f35ee9da8b3"},
     {file = "iniconfig-1.1.1.tar.gz", hash = "sha256:bc3af051d7d14b2ee5ef9969666def0cd1a000e121eaea580d4a313df4b37f32"},

@@ -133,8 +133,8 @@ def export(
     output_directory: Path,
     channels: ChannelList,
     kernel_length: float,
-    stride_length: float,
     sample_rate: float,
+    inference_sampling_rate: float,
     max_latency: Union[float, Iterable[float]],
     weights: Optional[Path] = None,
     streams_per_gpu: int = 1,
@@ -206,6 +206,8 @@ def export(
 
     # load the channel names from a file if necessary
     channels = get_channels(channels)
+    kernel_size = int(kernel_length * sample_rate)
+    stride = int(sample_rate / inference_sampling_rate)
 
     # if we didn't specify a weights filename, assume
     # that a "weights.pt" lives in our output directory
@@ -246,7 +248,7 @@ def export(
 
     # export this version of the model (with its current
     # weights), to this entry in the model repository
-    input_shape = (1, len(channels) - 1, int(kernel_length * sample_rate))
+    input_shape = (1, len(channels) - 1, kernel_size)
     model.export_version(
         nn, input_shapes={"witness": input_shape}, output_names=["noise"]
     )
@@ -265,7 +267,7 @@ def export(
 
     for latency in max_latency:
         name = ensemble_name.format(latency)
-        num_updates = int(latency // stride_length)
+        num_updates = int(latency * inference_sampling_rate)
         logging.info(
             "Creating ensemble model {} which averages outputs "
             "over {} updates".format(name, num_updates)
@@ -275,7 +277,7 @@ def export(
             repo,
             model,
             name,
-            stream_size=int(sample_rate * stride_length),
+            stream_size=stride,
             num_updates=num_updates,
             snapshotter=repo.models.get("snapshotter", None),
             streams_per_gpu=streams_per_gpu,

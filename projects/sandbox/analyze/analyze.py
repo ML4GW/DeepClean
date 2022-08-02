@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, List, Optional
 
+import numpy as np
 from bokeh.io import save
 from bokeh.layouts import column, row
 from bokeh.models import (
@@ -16,9 +17,10 @@ from bokeh.models import (
 from bokeh.palettes import Colorblind8 as palette
 from bokeh.plotting import figure
 from gwpy.timeseries import TimeSeries
-from hermes.typeo import typeo
 
 from deepclean.gwftools.channels import ChannelList, get_channels
+from deepclean.gwftools.io import find
+from hermes.typeo import typeo
 
 if TYPE_CHECKING:
     from gwpy.frequencyseries import FrequencySeries
@@ -218,27 +220,34 @@ def plot_asds(raw_asd: "FrequencySeries", clean_asd: "FrequencySeries"):
 
 
 def plot_asdr(
-    raw_asd: "FrequencySeries",
-    clean_asd: "FrequencySeries",
+    raw_timeseries: TimeSeries,
+    clean_timeseries: TimeSeries,
+    window_length: float,
+    fftlength: float,
     freq_low: Optional[float] = None,
     freq_high: Optional[float] = None,
 ):
-    asdr = clean_asd / raw_asd
-    freqs = asdr.frequencies.value
-    asdr = asdr.value
+    raw_spec = raw_timeseries.spectrogram(window_length, fftlength)
+    clean_spec = clean_timeseries.spectrogram(window_length, fftlength)
+
+    freqs = raw_spec.frequencies.value
+    psdr = clean_spec.value / raw_spec.value
+    asdr = psdr**0.5
+    percentiles = [25, 50, 75]
+    low, med, high = np.percentile(asdr, percentiles, axis=0)
 
     # TODO: use signal lib's frequency check, allow for multiple ranges
     if freq_low is not None and freq_high is not None:
         mask = (freq_low <= freqs) & (freqs <= freq_high)
         freqs = freqs[mask]
-        asdr = asdr[mask]
+        low, med, high = low[mask], med[mask], high[mask]
     elif freq_low is None or freq_high is None:
         # TODO: make more explicit
         raise ValueError(
             "freq_low and freq_high must both be either None or float"
         )
 
-    source = ColumnDataSource({"asdr": asdr, "freqs": freqs})
+    source = ColumnDataSource({"asdr": med, "freqs": freqs})
     p = figure(
         height=300,
         width=600,
@@ -264,71 +273,26 @@ def plot_asdr(
         ),
         BoxZoomTool(dimensions="width"),
     )
-    return p
 
-
-def plot_asdr_vs_time(
-    raw_timeseries: "TimeSeries",
-    clean_timeseries: "TimeSeries",
-    sample_rate: float,
-    fftlength: float,
-    overlap: Optional[float] = None,
-    window_length: float = 20,
-    window_step: float = 10,
-    freq_low: Optional[float] = None,
-    freq_high: Optional[float] = None,
-):
-    asdrs = get_asdr_vs_time(
-        raw_timeseries,
-        clean_timeseries,
-        window_length=window_length,
-        window_step=window_step,
-        fftlength=fftlength,
-        sample_rate=sample_rate,
-        freq_low=freq_low,
-        freq_high=freq_high,
-        overlap=overlap,
-    )
-    source = ColumnDataSource(
-        {
-            "time": [window_step * (i + 1) for i in range(len(asdrs))],
-            "asdr": asdrs,
-        }
-    )
-    p = figure(
-        height=300,
-        width=800,
-        title="Average ratio of clean strain to raw strain over time",
-        x_axis_label="Time [s]",
-        y_axis_label="Average ratio [Clean / Raw]",
-        sizing_mode="scale_width",
-        tools="reset",
-    )
-    r = p.line(
-        x="time",
-        y="asdr",
-        line_color=palette[3],
-        line_width=2.3,
+    p.patch(
+        x=np.concatenate([freqs, freqs[::-1]]),
+        y=np.concatenate([high, low[::-1]]),
+        line_color=palette[2],
+        line_width=1.1,
         line_alpha=0.8,
-        source=source,
-    )
-    p.add_tools(
-        HoverTool(
-            renderers=[r],
-            tooltips=[("Window center", "@time s"), ("ASDR", "@asdr")],
-            mode="vline",
-        ),
-        BoxZoomTool(dimensions="width"),
+        fill_color=palette[2],
+        fill_alpha=0.3,
     )
     return p
 
 
 def analyze_test_data(
-    raw_data_dir: Path,
+    raw_timeseries: np.ndarray,
     clean_data_dir: Path,
     output_directory: Path,
     channels: List[str],
     sample_rate: float,
+    window_length: float,
     fftlength: float,
     freq_low: Optional[float] = None,
     freq_high: Optional[float] = None,
@@ -346,42 +310,56 @@ def analyze_test_data(
     # of the raw files, so use those to get the filenames
     fnames = sorted(clean_data_dir.iterdir())
 
-    # TODO: why doesnt adding "-CLEANED" to the channel work?
-    # something is going wrong in the inference script
-    clean_timeseries = TimeSeries.read(
-        [clean_data_dir / f.name for f in fnames],
-        channel=channels[0],
-    ).resample(sample_rate)
+    ts = None
+    num_frames = 0
+    for f in fnames:
+        if not f.name.startswith("STRAIN"):
+            continue
+        try:
+            y = TimeSeries.read(f, channel=channels[0] + "-CLEANED")
+        except ValueError:
+            raise ValueError(
+                "No channel {} in frame file {}".format(
+                    channels[0], clean_data_dir / f.name
+                )
+            )
+        y = y.resample(sample_rate)
+        if ts is None:
+            ts = y
+        else:
+            ts = ts.append(y)
+        num_frames += 1
+
+    clean_timeseries = ts
     clean_asd = clean_timeseries.asd(fftlength, overlap=overlap)
 
-    raw_timeseries = TimeSeries.read(
-        [raw_data_dir / f.name for f in fnames],
-        channel=channels[0],
-    ).resample(sample_rate)
+    raw_timeseries = raw_timeseries[: len(clean_timeseries)]
+    raw_timeseries = TimeSeries(raw_timeseries, dt=1 / sample_rate)
     raw_asd = raw_timeseries.asd(fftlength, overlap=overlap)
 
     p_asd = plot_asds(raw_asd, clean_asd)
-    p_asdr = plot_asdr(raw_asd, clean_asd, freq_low, freq_high)
-    p_asdrt = plot_asdr_vs_time(
+    p_asdr = plot_asdr(
         raw_timeseries,
         clean_timeseries,
-        sample_rate,
+        window_length,
         fftlength,
-        overlap=overlap,
-        freq_low=freq_low,
-        freq_high=freq_high,
+        freq_low,
+        freq_high,
     )
-    return column(row(p_asd, p_asdr), p_asdrt), len(fnames)
+    return row(p_asd, p_asdr), num_frames
 
 
 @typeo
 def main(
-    raw_data_dir: Path,
-    clean_data_dir: Path,
+    raw_data_path: Path,
     output_directory: Path,
     channels: ChannelList,
+    t0: int,
+    duration: int,
     sample_rate: float,
+    window_length: float,
     fftlength: float,
+    clean_data_dir: Optional[Path] = None,
     freq_low: Optional[float] = None,
     freq_high: Optional[float] = None,
     overlap: Optional[float] = None,
@@ -433,17 +411,24 @@ def main(
 
     # load the channels from a file if we specified one
     channels = get_channels(channels)
+    clean_data_dir = clean_data_dir or output_directory / "cleaned"
+
+    raw_data = find(
+        channels[:1], t0, duration, sample_rate, data_path=raw_data_path
+    )
+    raw_data = raw_data[channels[0]]
 
     asdr_plots, num_frames = analyze_test_data(
-        raw_data_dir,
+        raw_data,
         clean_data_dir,
         output_directory,
-        channels,
-        sample_rate,
-        fftlength,
-        freq_low,
-        freq_high,
-        overlap,
+        channels=channels,
+        sample_rate=sample_rate,
+        window_length=window_length,
+        fftlength=fftlength,
+        freq_low=freq_low,
+        freq_high=freq_high,
+        overlap=overlap,
     )
 
     header = Div(

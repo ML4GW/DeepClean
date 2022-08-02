@@ -77,6 +77,8 @@ class FrameCrawler:
 
             if self.timeout is None:
                 continue
+            elif self.timeout == 0:
+                raise StopIteration
             elif (time.time() - start_time) > self.timeout:
                 raise RuntimeError(
                     f"No frame file {fname} after {self.timeout}s"

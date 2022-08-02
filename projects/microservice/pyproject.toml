@@ -1,6 +1,6 @@
 [tool.typeo.base]
 channels = [
-    "H1:GDS-CALIB_STRAIN_CLEAN",
+    "H1:GDS-CALIB_STRAIN",
     "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
     "H1:ASC-INP1_P_INMON",
     "H1:ASC-INP1_Y_INMON",
@@ -37,7 +37,7 @@ write_dir = "${PROJECT_DIR}/production"
 channels = "${base.channels}"
 kernel_length = 1
 inference_sampling_rate = 512
-inference_rate = 1024
+inference_rate = 512
 sample_rate = "${base.sample_rate}"
 
 max_latency = 0.5
@@ -50,5 +50,5 @@ start_first = true
 timeout = 1
 sequence_id = 1001
 
-verbose = true
+verbose = false
 log_file = "${PROJECT_DIR}/clean.log_"

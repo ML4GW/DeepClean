@@ -9,7 +9,10 @@ def tmpdir():
     tmpdir = Path(__file__).resolve().parent / "tmp"
     tmpdir.mkdir(parents=True)
     yield tmpdir
-    shutil.rmtree(tmpdir)
+    try:
+        shutil.rmtree(tmpdir)
+    except Exception:
+        raise ValueError(list(tmpdir.iterdir()))
 
 
 @pytest.fixture(params=[True])  # , False])
@@ -44,6 +47,12 @@ def frame_length(request):
 
 @pytest.fixture(params=[1024, 4096])
 def sample_rate(request):
+    return request.param
+
+
+@pytest.fixture(params=[128, 1024])
+def inference_sampling_rate(request):
+    # TODO: support non-factors of sample_rate
     return request.param
 
 

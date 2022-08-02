@@ -1,17 +1,17 @@
+import logging
 import time
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
 import numpy as np
 from gwpy.timeseries import TimeSeries
-from hermes.stillwater import PipelineProcess
 
 from deepclean.gwftools.frames import parse_frame_name
-from deepclean.infer.asynchronous.loader import load_frame
 from deepclean.infer.frame_crawler import FrameCrawler
+from deepclean.infer.load import load_frame
 
 
-class FrameWriter(PipelineProcess):
+class FrameWriter:
     def __init__(
         self,
         data_dir: Path,
@@ -24,11 +24,8 @@ class FrameWriter(PipelineProcess):
         memory: float = 10,
         look_ahead: float = 0.05,
         aggregation_steps: int = 0,
-        output_name: str = "aggregator",
-        *args,
-        **kwargs,
     ) -> None:
-        """Asynchronous DeepClean predictions postprocessor and frame writer
+        """DeepClean predictions postprocessor and frame writer
 
         Asynchronous process for concatenating averaged
         responses from a streaming DeepClean model, post-
@@ -64,11 +61,7 @@ class FrameWriter(PipelineProcess):
             aggregation_steps:
                 The number of overlapping timesteps over which overlapping
                 segments are averaged on the inference server
-            output_name:
-                The name given by the inference server to the streaming
-                DeepClean output tensor.
         """
-        super().__init__(*args, **kwargs)
         self.crawler = FrameCrawler(data_dir, t0, timeout=1)
 
         # make the write directory if it doesn't exist
@@ -77,7 +70,6 @@ class FrameWriter(PipelineProcess):
         # record some of our writing parameters as-is
         self.write_dir = write_dir
         self.sample_rate = sample_rate
-        self.output_name = output_name
         self.channel_name = channel_name
 
         # record some of the parameters of the data, mapping
@@ -98,7 +90,11 @@ class FrameWriter(PipelineProcess):
         self._frame_idx = 0
         self._latest_seen = -1
 
-    def process_package(self, package: dict) -> Tuple[np.ndarray, int]:
+        self.logger = logging.getLogger("Frame Writer")
+
+    def validate_response(
+        self, noise_prediction: np.ndarray, request_id: int
+    ) -> Tuple[np.ndarray, int]:
         """
         Parse the response from the server to get
         the noise prediction and the corresponding
@@ -106,37 +102,14 @@ class FrameWriter(PipelineProcess):
         in the expected order and if not, log the ids
         that we missed.
 
-        Args:
-            package:
-                Dictionary of model responses returned by
-                `hermes.stillwater.client.InferenceClient`
-                process, mapping from output name to a
-                `hermes.stillwater.Package` containing the
-                corresponding numpy array and request id.
         Returns:
             The numpy array of the server response
-            The corresponding request id associated with the response
         """
-
-        # grab the noise prediction from the package
-        # slice out the batch and channel dimensions,
-        # which will both just be 1 for this pipeline
-        try:
-            package = package[self.output_name]
-        except KeyError:
-            raise ValueError(
-                "No output named {} returned by server, "
-                "available tensors are {}".format(
-                    self.output_name, list(package.keys())
-                )
-            )
-
-        request_id = package.request_id
         self.logger.debug(f"Received response for package {request_id}")
 
         # flatten out to 1D and verify that this
         # output aligns with our expectations
-        x = package.x.reshape(-1)
+        x = noise_prediction.reshape(-1)
         if len(x) != self.stride:
             raise ValueError(
                 "Noise prediction is of wrong length {}, "
@@ -164,10 +137,10 @@ class FrameWriter(PipelineProcess):
             self.logger.debug(
                 f"Throwing away received package id {request_id}"
             )
-            return None, None
+            return None
 
         # otherwise return the parsed array and its request id
-        return x, request_id
+        return x
 
     def update_prediction_array(self, x: np.ndarray, request_id: int) -> None:
         """
@@ -274,16 +247,21 @@ class FrameWriter(PipelineProcess):
 
         return write_path, latency
 
-    def process(self, package: dict):
+    def __call__(
+        self,
+        noise_prediction: dict,
+        request_id: int,
+        *args,
+    ):
         # get the server response and corresponding
         # request id from the passed package
-        response, request_id = self.process_package(package)
-        if response is None:
+        noise_prediction = self.validate_response(noise_prediction, request_id)
+        if noise_prediction is None:
             return
 
         # now insert it into our `_noises` prediction
         # array and update our `_mask` to reflect this
-        self.update_prediction_array(response, request_id)
+        self.update_prediction_array(noise_prediction, request_id)
 
         # TODO: this won't generalize to strides that
         # aren't a factor of the frame size, which doesn't
@@ -301,9 +279,8 @@ class FrameWriter(PipelineProcess):
         # front of it)
         step_idx = request_id - steps_ahead - self.aggregation_steps
 
-        # modulate by the number of steps in each frame to
-        # see if the current cleanable index is at the end
-        # of a frame.
+        # modulate by the number of steps in each frame to see if
+        # the current cleanable index is at the end of a frame.
         div, rem = divmod(step_idx, self.steps_per_frame)
 
         # if so (and if div > 0 i.e. the cleanable index
@@ -317,4 +294,5 @@ class FrameWriter(PipelineProcess):
             noise = self._noise[:idx]
 
             fname, latency = self.clean(noise)
-            super().process((fname, latency))
+            return fname, latency
+        return None

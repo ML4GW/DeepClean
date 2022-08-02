@@ -1,4 +1,3 @@
-import logging
 import shutil
 from pathlib import Path
 from unittest.mock import patch
@@ -16,7 +15,6 @@ def tmpdir():
     tmpdir = Path(__file__).resolve().parent / "tmp"
     tmpdir.mkdir(parents=True, exist_ok=False)
     yield tmpdir
-    logging.shutdown()
     shutil.rmtree(tmpdir)
 
 
@@ -230,7 +228,7 @@ def test_find(
 
     def verify_strain(strain):
         assert strain.ndim == 1
-        assert len(strain) == int(oversample * duration * sample_rate)
+        assert len(strain) == int(duration * sample_rate)
 
         expected = -np.arange(len(strain))
         slc = slice(4, -4, 2) if oversample == 0.5 else slice(None, None)
@@ -269,7 +267,7 @@ def test_find(
 
         if is_called:
             mock.assert_called_once_with(
-                ["strain"] + sorted(real_channels),
+                ["strain"] + real_channels,
                 t0,
                 t0 + duration,
                 nproc=4,
@@ -288,7 +286,7 @@ def test_find(
     run_fn(tmpdir, False, True)
 
     # validate that the file got created
-    fname = tmpdir / f"deepclean_train-{t0}-{duration}.h5"
+    fname = tmpdir / f"deepclean-{t0}-{duration}.h5"
     assert fname.is_file()
 
     # third case: data path is a directory which exists
@@ -347,7 +345,7 @@ def test_find(
     run_fn(subdir, False, True)
 
     assert subdir.is_dir()
-    fname = subdir / f"deepclean_train-{t0}-{duration}.h5"
+    fname = subdir / f"deepclean-{t0}-{duration}.h5"
     assert fname.is_file()
 
     # double check that if the directory doesn't exist

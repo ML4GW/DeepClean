@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "deepclean.base"
+version = "0.0.1"
+description = "Dummy base library for constraining versions"
+authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+# readme = "README.md"
+packages = [
+    {include = "deepclean"}
+]
+
+[tool.poetry.dependencies]
+python = "^3.8,<3.11"
+packaging = "<21.0"
+scipy = "<1.8"
+numpy = "<1.23"
+astropy = "<5.0"
+
+
+[build-system]
+requires = ["poetry>=1.2"]
+build-backend = "poetry.masonry.api"

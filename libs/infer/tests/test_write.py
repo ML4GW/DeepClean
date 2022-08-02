@@ -85,7 +85,12 @@ def dataset(
     # that will be our dummy "witnesses," pass
     # all the updates as dummy package objects
     # into the writer's in_q for processing
-    updates = np.split(x, (len(x) / sample_rate) * inference_sampling_rate)
+    num_splits = (len(x) / sample_rate) * inference_sampling_rate
+    if num_splits % 1 != 0:
+        num_splits = int(num_splits)
+        total_length = num_splits * int(sample_rate / inference_sampling_rate)
+        x = x[:total_length]
+    updates = np.split(x, num_splits)
     return updates
 
 
@@ -129,6 +134,24 @@ def test_writer(
             validate_fname(fname, frame_idx)
             frame_idx += 1
 
-    missing_frames = 1 if look_ahead - frame_length else 2
-    expected_idx = num_frames - missing_frames
-    assert frame_idx == expected_idx
+    # some convoluted logic here to deal with the case
+    # that inference sampling rate is not an even factor
+    # of the sample rate, which we don't actually support
+    # right now. The issue I belive is happening in the
+    # aggregation steps that are getting ditched, since
+    # the case of look_ahead == frame_length is causing
+    # problems in this context
+    num_valid = len(dataset) - aggregation_steps
+    size = num_valid * int(sample_rate / inference_sampling_rate)
+    length, leftover = divmod(size, sample_rate)
+    expected_frames = length // frame_length
+
+    if leftover > (sample_rate * look_ahead):
+        missing_frames = 0
+    elif look_ahead < frame_length:
+        missing_frames = 1
+    else:
+        missing_frames = 2
+
+    expected_idx = expected_frames - missing_frames
+    assert frame_idx == expected_idx, (size, i, leftover)

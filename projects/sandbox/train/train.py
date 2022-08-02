@@ -4,7 +4,7 @@ from typing import Optional
 import numpy as np
 
 from deepclean.gwftools.channels import ChannelList, get_channels
-from deepclean.gwftools.io import find_data
+from deepclean.gwftools.io import find as find_data
 from deepclean.logging import configure_logging
 from deepclean.trainer.wrapper import trainify
 

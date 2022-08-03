@@ -67,9 +67,11 @@ def test_welch(length, sample_rate, fftlength, overlap, fast, average, ndim):
         )
 
     if overlap is None:
-        expected_stride = int(fftlength * sample_rate) // 2
+        expected_stride = int(fftlength * sample_rate // 2)
     else:
-        expected_stride = int((fftlength - overlap) * sample_rate)
+        expected_stride = int(fftlength * sample_rate) - int(
+            overlap * sample_rate
+        )
     assert torch_welch.nstride == expected_stride
 
     shape = [int(length * sample_rate)]
@@ -87,8 +89,8 @@ def test_welch(length, sample_rate, fftlength, overlap, fast, average, ndim):
         torch_result = torch_welch(torch.Tensor(x)).numpy()
 
     num_freq_bins = int(fftlength * sample_rate) // 2 + 1
-    shape[-1] == num_freq_bins
-    assert torch_result.shape == shape
+    shape[-1] = num_freq_bins
+    assert torch_result.shape == tuple(shape)
 
     _, scipy_result = signal.welch(
         x,
@@ -96,6 +98,7 @@ def test_welch(length, sample_rate, fftlength, overlap, fast, average, ndim):
         nperseg=torch_welch.nperseg,
         noverlap=torch_welch.nperseg - torch_welch.nstride,
         window=signal.windows.hann(torch_welch.nperseg, False),
+        average=average,
     )
 
     idx = np.arange(num_freq_bins)
@@ -104,7 +107,7 @@ def test_welch(length, sample_rate, fftlength, overlap, fast, average, ndim):
 
     torch_result = torch_result.take(idx, axis=-1)
     scipy_result = scipy_result.take(idx, axis=-1)
-    assert np.isclose(torch_result, scipy_result, rtol=1e-3).all()
+    assert np.isclose(torch_result, scipy_result, rtol=1e-9).all()
 
 
 def test_psd_loss(

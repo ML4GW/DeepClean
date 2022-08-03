@@ -66,7 +66,6 @@ class TorchWelch(nn.Module):
                 batch_size = None
 
             x = x - x.mean(axis=-1, keepdims=True)
-            x *= self.window
             fft = torch.stft(
                 x,
                 n_fft=self.nperseg,
@@ -79,16 +78,22 @@ class TorchWelch(nn.Module):
             fft = fft.abs() ** 2
 
             if self.nperseg % 2:
+                slc = slice(1, None)
                 fft[:, 1:] *= 2
             else:
-                fft[:, 1:-1] *= 2
+                slc = slice(1, -1)
+
+            if x.ndim == 1:
+                fft[slc] *= 2
+            else:
+                fft[:, slc] *= 2
             fft *= self.scale
 
             if self.average == "mean":
                 fft = fft.mean(axis=-1)
             else:
                 bias = _median_bias(fft.shape[-1])
-                fft = torch.median(fft, axis=-1) / bias
+                fft = torch.quantile(fft, q=0.5, axis=-1) / bias
 
             if batch_size is not None:
                 fft = fft.reshape(batch_size, num_channels, -1)
@@ -112,16 +117,17 @@ class TorchWelch(nn.Module):
 
         # calculate the number of segments and trim x along
         # the time dimensions so that we can unfold it exactly
-        nstride = self.nperseg - self.noverlap
         num_segments = (x.shape[-1] - self.nperseg) // self.nstride + 1
-        stop = (num_segments - 1) * nstride + self.nperseg
+        stop = (num_segments - 1) * self.nstride + self.nperseg
         x = x[:, :, :, :stop]
 
         # unfold x into overlapping segments and detrend and window
         # each one individually before computing the rfft. Unfold
         # will produce a batch x (num_channels * num_segments) x nperseg
         # shaped tensor
-        unfold_op = torch.nn.Unfold((1, num_segments), dilation=(1, nstride))
+        unfold_op = torch.nn.Unfold(
+            (1, num_segments), dilation=(1, self.nstride)
+        )
         x = unfold_op(x)
         x = x - x.mean(axis=-1, keepdims=True)
         x *= self.window
@@ -150,8 +156,8 @@ class TorchWelch(nn.Module):
         if self.average == "mean":
             return fft.mean(axis=-2)
         else:
-            bias = _median_bias(fft.shape[-2])
-            return torch.median(fft, axis=-2) / bias
+            bias = _median_bias(num_segments)
+            return torch.quantile(fft, q=0.5, axis=-2) / bias
 
 
 class PSDLoss(nn.Module):

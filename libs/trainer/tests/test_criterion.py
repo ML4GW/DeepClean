@@ -21,7 +21,7 @@ def fftlength(request):
     return request.param
 
 
-@pytest.fixture(params=[0.1, 0.5, 1])
+@pytest.fixture(params=[None, 0.1, 0.5, 1])
 def overlap(request):
     return request.param
 
@@ -36,18 +36,48 @@ def freq_high(request):
     return request.param
 
 
-def test_welch(length, sample_rate, fftlength, overlap):
-    batch_size = 8
-    min_freq_match = 5
+@pytest.fixture(params=[True, False])
+def fast(request):
+    return request.param
 
-    if overlap >= fftlength:
+
+@pytest.fixture(params=["mean", "median"])
+def average(request):
+    return request.param
+
+
+@pytest.fixture(params=[1, 2, 3])
+def ndim(request):
+    return request.param
+
+
+def test_welch(length, sample_rate, fftlength, overlap, fast, average, ndim):
+    batch_size = 8
+    num_channels = 5
+
+    if overlap is not None and overlap >= fftlength:
         with pytest.raises(ValueError):
-            torch_welch = TorchWelch(sample_rate, fftlength, overlap)
+            torch_welch = TorchWelch(
+                sample_rate, fftlength, overlap, average=average, fast=fast
+            )
         return
     else:
-        torch_welch = TorchWelch(sample_rate, fftlength, overlap)
+        torch_welch = TorchWelch(
+            sample_rate, fftlength, overlap, average=average, fast=fast
+        )
 
-    x = np.random.randn(batch_size, int(length * sample_rate))
+    if overlap is None:
+        expected_stride = int(fftlength * sample_rate) // 2
+    else:
+        expected_stride = int((fftlength - overlap) * sample_rate)
+    assert torch_welch.nstride == expected_stride
+
+    shape = [int(length * sample_rate)]
+    if ndim > 1:
+        shape.insert(0, num_channels)
+    if ndim > 2:
+        shape.insert(0, batch_size)
+    x = np.random.randn(*shape)
 
     if fftlength > length:
         with pytest.raises(ValueError):
@@ -56,22 +86,25 @@ def test_welch(length, sample_rate, fftlength, overlap):
     else:
         torch_result = torch_welch(torch.Tensor(x)).numpy()
 
+    num_freq_bins = int(fftlength * sample_rate) // 2 + 1
+    shape[-1] == num_freq_bins
+    assert torch_result.shape == shape
+
     _, scipy_result = signal.welch(
         x,
         fs=sample_rate,
         nperseg=torch_welch.nperseg,
-        noverlap=torch_welch.noverlap,
+        noverlap=torch_welch.nperseg - torch_welch.nstride,
         window=signal.windows.hann(torch_welch.nperseg, False),
     )
-    ratio = torch_result / scipy_result
 
-    # just enforce that all measurements greater than
-    # some minimum frequency bin are very nearly constant,
-    # since our loss function just takes the ratio
-    freq_bins = np.linspace(0, sample_rate / 2, torch_welch.nfreq)
-    ratio = ratio[:, freq_bins >= min_freq_match]
-    ratio = np.abs(1 - ratio / ratio.mean())
-    assert np.percentile(ratio, 99.7) < 1e-5
+    idx = np.arange(num_freq_bins)
+    if fast:
+        idx = idx[2:]
+
+    torch_result = torch_result.take(idx, axis=-1)
+    scipy_result = scipy_result.take(idx, axis=-1)
+    assert np.isclose(torch_result, scipy_result, rtol=1e-3).all()
 
 
 def test_psd_loss(

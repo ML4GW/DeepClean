@@ -32,7 +32,12 @@ class TorchWelch(nn.Module):
 
         self.nperseg = int(fftlength * sample_rate)
         self.nstride = self.nperseg - int(overlap * sample_rate)
+
+        # do we allow for arbitrary windows?
         self.window = torch.hann_window(self.nperseg).to(device)
+
+        # scale corresponds to "density" normalization, worth
+        # considering adding this as a kwarg and changing this calc
         self.scale = 1.0 / (sample_rate * (self.window**2).sum())
 
         if average not in ("mean", "median"):
@@ -83,6 +88,8 @@ class TorchWelch(nn.Module):
             else:
                 slc = slice(1, -1)
 
+            # need to check if x was 1D since that won't have
+            # a 0th dimension corresponding to batch or channel
             if x.ndim == 1:
                 fft[slc] *= 2
             else:
@@ -105,14 +112,13 @@ class TorchWelch(nn.Module):
         # by converting x to a 4D tensor so we can use
         # torch's Unfold op
         if x.ndim == 1:
+            reshape = []
             x = x[None, None, None, :]
-            batch_size = num_channels = None
         elif x.ndim == 2:
-            num_channels = len(x)
-            batch_size = None
+            reshape = [len(x)]
             x = x[None, :, None, :]
         elif x.ndim == 3:
-            batch_size, num_channels = x.shape[:-1]
+            reshape = list(x.shape[:-1])
             x = x[:, :, None, :]
 
         # calculate the number of segments and trim x along
@@ -146,12 +152,8 @@ class TorchWelch(nn.Module):
         # unfold the batch and channel dimensions back
         # out if there were any to begin with, putting
         # the segment dimension as the second to last
-        if batch_size is not None and num_channels is not None:
-            fft = fft.reshape(batch_size, num_channels, num_segments, -1)
-        elif num_channels is not None:
-            fft = fft.reshape(num_channels, num_segments, -1)
-        else:
-            fft = fft.reshape(num_segments, -1)
+        reshape += [num_segments, -1]
+        fft = fft.reshape(*reshape)
 
         if self.average == "mean":
             return fft.mean(axis=-2)

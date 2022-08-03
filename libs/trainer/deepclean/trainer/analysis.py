@@ -22,8 +22,11 @@ def analyze_model(
         # respect to the input, averaged over kernel
         cost = noise_prediction.mean()
         cost.backward(retain_graph=True)
-        grads = x.grad[0].abs().mean(axis=-1)
+        grads = x.grad.abs().mean(axis=-1)
 
+        # now that we don't need gradients anymore,
+        # detach everything from the computation graph
+        # to save both time and memory
         grads = grads.detach().cpu().numpy()
         noise_prediction = noise_prediction.detach()
         x, y = x.detach(), y.detach()

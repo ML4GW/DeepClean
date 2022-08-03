@@ -4,6 +4,7 @@ from typing import List, Optional, Union
 import numpy as np
 import torch
 import torch.nn as nn
+from scipy.signal.spectral import _median_bias
 
 from deepclean.signal.filter import normalize_frequencies
 
@@ -62,18 +63,17 @@ class TorchWelch(nn.Module):
                 batch_size = None
 
             x = x - x.mean(axis=-1, keepdims=True)
-            fft = (
-                torch.stft(
-                    x,
-                    n_fft=8192,
-                    hop_length=4096,
-                    window=self.window,
-                    normalized=False,
-                    center=False,
-                    return_complex=True,
-                ).abs()
-                ** 2
+            x *= self.window
+            fft = torch.stft(
+                x,
+                n_fft=8192,
+                hop_length=4096,
+                window=self.window,
+                normalized=False,
+                center=False,
+                return_complex=True,
             )
+            fft = fft.abs() ** 2
 
             if self.nperseg % 2:
                 fft[:, 1:] *= 2
@@ -84,7 +84,8 @@ class TorchWelch(nn.Module):
             if self.average == "mean":
                 fft = fft.mean(axis=-1)
             else:
-                fft = fft.median(axis=-1).values
+                bias = _median_bias(fft.shape[-1])
+                fft = torch.median(fft, axis=-1) / bias
 
             if batch_size is not None:
                 fft = fft.reshape(batch_size, num_channels, -1)
@@ -128,8 +129,8 @@ class TorchWelch(nn.Module):
         if self.average == "mean":
             return fft.mean(axis=-2)
         else:
-            # TODO: implement median bias
-            return torch.median(fft, axis=-2).values
+            bias = _median_bias(fft.shape[-2])
+            return torch.median(fft, axis=-2) / bias
 
 
 class PSDLoss(nn.Module):

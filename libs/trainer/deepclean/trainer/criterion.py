@@ -15,8 +15,8 @@ class TorchWelch(nn.Module):
         fftlength: float,
         overlap: Optional[float] = None,
         average: str = "mean",
-        asd: bool = False,
         device: str = "cpu",
+        fast: bool = False,
     ):
         if overlap is None:
             overlap = fftlength / 2
@@ -30,10 +30,9 @@ class TorchWelch(nn.Module):
         super().__init__()
 
         self.nperseg = int(fftlength * sample_rate)
-        self.nfreq = self.nperseg // 2 + 1
         self.noverlap = int(overlap * sample_rate)
         self.window = torch.hann_window(self.nperseg).to(device)
-        self.scale = 1.0 / self.window.sum() ** 2
+        self.scale = 1.0 / (sample_rate * (self.window**2).sum())
 
         if average not in ("mean", "median"):
             raise ValueError(
@@ -41,49 +40,97 @@ class TorchWelch(nn.Module):
             )
         self.average = average
         self.device = device
-        self.asd = asd
+        self.fast = fast
 
     def forward(self, x):
-        if len(x.shape) > 2:
-            x = x.view(x.shape[0], -1)
-        N, nsample = x.shape
-
-        if nsample < self.nperseg:
+        if x.shape[-1] < self.nperseg:
             raise ValueError(
                 "Not enough samples {} in input for number "
-                "of fft samples {}".format(nsample, self.nperseg)
+                "of fft samples {}".format(x.shape[-1], self.nperseg)
+            )
+        elif x.ndim > 3:
+            raise ValueError(
+                f"Can't perform welch transform on tensor with shape {x.shape}"
             )
 
+        if self.fast:
+            if x.ndim > 2:
+                batch_size = x.shape[0]
+                num_channels = x.shape[1]
+                x = x.reshape(-1, x.shape[-1])
+            else:
+                batch_size = None
+
+            x = x - x.mean(axis=-1, keepdims=True)
+            x *= self.window
+            fft = (
+                torch.stft(
+                    x,
+                    n_fft=8192,
+                    hop_length=4096,
+                    window=self.window,
+                    normalized=False,
+                    center=False,
+                    return_complex=True,
+                ).abs()
+                ** 2
+            )
+
+            if self.nperseg % 2:
+                fft[:, 1:] *= 2
+            else:
+                fft[:, 1:-1] *= 2
+            fft *= self.scale
+
+            if self.average == "mean":
+                fft = fft.mean(axis=-1)
+            else:
+                fft = fft.median(axis=-1)
+
+            if batch_size is not None:
+                fft = fft.reshape(batch_size, num_channels, -1)
+            return fft
+
+        if x.ndim == 1:
+            x = x[None, None, None, :]
+            batch_size = num_channels = None
+        elif x.ndim == 2:
+            num_channels = len(x)
+            batch_size = None
+            x = x[None, :, None, :]
+        elif x.ndim == 3:
+            batch_size, num_channels = x.shape[:-1]
+            x = x[:, :, None, :]
+
         nstride = self.nperseg - self.noverlap
-        nseg = (nsample - self.nperseg) // nstride + 1
+        num_segments = (x.shape[-1] - self.nperseg) // nstride + 1
+        stop = (num_segments - 1) * nstride + self.nperseg
+        x = x[:, :, :, :stop]
 
-        # Calculate the PSD
-        psd = torch.zeros((nseg, N, self.nfreq)).to(self.device)
-
-        # calculate the FFT amplitude of each segment
-        # TODO: can we use torch.stft instead? Should be equivalent
-        for i in range(nseg):
-            seg_ts = x[:, i * nstride : i * nstride + self.nperseg]
-            seg_ts = seg_ts * self.window
-            seg_fd = torch.fft.rfft(seg_ts, dim=1)
-            psd[i] = seg_fd.abs() ** 2
+        unfold_op = torch.nn.Unfold((1, num_segments), dilation=(1, nstride))
+        x = unfold_op(x)
+        x = x - x.mean(axis=-1, keepdims=True)
+        x *= self.window
+        fft = torch.fft.rfft(x, axis=-1).abs() ** 2
 
         if self.nperseg % 2:
-            psd[:, :, 1:] *= 2
+            fft[:, :, 1:] *= 2
         else:
-            psd[:, :, 1:-1] *= 2
-        psd *= self.scale
+            fft[:, :, 1:-1] *= 2
+        fft *= self.scale
 
-        # taking the average
+        if batch_size is not None and num_channels is not None:
+            fft = fft.reshape(batch_size, num_channels, num_segments, -1)
+        elif num_channels is not None:
+            fft = fft.reshape(num_channels, num_segments, -1)
+        else:
+            fft = fft.reshape(num_segments, -1)
+
         if self.average == "mean":
-            psd = torch.mean(psd, axis=0)
-        elif self.average == "median":
-            # TODO: account for median bias like scipy does?
-            psd = torch.median(psd, axis=0)[0]
-
-        if self.asd:
-            return torch.sqrt(psd)
-        return psd
+            return fft.mean(axis=-2)
+        else:
+            # TODO: implement median bias
+            return torch.median(fft, axis=-2)
 
 
 class PSDLoss(nn.Module):
@@ -102,9 +149,7 @@ class PSDLoss(nn.Module):
     ):
         super().__init__()
 
-        self.welch = TorchWelch(
-            sample_rate, fftlength, overlap, asd=asd, device=device
-        )
+        fast = False
         if freq_low is not None and freq_high is not None:
             freq_low, freq_high = normalize_frequencies(freq_low, freq_high)
 
@@ -115,6 +160,9 @@ class PSDLoss(nn.Module):
             for low, high in zip(freq_low, freq_high):
                 in_range = (low <= freqs) & (freqs < high)
                 mask[in_range] = 1
+
+            if not mask[:2].any():
+                fast = True
 
             self.mask = torch.Tensor(mask).to(device)
             self.N = self.mask.sum()
@@ -133,11 +181,23 @@ class PSDLoss(nn.Module):
                 )
             )
 
+        self.welch = TorchWelch(
+            sample_rate,
+            fftlength,
+            overlap,
+            average="median",
+            device=device,
+            fast=fast,
+        )
+
     def forward(self, pred, target):
         # Calculate the PSD of the residual and the target
         psd_res = self.welch(target - pred)
         psd_target = self.welch(target)
+
         ratio = psd_res / psd_target
+        if self.asd:
+            ratio = ratio ** (0.5)
 
         if self.mask is not None:
             ratio *= self.mask

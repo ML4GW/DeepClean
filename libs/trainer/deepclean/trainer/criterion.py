@@ -62,7 +62,6 @@ class TorchWelch(nn.Module):
                 batch_size = None
 
             x = x - x.mean(axis=-1, keepdims=True)
-            x *= self.window
             fft = (
                 torch.stft(
                     x,
@@ -85,7 +84,7 @@ class TorchWelch(nn.Module):
             if self.average == "mean":
                 fft = fft.mean(axis=-1)
             else:
-                fft = fft.median(axis=-1)
+                fft = fft.median(axis=-1).values
 
             if batch_size is not None:
                 fft = fft.reshape(batch_size, num_channels, -1)
@@ -130,7 +129,7 @@ class TorchWelch(nn.Module):
             return fft.mean(axis=-2)
         else:
             # TODO: implement median bias
-            return torch.median(fft, axis=-2)
+            return torch.median(fft, axis=-2).values
 
 
 class PSDLoss(nn.Module):

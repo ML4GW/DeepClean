@@ -31,7 +31,7 @@ class TorchWelch(nn.Module):
         super().__init__()
 
         self.nperseg = int(fftlength * sample_rate)
-        self.noverlap = int(overlap * sample_rate)
+        self.nstride = self.nperseg - int(overlap * sample_rate)
         self.window = torch.hann_window(self.nperseg).to(device)
         self.scale = 1.0 / (sample_rate * (self.window**2).sum())
 
@@ -55,6 +55,9 @@ class TorchWelch(nn.Module):
             )
 
         if self.fast:
+            # for fast implementation, use the built-in stft
+            # module along the last dimension and let torch
+            # handle the heavy lifting under the hood
             if x.ndim > 2:
                 batch_size = x.shape[0]
                 num_channels = x.shape[1]
@@ -66,8 +69,8 @@ class TorchWelch(nn.Module):
             x *= self.window
             fft = torch.stft(
                 x,
-                n_fft=8192,
-                hop_length=4096,
+                n_fft=self.nperseg,
+                hop_length=self.nstride,
                 window=self.window,
                 normalized=False,
                 center=False,
@@ -91,6 +94,11 @@ class TorchWelch(nn.Module):
                 fft = fft.reshape(batch_size, num_channels, -1)
             return fft
 
+        # for non-fast implementation, we need to unfold
+        # the tensor along the time dimension ourselves
+        # to detrend each segment individually, so start
+        # by converting x to a 4D tensor so we can use
+        # torch's Unfold op
         if x.ndim == 1:
             x = x[None, None, None, :]
             batch_size = num_channels = None
@@ -102,15 +110,25 @@ class TorchWelch(nn.Module):
             batch_size, num_channels = x.shape[:-1]
             x = x[:, :, None, :]
 
+        # calculate the number of segments and trim x along
+        # the time dimensions so that we can unfold it exactly
         nstride = self.nperseg - self.noverlap
-        num_segments = (x.shape[-1] - self.nperseg) // nstride + 1
+        num_segments = (x.shape[-1] - self.nperseg) // self.nstride + 1
         stop = (num_segments - 1) * nstride + self.nperseg
         x = x[:, :, :, :stop]
 
+        # unfold x into overlapping segments and detrend and window
+        # each one individually before computing the rfft. Unfold
+        # will produce a batch x (num_channels * num_segments) x nperseg
+        # shaped tensor
         unfold_op = torch.nn.Unfold((1, num_segments), dilation=(1, nstride))
         x = unfold_op(x)
         x = x - x.mean(axis=-1, keepdims=True)
         x *= self.window
+
+        # after the fft, we'll have a
+        # batch x (num_channels * num_segments) x nfreq
+        # sized tensor
         fft = torch.fft.rfft(x, axis=-1).abs() ** 2
 
         if self.nperseg % 2:
@@ -119,6 +137,9 @@ class TorchWelch(nn.Module):
             fft[:, :, 1:-1] *= 2
         fft *= self.scale
 
+        # unfold the batch and channel dimensions back
+        # out if there were any to begin with, putting
+        # the segment dimension as the second to last
         if batch_size is not None and num_channels is not None:
             fft = fft.reshape(batch_size, num_channels, num_segments, -1)
         elif num_channels is not None:

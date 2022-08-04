@@ -75,7 +75,7 @@ filter_order = 8
 
 # optimization parameters
 batch_size = 32
-max_epochs = 500
+max_epochs = 20 # 500
 lr = 3.2e-2
 weight_decay = 1e-5
 patience = 8

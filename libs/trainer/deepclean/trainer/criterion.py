@@ -1,4 +1,3 @@
-import logging
 from typing import List, Optional, Union
 
 import numpy as np
@@ -278,21 +277,21 @@ class PSDLoss(nn.Module):
 
             # since we specified frequency ranges, build a mask
             # to zero out the frequencies we don't care about
-            freqs = np.linspace(0.0, sample_rate / 2, self.welch.nfreq)
-            mask = np.zeros_like(freqs, dtype=np.int64)
+            dfreq = 1 / fftlength
+            freqs = np.arange(0.0, sample_rate / 2 + dfreq, dfreq)
+            mask = np.zeros_like(freqs, dtype=np.bool)
             for low, high in zip(freq_low, freq_high):
-                in_range = (low <= freqs) & (freqs < high)
-                mask[in_range] = 1
+                mask |= (low <= freqs) & (freqs < high)
 
+            # if we don't care about the values in the two lowest
+            # frequency bins, then we're safe to use a faster
+            # implementation of the welch transform
             if not mask[:2].any():
                 fast = True
-
-            self.mask = torch.Tensor(mask).to(device)
-            self.N = self.mask.sum()
-            logging.debug(f"Averaging over {self.N} frequency bins")
+            self.mask = torch.tensor(mask, dtype=torch.bool).to(device)
         elif freq_low is None and freq_high is None:
             # no frequencies were specified, so ignore the mask
-            self.mask = self.scale = None
+            self.mask = None
         else:
             # one was specified and the other wasn't, so build
             # a generic error that will populate with the
@@ -312,22 +311,29 @@ class PSDLoss(nn.Module):
             device=device,
             fast=fast,
         )
+        self.asd = asd
 
     def forward(self, pred, target):
         # Calculate the PSD of the residual and the target
         psd_res = self.welch(target - pred)
         psd_target = self.welch(target)
 
+        if self.mask is not None:
+            # mask out these arrays rather than the ratio since
+            # fp32 precision in the asd calculation can 0-out
+            # some psd values in the target array, especially
+            # if they've been filtered beforehand. This leads
+            # to nan values that propogate back through the gradient
+            psd_res = torch.masked_select(psd_res, self.mask)
+            psd_res = psd_res.reshape(len(pred), -1)
+
+            psd_target = torch.masked_select(psd_target, self.mask)
+            psd_target = psd_target.reshape(len(pred), -1)
+
         ratio = psd_res / psd_target
         if self.asd:
             ratio = ratio ** (0.5)
-
-        if self.mask is not None:
-            ratio *= self.mask
-            loss = torch.sum(ratio) / (self.N * len(pred))
-        else:
-            loss = torch.mean(ratio)
-        return loss
+        return ratio.mean()
 
 
 class CompositePSDLoss(nn.Module):

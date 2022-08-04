@@ -425,12 +425,12 @@ def train(
 
     # generate some analyses of our model
     logging.info("Performing post-hoc analysis on trained model")
-    gradients, errors, asds = analyze_model(train_data, model, sample_rate)
+    gradients, coherences = analyze_model(train_data, model, sample_rate)
     history.update(
         {
+            "percentiles": [5, 25, 50, 75, 95],
             "train_gradients": gradients,
-            "train_errors": errors,
-            "train_asds": asds,
+            "train_coherences": coherences,
         }
     )
     if valid_data is not None:
@@ -438,12 +438,11 @@ def train(
         # so we can't be as liberal with the memory. Reset its
         # batch size to keep things within reason
         valid_data.batch_size = train_data.batch_size
-        gradients, errors, asds = analyze_model(valid_data, model, sample_rate)
+        gradients, coherences = analyze_model(valid_data, model, sample_rate)
         history.update(
             {
                 "valid_gradients": gradients,
-                "valid_errors": errors,
-                "valid_asds": asds,
+                "valid_coherences": coherences,
             }
         )
     with h5py.File(output_directory / "train_results.h5", "w") as f:

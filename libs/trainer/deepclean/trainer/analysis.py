@@ -11,9 +11,10 @@ def analyze_model(
     nn: torch.nn.Module,
     sample_rate: float,
     fftlength: float = 2,
+    percentiles: Iterable[float] = [5, 25, 50, 75, 95],
 ):
     welch = TorchWelch(sample_rate, fftlength, average="median", device="cuda")
-    asds, gradients, errors = [], [], []
+    coherences, gradients = [], []
     for x, y in dataset:
         x = torch.autograd.Variable(x, requires_grad=True)
         noise_prediction = nn(x)
@@ -28,26 +29,17 @@ def analyze_model(
         # detach everything from the computation graph
         # to save both time and memory
         grads = grads.detach().cpu().numpy()
-        noise_prediction = noise_prediction.detach()
         x, y = x.detach(), y.detach()
 
-        # measure error as a function of position in kernel
-        residual = y - noise_prediction
-        errs = torch.abs(residual) / torch.abs(noise_prediction)
-        errs = errs.cpu().numpy()
-
-        # measure asd of all channels
-        X = torch.cat([y[:, None], x], axis=1)
-        X = X.reshape(len(x) * (x.shape[1] + 1), -1)
-        psd = welch(X)
-        psd = psd.reshape(len(x), x.shape[1] + 1, -1)
-        psd = psd.cpu().numpy()
-
-        asds.append(psd**0.5)
-        gradients.append(grads)
-        errors.append(errs)
+        pxx = welch(x)
+        pyy = welch(y)[:, None]
+        pxy = welch(x, y)
+        coherence = pxy.abs() ** 2 / pxx / pyy
+        coherences.append(coherence.cpu().numpy())
 
     gradients = np.concatenate(gradients, axis=0)
-    errors = np.concatenate(errors, axis=0)
-    asds = np.concatenate(asds, axis=0)
-    return gradients, errors, asds
+    coherences = np.concatenate(coherences, axis=0)
+
+    gradients = np.percentile(gradients, percentiles, axis=0)
+    coherences = np.percentile(coherences, percentiles, axis=0)
+    return gradients, coherences

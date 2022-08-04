@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
+import scipy
 import torch
+from packaging import version
 from scipy import signal
 
 from deepclean.trainer.criterion import PSDLoss, TorchWelch
@@ -17,19 +19,16 @@ def sample_rate(request):
 
 
 @pytest.mark.parametrize(
-    "overlap,fftlength", [None, 2], [0.5, 2], [2, 2], [None, 4], [2, 4], [4, 4]
+    "overlap,fftlength",
+    [[None, 2], [0.5, 2], [2, 2], [None, 4], [2, 4], [4, 4]],
 )
 def test_welch_init(overlap, fftlength, sample_rate):
     if overlap is not None and overlap >= fftlength:
         with pytest.raises(ValueError):
-            welch = TorchWelch(
-                sample_rate, fftlength, overlap, average=average, fast=fast
-            )
+            welch = TorchWelch(sample_rate, fftlength, overlap)
         return
     else:
-        welch = TorchWelch(
-            sample_rate, fftlength, overlap, average=average, fast=fast
-        )
+        welch = TorchWelch(sample_rate, fftlength, overlap)
 
     if overlap is None:
         expected_stride = int(fftlength * sample_rate // 2)
@@ -129,69 +128,12 @@ def test_welch(length, sample_rate, fftlength, overlap, fast, average, ndim):
         assert str(exc_info.value).startswith("Can't perform welch")
 
 
-@pytest.mark.parametrize("y_ndim", [0, 1])
-def test_welch_with_csd(
-    length, sample_rate, overlap, average, ndim, y_ndim, fast
-):
-    batch_size = 8
-    num_channels = 5
-    if overlap is not None and overlap >= fftlength:
-        return
+@pytest.fixture(params=[0, 1])
+def y_ndim(request):
+    return request.param
 
-    if y_ndim == 1 and ndim == 1:
-        return
 
-    welch = TorchWelch(
-        sample_rate, fftlength, overlap, average=average, fast=fast
-    )
-
-    shape = [int(length * sample_rate)]
-    if ndim > 1:
-        shape.insert(0, num_channels)
-    if ndim > 2:
-        shape.insert(0, batch_size)
-    x = np.random.randn(*shape)
-
-    if ndim == 1 or (y_ndim == 1 and ndim == 2):
-        y = np.random.randn(shape[-1])
-    else:
-        y = np.random.randn(shape[0], shape[-1])
-
-    x = torch.Tensor(x)
-    y = torch.Tensor(y)
-
-    # make sure we catch if the fftlength is too long for the data
-    if fftlength > length:
-        with pytest.raises(ValueError) as exc_info:
-            welch(x, y)
-        assert str(exc_info.value).startswith("Number of samples")
-        return
-    elif not fast:
-        with pytest.raises(NotImplementedError):
-            welch(x, y)
-        return
-
-    # perform the transform and confirm the shape is correct
-    torch_result = welch(x, y).numpy()
-    num_freq_bins = int(fftlength * sample_rate) // 2 + 1
-    shape[-1] = num_freq_bins
-    assert torch_result.shape == tuple(shape)
-
-    _, scipy_result = signal.csd(
-        x,
-        y,
-        fs=sample_rate,
-        nperseg=welch.nperseg,
-        noverlap=welch.nperseg - welch.nstride,
-        window=signal.windows.hann(welch.nperseg, False),
-        average=average,
-    )
-
-    if fast:
-        torch_result = torch_result[..., 2:]
-        scipy_result = scipy_result[..., 2:]
-    assert np.isclose(torch_result, scipy_result, rtol=1e-9).all()
-
+def _shape_checks(ndim, y_ndim, x, y, welch):
     # verify that time dimensions must match
     with pytest.raises(ValueError) as exc_info:
         welch(x, y[..., :-1])
@@ -224,6 +166,115 @@ def test_welch_with_csd(
         with pytest.raises(ValueError) as exc_info:
             welch(x, y[0])
         assert str(exc_info.value).startswith("Can't compute cross")
+
+
+def test_welch_with_csd(
+    y_ndim, length, sample_rate, fftlength, overlap, average, ndim, fast
+):
+    batch_size = 8
+    num_channels = 5
+    if overlap is not None and overlap >= fftlength:
+        return
+
+    if y_ndim == 1 and ndim == 1:
+        return
+
+    welch = TorchWelch(
+        sample_rate, fftlength, overlap, average=average, fast=fast
+    )
+
+    shape = [int(length * sample_rate)]
+    if ndim > 1:
+        shape.insert(0, num_channels)
+    if ndim > 2:
+        shape.insert(0, batch_size)
+    x = np.random.randn(*shape)
+
+    if ndim == 1 or (y_ndim == 1 and ndim == 2):
+        y = np.random.randn(shape[-1])
+    elif ndim == 3 and y_ndim == 1:
+        y = np.random.randn(shape[0], shape[-1])
+    else:
+        y = np.random.randn(*shape)
+
+    x = torch.Tensor(x)
+    y = torch.Tensor(y)
+
+    # make sure we catch if the fftlength is too long for the data
+    if fftlength > length:
+        with pytest.raises(ValueError) as exc_info:
+            welch(x, y)
+        assert str(exc_info.value).startswith("Number of samples")
+        return
+    elif not fast:
+        with pytest.raises(NotImplementedError):
+            welch(x, y)
+        return
+
+    # perform the transform and confirm the shape is correct
+    torch_result = welch(x, y).numpy()
+    num_freq_bins = int(fftlength * sample_rate) // 2 + 1
+    shape[-1] = num_freq_bins
+    assert torch_result.shape == tuple(shape)
+
+    if ndim == 3:
+        scipy_result = []
+        if y_ndim == 1:
+            x = x.transpose(1, 0)
+            y = [y] * len(x)
+
+        for i, j in zip(x, y):
+            _, result = signal.csd(
+                i,
+                j,
+                fs=sample_rate,
+                nperseg=welch.nperseg,
+                noverlap=welch.nperseg - welch.nstride,
+                window=signal.windows.hann(welch.nperseg, False),
+                average=average,
+            )
+            scipy_result.append(result)
+        scipy_result = np.stack(scipy_result)
+
+        if y_ndim == 1:
+            x = x.transpose(1, 0)
+            y = y[0]
+            scipy_result = scipy_result.transpose(1, 0, 2)
+    else:
+        _, scipy_result = signal.csd(
+            x,
+            y,
+            fs=sample_rate,
+            nperseg=welch.nperseg,
+            noverlap=welch.nperseg - welch.nstride,
+            window=signal.windows.hann(welch.nperseg, False),
+            average=average,
+        )
+    assert scipy_result.shape == torch_result.shape
+
+    scipy_version = version.parse(scipy.__version__)
+    num_windows = (x.shape[-1] - welch.nperseg) // welch.nstride + 1
+    if (
+        average == "median"
+        and scipy_version < version.parse("1.9")
+        and num_windows > 1
+    ):
+        # scipy actually had a bug in the median calc for
+        # csd, see this issue:
+        # https://github.com/scipy/scipy/issues/15601
+        from scipy.signal.spectral import _median_bias
+
+        scipy_result *= _median_bias(num_freq_bins)
+        scipy_result /= _median_bias(num_windows)
+
+    if fast:
+        torch_result = torch_result[..., 2:]
+        scipy_result = scipy_result[..., 2:]
+
+    ratio = torch_result / scipy_result
+    assert np.isclose(torch_result, scipy_result, rtol=1e-9).all(), ratio
+
+    _shape_checks(ndim, y_ndim, x, y, welch)
 
 
 def test_psd_loss(

@@ -24,7 +24,7 @@ def _validate_shapes(x: torch.Tensor, y: torch.Tensor):
             "1D tensor x with {}D tensor y".format(y.ndim)
         )
     elif x.ndim > 1 and y.ndim == x.ndim:
-        if not (y.shape == x.shape).all():
+        if not y.shape == x.shape:
             raise ValueError(
                 "If x and y tensors have the same number "
                 "of dimensions, shapes must fully match. "
@@ -93,18 +93,22 @@ def _fast_csd(
             return_complex=True,
         )
         if batch_size is not None and fft.shape[0] > y_fft.shape[0]:
-            fft = fft.reshape(batch_size, num_channels, -1)
-            y_fft = y_fft.view(batch_size, 1, fft.shape[-1])
+            nfreq = nperseg // 2 + 1
+            fft = fft.reshape(batch_size, num_channels, nfreq, -1)
+            y_fft = y_fft[:, None]
 
         fft = torch.conj(fft) * y_fft
     else:
         fft = fft.abs() ** 2
 
-    fft *= scale
-    if nperseg % 2:
-        fft[..., 1:] *= 2
+    stop = None if nperseg % 2 else -1
+    if x.ndim == 1:
+        fft[1:stop] *= 2
+    elif fft.ndim < 4:
+        fft[:, 1:stop] *= 2
     else:
-        fft[..., 1:-1] *= 2
+        fft[:, :, 1:stop] *= 2
+    fft *= scale
 
     if average == "mean":
         fft = fft.mean(axis=-1)
@@ -112,11 +116,10 @@ def _fast_csd(
         bias = _median_bias(fft.shape[-1])
         if y is not None:
             real_median = _median(fft.real, -1)
-            imag_median = _median(fft.imag, -1)
-            fft = real_median + 1j * imag_median
+            imag_median = 1j * _median(fft.imag, -1)
+            fft = real_median + imag_median
         else:
             fft = _median(fft, -1)
-
         fft /= bias
 
     if fft.ndim == 2 and batch_size is not None:
@@ -231,9 +234,9 @@ class TorchWelch(nn.Module):
         fft = torch.fft.rfft(x, axis=-1).abs() ** 2
 
         if self.nperseg % 2:
-            fft[:, :, 1:] *= 2
+            fft[..., 1:] *= 2
         else:
-            fft[:, :, 1:-1] *= 2
+            fft[..., 1:-1] *= 2
         fft *= self.scale
 
         # unfold the batch and channel dimensions back

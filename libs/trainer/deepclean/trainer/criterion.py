@@ -8,41 +8,39 @@ from scipy.signal.spectral import _median_bias
 from deepclean.signal.filter import normalize_frequencies
 
 
-def _validate_shapes(x: torch.Tensor, y: Optional[torch.Tensor]):
-    if y is not None:
-        # acceptable combinations of shapes:
-        # x: time, y: time
-        # x: channel x time, y: time OR channel x time
-        # x: batch x channel x time,
-        # y: batch x channel x time OR batch x time
-        if x.shape[-1] != y.shape[-1]:
+def _validate_shapes(x: torch.Tensor, y: torch.Tensor):
+    # acceptable combinations of shapes:
+    # x: time, y: time
+    # x: channel x time, y: time OR channel x time
+    # x: batch x channel x time, y: batch x channel x time OR batch x time
+    if x.shape[-1] != y.shape[-1]:
+        raise ValueError(
+            "Time dimensions of x and y tensors must "
+            "be the same, found {} and {}".format(x.shape[-1], y.shape[-1])
+        )
+    elif x.ndim == 1 and not y.ndim == 1:
+        raise ValueError(
+            "Can't compute cross spectral density of "
+            "1D tensor x with {}D tensor y".format(y.ndim)
+        )
+    elif x.ndim > 1 and y.ndim == x.ndim:
+        if not (y.shape == x.shape).all():
             raise ValueError(
-                "Time dimensions of x and y tensors must "
-                "be the same, found {} and {}".format(x.shape[-1], y.shape[-1])
+                "If x and y tensors have the same number "
+                "of dimensions, shapes must fully match. "
+                "Found shapes {} and {}".format(x.shape, y.shape)
             )
-        elif x.ndim == 1 and not y.ndim == 1:
-            raise ValueError(
-                "Can't compute cross spectral density of "
-                "1D tensor x with {}D tensor y".format(y.ndim)
-            )
-        elif x.ndim > 1 and y.ndim == x.ndim:
-            if not (y.shape == x.shape).all():
-                raise ValueError(
-                    "If x and y tensors have the same number "
-                    "of dimensions, shapes must fully match. "
-                    "Found shapes {} and {}".format(x.shape, y.shape)
-                )
-        elif x.ndim > 1 and y.ndim != (x.ndim - 1):
-            raise ValueError(
-                "Can't compute cross spectral density of "
-                "tensors with shapes {} and {}".format(x.shape, y.shape)
-            )
-        elif x.ndim > 2 and y.shape[0] != x.shape[0]:
-            raise ValueError(
-                "If x is a 3D tensor and y is a 2D tensor, "
-                "0th batch dimensions must match, but found "
-                "values {} and {}".format(x.shape[0], y.shape[0])
-            )
+    elif x.ndim > 1 and y.ndim != (x.ndim - 1):
+        raise ValueError(
+            "Can't compute cross spectral density of "
+            "tensors with shapes {} and {}".format(x.shape, y.shape)
+        )
+    elif x.ndim > 2 and y.shape[0] != x.shape[0]:
+        raise ValueError(
+            "If x is a 3D tensor and y is a 2D tensor, "
+            "0th batch dimensions must match, but found "
+            "values {} and {}".format(x.shape[0], y.shape[0])
+        )
 
 
 def _median(x, axis):
@@ -166,24 +164,20 @@ class TorchWelch(nn.Module):
         self.fast = fast
 
     def forward(self, x: torch.Tensor, y: Optional[torch.Tensor] = None):
-        tensors = [x]
-        if y is not None:
-            tensors.append(y)
+        if x.shape[-1] < self.nperseg:
+            raise ValueError(
+                "Number of samples {} in input x is insufficient "
+                "for number of fft samples {}".format(
+                    x.shape[-1], self.nperseg
+                )
+            )
+        elif x.ndim > 3:
+            raise ValueError(
+                f"Can't perform welch transform on tensor with shape {x.shape}"
+            )
 
-        for tensor, name in zip(tensors, ["x", "y"]):
-            if tensor.shape[-1] < self.nperseg:
-                raise ValueError(
-                    "Number of samples {} in input {} is insufficient "
-                    "for number of fft samples {}".format(
-                        tensor.shape[-1], name, self.nperseg
-                    )
-                )
-            elif tensor.ndim > 3:
-                raise ValueError(
-                    "Can't perform welch transform on tensor {} "
-                    "with shape {}".format(name, tensor.shape)
-                )
-        _validate_shapes(x, y)
+        if y is not None:
+            _validate_shapes(x, y)
 
         if self.fast:
             return _fast_csd(

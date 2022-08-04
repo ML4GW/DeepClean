@@ -328,7 +328,7 @@ def train(
         sample_rate,
         fftlength=fftlength,
         overlap=None,
-        asd=False,
+        asd=True,
         device=device,
         freq_low=freq_low,
         freq_high=freq_high,
@@ -434,6 +434,10 @@ def train(
         }
     )
     if valid_data is not None:
+        # we'll actually need gradients on the validation data,
+        # so we can't be as liberal with the memory. Reset its
+        # batch size to keep things within reason
+        valid_data.batch_size = train_data.batch_size
         gradients, errors, asds = analyze_model(valid_data, model, sample_rate)
         history.update(
             {

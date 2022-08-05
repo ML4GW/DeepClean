@@ -13,7 +13,9 @@ def analyze_model(
     fftlength: float = 2,
     percentiles: Iterable[float] = [5, 25, 50, 75, 95],
 ):
-    welch = TorchWelch(sample_rate, fftlength, average="median", device="cuda")
+    welch = TorchWelch(
+        sample_rate, fftlength, average="median", device="cuda", fast=True
+    )
     coherences, gradients = [], []
     for x, y in dataset:
         x = torch.autograd.Variable(x, requires_grad=True)
@@ -35,6 +37,8 @@ def analyze_model(
         pyy = welch(y)[:, None]
         pxy = welch(x, y)
         coherence = pxy.abs() ** 2 / pxx / pyy
+
+        gradients.append(grads)
         coherences.append(coherence.cpu().numpy())
 
     gradients = np.concatenate(gradients, axis=0)

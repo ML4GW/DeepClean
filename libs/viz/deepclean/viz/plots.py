@@ -1,7 +1,7 @@
 from typing import List, Optional, Union
 
 import numpy as np
-from bokeh.models import BoxZoomTool, ColumnDataSource, FactorRange, HoverTool
+from bokeh.models import BoxZoomTool, ColumnDataSource, HoverTool
 from bokeh.plotting import Figure
 
 from deepclean.viz import palette, spectrum
@@ -127,8 +127,8 @@ def plot_coherence(
     patch_source = ColumnDataSource(patch_data)
 
     # make some adjustments to the y-axis to accommodate
-    # the categorical values we'll be using
-    p.y_range = FactorRange(*channels)
+    # the sorted categorical values
+    p.y_range.factors = channels
     p.y_range.range_padding = 0.1
     p.yaxis.major_label_orientation = np.pi / 8
 
@@ -183,7 +183,7 @@ def plot_asd(
     df = asd.df
     freqs = asd.frequencies
 
-    data = {hover_on: ts.value, "x": freqs}
+    data = {hover_on: asd.value, "x": freqs}
     colors = {hover_on: palette[0]}
     for color, (name, ts) in zip(palette[1:], timeseries.items()):
         asd = ts.asd(fftlength, overlap=overlap, method="median")
@@ -213,7 +213,8 @@ def plot_asd(
         renderers=p.select(hover_on),
         tooltips=tooltips,
     )
-    p.add_tools(hover)
+    zoom = BoxZoomTool(dimensions="width")
+    p.add_tools(hover, zoom)
     return p
 
 
@@ -252,13 +253,15 @@ def plot_asdr(
     median_asdr = np.median(asdr, axis=0)
     line_source = ColumnDataSource({"x": freqs, "y": median_asdr})
 
-    if isinstance(percentile, float):
+    try:
+        iter(percentile)
+    except Exception:
         percentile = [percentile]
 
     patch_data = {"xs": [], "ys": [], "legend": [], "alpha": []}
     patch_x = np.concatenate([freqs, freqs[::-1]])
     last_low = last_high = None
-    for i, q in sorted(percentile, reverse=True):
+    for i, q in enumerate(sorted(percentile, reverse=True)):
         low = np.percentile(asdr, q, axis=0)
         high = np.percentile(asdr, 100 - q, axis=0)
         if last_low is None:

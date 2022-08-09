@@ -131,7 +131,7 @@ look_ahead = 0.5
 
 gpus = [6]
 sequence_id = 1001
-verbose = "${base.verbose}"
+verbose = true # "${base.verbose}"
 
 [tool.typeo.scripts.analyze]
 raw_data_path = "${DATA_DIR}"

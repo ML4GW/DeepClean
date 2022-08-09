@@ -169,10 +169,10 @@ def main(
         # since the FrameWriter class loads strain data internally,
         # split the strain channel into 1s frames and write them to
         # a temporary directory for the writer to load them
-        tmpdir = write_strain(
+        tmpdir_ctx = write_strain(
             data[channels[0]], t0, duration, stride, sample_rate, channels[0]
         )
-        with tmpdir:
+        with tmpdir_ctx as tmpdir:
             # set up a file writer to use as a callback
             # for the client to handle server responses
             if max_latency is None:

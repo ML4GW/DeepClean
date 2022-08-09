@@ -3,14 +3,13 @@ from typing import Optional
 
 import h5py
 import numpy as np
-from bokeh.io import save
 from bokeh.layouts import layout
 from bokeh.models import Div, Panel, PreText, Tabs
 from gwpy.timeseries import TimeSeries
 
 from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.gwftools.io import find
-from deepclean.viz import ASD_UNITS, plots
+from deepclean.viz import ASD_UNITS, BACKGROUND_COLOR, WHITISH, plots
 from deepclean.viz import utils as plot_utils
 from hermes.typeo import typeo
 
@@ -34,7 +33,8 @@ def get_logs_box(output_directory: Path):
                 "overflow-y": "scroll",
                 "height": "250px",
                 "overflow-x": "scroll",
-                "width": "600px",
+                "width": "500px",
+                "color": WHITISH,
             },
         )
     panels = [Panel(child=text_box, title="Config")]
@@ -50,7 +50,8 @@ def get_logs_box(output_directory: Path):
                 "overflow-y": "scroll",
                 "height": "250px",
                 "overflow-x": "scroll",
-                "width": "600px",
+                "width": "500px",
+                "color": WHITISH,
             },
         )
         panel = Panel(child=text_box, title=fname.stem.title())
@@ -73,6 +74,8 @@ def main(
     freq_low: Optional[float] = None,
     freq_high: Optional[float] = None,
     overlap: Optional[float] = None,
+    column_width: int = 590,
+    min_border: int = 80,
 ) -> None:
     """
     Build an HTML document analyzing a set of gravitational
@@ -125,7 +128,7 @@ def main(
     # not worth starting if we don't have any cleaned data
     # to analyze, so do a lazy check on this here
     clean_data_dir = clean_data_dir or output_directory / "cleaned"
-    if not clean_data_dir.isdir():
+    if not clean_data_dir.is_dir():
         raise ValueError(
             f"Cleaned data directory '{clean_data_dir}' does not exist"
         )
@@ -144,9 +147,10 @@ def main(
         title="Training Curves",
         x_axis_label="Epoch",
         y_axis_label="Loss",
-        height=300,
-        width=600,
+        height=300 + min_border,
+        width=column_width + min_border,
         tools="reset",
+        min_border=min_border,
     )
     loss_plot = plots.plot_loss(loss_plot, hover_on="train_asdr", **losses)
 
@@ -156,7 +160,9 @@ def main(
 
     # TODO: 2 is the fftlength used for the coherences,
     # which we'll hardcode for the time being but shouldn't
-    freqs = np.arange(0, 2 * sample_rate + 1 / 2, 1 / 2)
+    coherence_fftlength = 2
+    step = 1 / coherence_fftlength
+    freqs = np.arange(0, sample_rate / 2 + step, step)
     if freq_low is not None and freq_high is not None:
         mask = (freq_low <= freqs) & (freqs <= freq_high)
         freqs = freqs[mask]
@@ -178,9 +184,11 @@ def main(
     coherence_plot = plot_utils.make_plot(
         title=f"Channel wise coherence with {channels[0]} in training set",
         x_axis_label="Frequency [Hz]",
-        height=700,
-        widtdh=600,
+        height=700 + min_border,
+        width=int(column_width * 1.5) + min_border,
         x_range=(freqs.min(), freqs.max()),
+        y_range=channels[1:],
+        min_border=min_border,
     )
     coherence_plot.yaxis.major_label_text_font_size = "6pt"
     coherence_plot.xgrid.grid_line_width = 0.8
@@ -193,62 +201,77 @@ def main(
     # plot both their individual ASDs as well as their
     # ASDR over the frequency range of interest
     fnames = sorted(clean_data_dir.iterdir())
-    fnames = [f for f in fnames if f.startswith("STRAIN")]
-    clean_timeseries = TimeSeries.read(fnames, channel=channels[0])
+    fnames = [f for f in fnames if f.name.startswith("STRAIN")]
+
+    strain_channel = channels[0]
+    clean_channel = strain_channel + "-CLEANED"
+    clean_timeseries = TimeSeries.read(fnames, channel=clean_channel)
     clean_timeseries = clean_timeseries.resample(sample_rate)
 
     raw_data = find(
-        channels[:1], t0, duration, sample_rate, data_path=raw_data_path
+        [strain_channel], t0, duration, sample_rate, data_path=raw_data_path
     )
-    raw_timeseries = raw_data[channels[0]][: len(clean_timeseries)]
+    raw_data = raw_data[channels[0]][: len(clean_timeseries)]
+    raw_timeseries = TimeSeries(raw_data, t0=t0, dt=1 / sample_rate)
 
     duration = clean_timeseries.duration
     asd_plot = plot_utils.make_plot(
-        title=f"ASD from {duration}s data of {channels[0]}",
-        height=300,
-        width=600,
+        title=f"ASD from {duration} data of {strain_channel}",
+        height=300 + min_border,
+        width=column_width + min_border,
         y_axis_label=f"ASD [{ASD_UNITS}]",
         x_axis_label="Frequency [Hz]",
         y_axis_type="log",
         tools="reset",
+        min_border=min_border,
     )
     asd_plot = plots.plot_asd(
         asd_plot,
         fftlength,
         overlap,
-        raw_data=raw_timeseries,
-        deepcleaned_data=clean_timeseries,
+        raw=raw_timeseries,
+        deepcleaned=clean_timeseries,
     )
 
     asdr_plot = plot_utils.make_plot(
         title="ASD Ratio",
-        height=300,
-        width=600,
+        height=300 + min_border,
+        width=column_width + min_border,
         y_axis_label="ASD Ratio [Cleaned / Raw]",
         x_axis_label="Frequency [Hz]",
         tools="reset",
+        min_border=min_border,
     )
-    asdr_plot = plot_utils.plot_asdr(
+    asdr_plot = plots.plot_asdr(
         asdr_plot,
         raw_timeseries,
         clean_timeseries,
         window_length=window_length,
         fftlength=fftlength,
         overlap=overlap,
-        percentile=[5, 25],
+        percentile=25,
         freq_low=freq_low,
         freq_high=freq_high,
     )
 
     # grab our configs and add a header
-    header = Div(text="<h1>DeepClean Sandbox Experiment Results</h1>")
+    header = Div(
+        text=(
+            f"<h1 style='color:{WHITISH}'>"
+            "DeepClean Sandbox Experiment Results</h1>"
+        )
+    )
     tabs = get_logs_box(output_directory)
 
     # compile everything into a single page and save it
     grid = layout(
-        [header], [loss_plot, tabs], [coherence_plot], [asd_plot, asdr_plot]
+        [header],
+        [loss_plot, tabs],
+        [coherence_plot],
+        [asd_plot, asdr_plot],
+        background=BACKGROUND_COLOR,
     )
-    save(
+    plot_utils.save(
         grid,
         filename=output_directory / "analysis.html",
         title="DeepClean Results",

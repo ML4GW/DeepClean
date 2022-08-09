@@ -1,5 +1,26 @@
 import numpy as np
+from bokeh.io import save as bokeh_save
 from bokeh.plotting import figure
+from bokeh.resources import Resources
+
+from deepclean.viz import BACKGROUND_COLOR
+
+
+class DeepCleanResources(Resources):
+    @property
+    def css_raw(self):
+        return super().css_raw + [
+            f""".bk-root {{
+                    background-color: {BACKGROUND_COLOR};
+                    border-color: {BACKGROUND_COLOR};
+                }}
+            """
+        ]
+
+
+def save(*args, **kwargs):
+    kwargs["resources"] = DeepCleanResources(mode="cdn")
+    bokeh_save(*args, **kwargs)
 
 
 def make_plot(tools="", **kwargs):

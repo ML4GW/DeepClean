@@ -136,12 +136,12 @@ def main(
     # start by loading in the saved analyses from training
     with h5py.File(output_directory / "train_results.h5", "r") as f:
         losses = {"train_asdr": f["train_loss"][:]}
-        grads = f["train_gradients"][:]
+        grads = f["train_gradients"][2]
         train_coherences = f["train_coherences"][:]
 
         if "valid_loss" in f.keys():
             losses["valid_asdr"] = f["valid_loss"][:]
-            valid_grads = f["valid_gradients"][:]
+            valid_grads = f["valid_gradients"][2]
             grads = np.stack([grads, valid_grads])
 
     # plot the training and validation losses

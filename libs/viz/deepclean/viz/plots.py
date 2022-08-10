@@ -345,7 +345,7 @@ def plot_asdr(
         "ys",
         fill_color=palette[0],
         fill_alpha="alpha",
-        line_width=1.0,
+        line_width=0.6,
         line_alpha=0.6,
         legend_field="legend",
         source=patch_source,

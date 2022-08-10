@@ -276,7 +276,7 @@ class PSDLoss(nn.Module):
             # to zero out the frequencies we don't care about
             dfreq = 1 / fftlength
             freqs = np.arange(0.0, sample_rate / 2 + dfreq, dfreq)
-            mask = np.zeros_like(freqs, dtype=np.bool)
+            mask = np.zeros_like(freqs, dtype=bool)
             for low, high in zip(freq_low, freq_high):
                 mask |= (low <= freqs) & (freqs < high)
 

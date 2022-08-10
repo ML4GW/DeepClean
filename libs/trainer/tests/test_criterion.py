@@ -283,7 +283,7 @@ def test_psd_loss(
     # check all the conditions that would cause
     # a problem at instantiation time
     will_raise = False
-    will_raise |= overlap >= fftlength
+    will_raise |= overlap is not None and overlap >= fftlength
     will_raise |= freq_low is None and freq_high is not None
     will_raise |= freq_low is not None and freq_high is None
     will_raise |= isinstance(freq_low, list) and not isinstance(
@@ -323,15 +323,15 @@ def test_psd_loss(
         freq_low = [freq_low]
         freq_high = [freq_high]
 
-    freqs_per_bin = sample_rate / (2 * criterion.welch.nfreq)
-    in_range_bins = int(10 * num_ranges / freqs_per_bin)
+    freqs_per_bin = criterion.welch.nperseg / sample_rate
+    in_range_bins = int(10 * num_ranges * freqs_per_bin)
     assert criterion.mask.sum() == in_range_bins
 
     # make sure that any bins marked as valid in
     # the mask correspond to at least one of the
     # desired frequency ranges, allowing some slack
     nz_idx = np.where(criterion.mask > 0)[0]
-    nz_freqs = nz_idx * freqs_per_bin
+    nz_freqs = nz_idx / freqs_per_bin
     alright = np.zeros_like(nz_idx, dtype=bool)
     for low, high in zip(freq_low, freq_high):
         # allow a little slack at the edges to account

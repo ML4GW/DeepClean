@@ -13,11 +13,12 @@ def analyze_model(
     fftlength: float = 2,
     percentiles: Iterable[float] = [5, 25, 50, 75, 95],
 ):
-    welch = TorchWelch(
-        sample_rate, fftlength, average="median", device="cuda", fast=True
-    )
+    welch = TorchWelch(sample_rate, fftlength, average="median", fast=True)
     coherences, gradients = [], []
-    for x, y in dataset:
+    for i, (x, y) in enumerate(dataset):
+        if i == 0:
+            welch.window = welch.window.to(x.device)
+
         x = torch.autograd.Variable(x, requires_grad=True)
         noise_prediction = nn(x)
 

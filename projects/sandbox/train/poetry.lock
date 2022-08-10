@@ -46,14 +46,6 @@ optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
 
 [[package]]
-name = "cycler"
-version = "0.11.0"
-description = "Composable style cycles"
-category = "main"
-optional = false
-python-versions = ">=3.6"
-
-[[package]]
 name = "deepclean.architectures"
 version = "0.0.1"
 description = "DeepClean neural network architecture zoo"
@@ -165,34 +157,11 @@ develop = true
 "deepclean.export" = {path = "../export", develop = true}
 "deepclean.signal" = {path = "../signal", develop = true}
 "hermes.typeo" = "^0.1.5"
-matplotlib = "^3.5.1"
 torch = "^1.0"
 
 [package.source]
 type = "directory"
 url = "../../../libs/trainer"
-
-[[package]]
-name = "fonttools"
-version = "4.34.4"
-description = "Tools to manipulate font files"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[package.extras]
-all = ["fs (>=2.2.0,<3)", "lxml (>=4.0,<5)", "zopfli (>=0.1.4)", "lz4 (>=1.7.4.2)", "matplotlib", "sympy", "skia-pathops (>=0.5.0)", "uharfbuzz (>=0.23.0)", "brotlicffi (>=0.8.0)", "scipy", "brotli (>=1.0.1)", "munkres", "unicodedata2 (>=14.0.0)", "xattr"]
-graphite = ["lz4 (>=1.7.4.2)"]
-interpolatable = ["scipy", "munkres"]
-lxml = ["lxml (>=4.0,<5)"]
-pathops = ["skia-pathops (>=0.5.0)"]
-plot = ["matplotlib"]
-repacker = ["uharfbuzz (>=0.23.0)"]
-symfont = ["sympy"]
-type1 = ["xattr"]
-ufo = ["fs (>=2.2.0,<3)"]
-unicode = ["unicodedata2 (>=14.0.0)"]
-woff = ["zopfli (>=0.1.4)", "brotlicffi (>=0.8.0)", "brotli (>=1.0.1)"]
 
 [[package]]
 name = "hermes.typeo"
@@ -214,33 +183,6 @@ optional = false
 python-versions = "*"
 
 [[package]]
-name = "kiwisolver"
-version = "1.4.4"
-description = "A fast implementation of the Cassowary constraint solver"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[[package]]
-name = "matplotlib"
-version = "3.5.2"
-description = "Python plotting package"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[package.dependencies]
-cycler = ">=0.10"
-fonttools = ">=4.22.0"
-kiwisolver = ">=1.0.1"
-numpy = ">=1.17"
-packaging = ">=20.0"
-pillow = ">=6.2.0"
-pyparsing = ">=2.2.1"
-python-dateutil = ">=2.7"
-setuptools_scm = ">=4"
-
-[[package]]
 name = "numpy"
 version = "1.22.4"
 description = "NumPy is the fundamental package for array computing with Python."
@@ -258,18 +200,6 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 
 [package.dependencies]
 pyparsing = ">=2.0.2"
-
-[[package]]
-name = "pillow"
-version = "9.2.0"
-description = "Python Imaging Library (Fork)"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[package.extras]
-docs = ["furo", "olefile", "sphinx (>=2.4)", "sphinx-copybutton", "sphinx-issues (>=3.0.1)", "sphinx-removed-in", "sphinxext-opengraph"]
-tests = ["check-manifest", "coverage", "defusedxml", "markdown2", "olefile", "packaging", "pyroma", "pytest", "pytest-cov", "pytest-timeout"]
 
 [[package]]
 name = "pluggy"
@@ -339,17 +269,6 @@ toml = "*"
 testing = ["argcomplete", "hypothesis (>=3.56)", "mock", "nose", "requests", "xmlschema"]
 
 [[package]]
-name = "python-dateutil"
-version = "2.8.2"
-description = "Extensions to the standard Python datetime module"
-category = "main"
-optional = false
-python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
-
-[package.dependencies]
-six = ">=1.5"
-
-[[package]]
 name = "scipy"
 version = "1.7.3"
 description = "SciPy: Scientific Library for Python"
@@ -361,45 +280,6 @@ python-versions = ">=3.7,<3.11"
 numpy = ">=1.16.5,<1.23.0"
 
 [[package]]
-name = "setuptools"
-version = "63.3.0"
-description = "Easily download, build, install, upgrade, and uninstall Python packages"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[package.extras]
-docs = ["sphinx", "jaraco.packaging (>=9)", "rst.linker (>=1.9)", "jaraco.tidelift (>=1.4)", "pygments-github-lexers (==0.0.5)", "sphinx-favicon", "sphinx-inline-tabs", "sphinx-reredirects", "sphinxcontrib-towncrier", "furo"]
-testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "flake8 (<5)", "pytest-enabler (>=1.3)", "pytest-perf", "mock", "flake8-2020", "virtualenv (>=13.0.0)", "wheel", "pip (>=19.1)", "jaraco.envs (>=2.2)", "pytest-xdist", "jaraco.path (>=3.2.0)", "build", "filelock (>=3.4.0)", "pip-run (>=8.8)", "ini2toml[lite] (>=0.9)", "tomli-w (>=1.0.0)", "pytest-black (>=0.3.7)", "pytest-cov", "pytest-mypy (>=0.9.1)"]
-testing-integration = ["pytest", "pytest-xdist", "pytest-enabler", "virtualenv (>=13.0.0)", "tomli", "wheel", "jaraco.path (>=3.2.0)", "jaraco.envs (>=2.2)", "build", "filelock (>=3.4.0)"]
-
-[[package]]
-name = "setuptools-scm"
-version = "7.0.5"
-description = "the blessed package to manage your versions by scm tags"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[package.dependencies]
-packaging = ">=20.0"
-setuptools = "*"
-tomli = ">=1.0.0"
-typing-extensions = "*"
-
-[package.extras]
-test = ["pytest (>=6.2)", "virtualenv (>20)"]
-toml = ["setuptools (>=42)"]
-
-[[package]]
-name = "six"
-version = "1.16.0"
-description = "Python 2 and 3 compatibility utilities"
-category = "main"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
-
-[[package]]
 name = "toml"
 version = "0.10.2"
 description = "Python Library for Tom's Obvious, Minimal Language"
@@ -408,16 +288,8 @@ optional = false
 python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
 
 [[package]]
-name = "tomli"
-version = "2.0.1"
-description = "A lil' TOML parser"
-category = "main"
-optional = false
-python-versions = ">=3.7"
-
-[[package]]
 name = "torch"
-version = "1.12.0"
+version = "1.12.1"
 description = "Tensors and Dynamic neural networks in Python with strong GPU acceleration"
 category = "main"
 optional = false
@@ -464,10 +336,6 @@ colorama = [
     {file = "colorama-0.4.5-py2.py3-none-any.whl", hash = "sha256:854bf444933e37f5824ae7bfc1e98d5bce2ebe4160d46b5edf346a89358e99da"},
     {file = "colorama-0.4.5.tar.gz", hash = "sha256:e6c6b4334fc50988a639d9b98aa429a0b57da6e17b9a44f0451f930b6967b7a4"},
 ]
-cycler = [
-    {file = "cycler-0.11.0-py3-none-any.whl", hash = "sha256:3a27e95f763a428a739d2add979fa7494c912a32c17c4c38c4d5f082cad165a3"},
-    {file = "cycler-0.11.0.tar.gz", hash = "sha256:9c87405839a19696e837b3b818fed3f5f69f16f1eec1a1ad77e043dcea9c772f"},
-]
 "deepclean.architectures" = []
 "deepclean.base" = []
 "deepclean.export" = []
@@ -475,7 +343,6 @@ cycler = [
 "deepclean.logging" = []
 "deepclean.signal" = []
 "deepclean.trainer" = []
-fonttools = []
 "hermes.typeo" = [
     {file = "hermes.typeo-0.1.5-py3-none-any.whl", hash = "sha256:a1fff2eeb257fb6f4f4b4b397681f2eddee59a4b8b3dd275f0fd9dac38e3371b"},
     {file = "hermes.typeo-0.1.5.tar.gz", hash = "sha256:8bd1d97a698c0e99a7d2a6b3b082c8b8290aea1bf0e6a44548752ca178a8c73e"},
@@ -484,14 +351,11 @@ iniconfig = [
     {file = "iniconfig-1.1.1-py2.py3-none-any.whl", hash = "sha256:011e24c64b7f47f6ebd835bb12a743f2fbe9a26d4cecaa7f53bc4f35ee9da8b3"},
     {file = "iniconfig-1.1.1.tar.gz", hash = "sha256:bc3af051d7d14b2ee5ef9969666def0cd1a000e121eaea580d4a313df4b37f32"},
 ]
-kiwisolver = []
-matplotlib = []
 numpy = []
 packaging = [
     {file = "packaging-20.9-py2.py3-none-any.whl", hash = "sha256:67714da7f7bc052e064859c05c595155bd1ee9f69f76557e21f051443c20947a"},
     {file = "packaging-20.9.tar.gz", hash = "sha256:5b327ac1320dc863dca72f4514ecc086f31186744b84a230374cc1fd776feae5"},
 ]
-pillow = []
 pluggy = [
     {file = "pluggy-1.0.0-py2.py3-none-any.whl", hash = "sha256:74134bbf457f031a36d68416e1509f34bd5ccc019f0bcc952c7b909d06b37bd3"},
     {file = "pluggy-1.0.0.tar.gz", hash = "sha256:4224373bacce55f955a878bf9cfa763c1e360858e330072059e10bad68531159"},
@@ -539,10 +403,6 @@ pytest = [
     {file = "pytest-6.2.5-py3-none-any.whl", hash = "sha256:7310f8d27bc79ced999e760ca304d69f6ba6c6649c0b60fb0e04a4a77cacc134"},
     {file = "pytest-6.2.5.tar.gz", hash = "sha256:131b36680866a76e6781d13f101efb86cf674ebb9762eb70d3082b6f29889e89"},
 ]
-python-dateutil = [
-    {file = "python-dateutil-2.8.2.tar.gz", hash = "sha256:0123cacc1627ae19ddf3c27a5de5bd67ee4586fbdd6440d9748f8abb483d3e86"},
-    {file = "python_dateutil-2.8.2-py2.py3-none-any.whl", hash = "sha256:961d03dc3453ebbc59dbdea9e4e11c5651520a876d0f4db161e8674aae935da9"},
-]
 scipy = [
     {file = "scipy-1.7.3-1-cp310-cp310-macosx_12_0_arm64.whl", hash = "sha256:c9e04d7e9b03a8a6ac2045f7c5ef741be86727d8f49c45db45f244bdd2bcff17"},
     {file = "scipy-1.7.3-1-cp38-cp38-macosx_12_0_arm64.whl", hash = "sha256:b0e0aeb061a1d7dcd2ed59ea57ee56c9b23dd60100825f98238c06ee5cc4467e"},
@@ -574,19 +434,9 @@ scipy = [
     {file = "scipy-1.7.3-cp39-cp39-win_amd64.whl", hash = "sha256:3f78181a153fa21c018d346f595edd648344751d7f03ab94b398be2ad083ed3e"},
     {file = "scipy-1.7.3.tar.gz", hash = "sha256:ab5875facfdef77e0a47d5fd39ea178b58e60e454a4c85aa1e52fcb80db7babf"},
 ]
-setuptools = []
-setuptools-scm = []
-six = [
-    {file = "six-1.16.0-py2.py3-none-any.whl", hash = "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"},
-    {file = "six-1.16.0.tar.gz", hash = "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926"},
-]
 toml = [
     {file = "toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b"},
     {file = "toml-0.10.2.tar.gz", hash = "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f"},
-]
-tomli = [
-    {file = "tomli-2.0.1-py3-none-any.whl", hash = "sha256:939de3e7a6161af0c887ef91b7d41a53e7c5a1ca976325f429cb46ea9bc30ecc"},
-    {file = "tomli-2.0.1.tar.gz", hash = "sha256:de526c12914f0c550d15924c62d72abc48d6fe7364aa87328337a31007fe8a4f"},
 ]
 torch = []
 typing-extensions = []

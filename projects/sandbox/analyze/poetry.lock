@@ -98,6 +98,24 @@ type = "directory"
 url = "../../../libs/gwftools"
 
 [[package]]
+name = "deepclean.viz"
+version = "0.0.1"
+description = "DeepClean visualization utilities"
+category = "main"
+optional = false
+python-versions = "^3.8,<3.11"
+develop = true
+
+[package.dependencies]
+bokeh = "^2.4"
+"deepclean.base" = {path = "../base", develop = true}
+"deepclean.gwftools" = {path = "../gwftools", develop = true}
+
+[package.source]
+type = "directory"
+url = "../../../libs/viz"
+
+[[package]]
 name = "hermes.typeo"
 version = "0.1.5"
 description = "Utilities for running functions as scripts"
@@ -282,7 +300,7 @@ python-versions = ">=3.7"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8,<3.10"
-content-hash = "95b37e3c9d19edb8afb15bffbb4efdb3129550cb2f2a61787a0910eddcd23725"
+content-hash = "2e8ff3ec47aa4f72dc382b06d9732c5a698d010bb6f4f25ea13ad29160c422ee"
 
 [metadata.files]
 astropy = [
@@ -312,6 +330,7 @@ colorama = [
 ]
 "deepclean.base" = []
 "deepclean.gwftools" = []
+"deepclean.viz" = []
 "hermes.typeo" = [
     {file = "hermes.typeo-0.1.5-py3-none-any.whl", hash = "sha256:a1fff2eeb257fb6f4f4b4b397681f2eddee59a4b8b3dd275f0fd9dac38e3371b"},
     {file = "hermes.typeo-0.1.5.tar.gz", hash = "sha256:8bd1d97a698c0e99a7d2a6b3b082c8b8290aea1bf0e6a44548752ca178a8c73e"},

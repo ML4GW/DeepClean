@@ -4,11 +4,6 @@ from typing import Tuple
 import numpy as np
 import torch
 
-try:
-    import matplotlib.pyplot as plt
-except ImportError:
-    plt = None
-
 
 class ChunkedTimeSeriesDataset(torch.utils.data.IterableDataset):
     def __init__(

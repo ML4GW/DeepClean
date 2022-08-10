@@ -1,96 +1,17 @@
-import re
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional
+from typing import Optional
 
+import h5py
 import numpy as np
-from bokeh.io import save
-from bokeh.layouts import column, row
-from bokeh.models import (
-    BoxZoomTool,
-    ColumnDataSource,
-    Div,
-    HoverTool,
-    Panel,
-    PreText,
-    Tabs,
-)
-from bokeh.palettes import Colorblind8 as palette
-from bokeh.plotting import figure
+from bokeh.layouts import layout
+from bokeh.models import Div, Panel, PreText, Tabs
 from gwpy.timeseries import TimeSeries
 
 from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.gwftools.io import find
+from deepclean.viz import ASD_UNITS, BACKGROUND_COLOR, WHITISH, plots
+from deepclean.viz import utils as plot_utils
 from hermes.typeo import typeo
-
-if TYPE_CHECKING:
-    from gwpy.frequencyseries import FrequencySeries
-
-
-def get_training_curves(output_directory: Path):
-    """
-    Read the training logs from the indicated output directory
-    and use them to parse the training and validation loss values
-    at each epoch. Plot these curves to a Bokeh `Figure` and return it.
-    """
-
-    with open(output_directory / "train.log", "r") as f:
-        train_log = f.read()
-
-    epoch_re = re.compile("(?<==== Epoch )[0-9]{1,4}")
-    train_loss_re = re.compile(r"(?<=Train Loss: )[0-9.e\-+]+")
-    valid_loss_re = re.compile(r"(?<=Valid Loss: )[0-9.e\-+]+")
-
-    source = ColumnDataSource(
-        dict(
-            epoch=list(map(int, epoch_re.findall(train_log))),
-            train=list(map(float, train_loss_re.findall(train_log))),
-            valid=list(map(float, valid_loss_re.findall(train_log))),
-        )
-    )
-
-    p = figure(
-        height=300,
-        width=600,
-        # sizing_mode="scale_width",
-        title="Training curves",
-        x_axis_label="Epoch",
-        y_axis_label="ASDR",
-        tools="reset,box_zoom",
-    )
-
-    r = p.line(
-        "epoch",
-        "train",
-        line_width=2.3,
-        line_color=palette[-1],
-        line_alpha=0.8,
-        legend_label="Train Loss",
-        source=source,
-    )
-    p.line(
-        "epoch",
-        "valid",
-        line_width=2.3,
-        line_color=palette[-2],
-        line_alpha=0.8,
-        legend_label="Valid Loss",
-        source=source,
-    )
-
-    p.add_tools(
-        HoverTool(
-            mode="vline",
-            line_policy="nearest",
-            point_policy="snap_to_data",
-            renderers=[r],
-            tooltips=[
-                ("Epoch", "@epoch"),
-                ("Train ASDR", "@train"),
-                ("Valid ASDR", "@valid"),
-            ],
-        )
-    )
-    return p
 
 
 def get_logs_box(output_directory: Path):
@@ -112,7 +33,8 @@ def get_logs_box(output_directory: Path):
                 "overflow-y": "scroll",
                 "height": "250px",
                 "overflow-x": "scroll",
-                "width": "600px",
+                "width": "500px",
+                "color": WHITISH,
             },
         )
     panels = [Panel(child=text_box, title="Config")]
@@ -128,225 +50,14 @@ def get_logs_box(output_directory: Path):
                 "overflow-y": "scroll",
                 "height": "250px",
                 "overflow-x": "scroll",
-                "width": "600px",
+                "width": "500px",
+                "color": WHITISH,
             },
         )
         panel = Panel(child=text_box, title=fname.stem.title())
         panels.append(panel)
 
     return Tabs(tabs=panels)
-
-
-def get_asdr_vs_time(
-    raw_timeseries: TimeSeries,
-    clean_timeseries: TimeSeries,
-    window_length: float,
-    window_step: float,
-    fftlength: float,
-    sample_rate: float,
-    freq_low: Optional[float] = None,
-    freq_high: Optional[float] = None,
-    overlap: Optional[float] = None,
-):
-    window_size = int(window_length * sample_rate)
-    step_size = int(window_step * sample_rate)
-    num_asdrs = (len(clean_timeseries) - window_size) // step_size + 1
-
-    asdrs = []
-    for i in range(num_asdrs):
-        slc = slice(i * step_size, (i + 1) * step_size)
-        clean_asd = clean_timeseries[slc].asd(fftlength, overlap=overlap)
-        raw_asd = raw_timeseries[slc].asd(fftlength, overlap=overlap)
-
-        if freq_low is not None:
-            freqs = clean_asd.frequencies.value
-            mask = (freq_low <= freqs) & (freqs < freq_high)
-            clean_asd = clean_asd[mask]
-            raw_asd = raw_asd[mask]
-        asdrs.append((clean_asd / raw_asd).mean())
-    return asdrs
-
-
-def plot_asds(raw_asd: "FrequencySeries", clean_asd: "FrequencySeries"):
-    source = ColumnDataSource(
-        {
-            "raw": raw_asd.value,
-            "clean": clean_asd,
-            "freqs": raw_asd.frequencies,
-        }
-    )
-    p = figure(
-        height=300,
-        width=600,
-        title="ASD of Raw and Clean Strains",
-        y_axis_type="log",
-        x_axis_label="Frequency [Hz]",
-        y_axis_label="ASD [Hz⁻¹ᐟ²]",
-        sizing_mode="scale_width",
-        tools="reset",
-    )
-
-    for i, asd in enumerate(["raw", "clean"]):
-        r = p.line(
-            x="freqs",
-            y=asd,
-            line_color=palette[i],
-            line_width=2.3,
-            line_alpha=0.8,
-            legend_label=asd.title(),
-            source=source,
-        )
-
-    # add a hovertool that always displays based on
-    # the x-position of the mouse and a zoom tool that
-    # only allows for horizontal zooming
-    p.add_tools(
-        HoverTool(
-            renderers=[r],
-            tooltips=[
-                ("Frequency", "@freqs Hz"),
-                ("Power of raw strain", "@raw"),
-                ("Power of clean strain", "@clean"),
-            ],
-            mode="vline",
-        ),
-        BoxZoomTool(dimensions="width"),
-    )
-
-    # make the legend interactive so we can view
-    # either of the asds on their own
-    p.legend.click_policy = "hide"
-    return p
-
-
-def plot_asdr(
-    raw_timeseries: TimeSeries,
-    clean_timeseries: TimeSeries,
-    window_length: float,
-    fftlength: float,
-    freq_low: Optional[float] = None,
-    freq_high: Optional[float] = None,
-):
-    raw_spec = raw_timeseries.spectrogram(window_length, fftlength)
-    clean_spec = clean_timeseries.spectrogram(window_length, fftlength)
-
-    freqs = raw_spec.frequencies.value
-    psdr = clean_spec.value / raw_spec.value
-    asdr = psdr**0.5
-    percentiles = [25, 50, 75]
-    low, med, high = np.percentile(asdr, percentiles, axis=0)
-
-    # TODO: use signal lib's frequency check, allow for multiple ranges
-    if freq_low is not None and freq_high is not None:
-        mask = (freq_low <= freqs) & (freqs <= freq_high)
-        freqs = freqs[mask]
-        low, med, high = low[mask], med[mask], high[mask]
-    elif freq_low is None or freq_high is None:
-        # TODO: make more explicit
-        raise ValueError(
-            "freq_low and freq_high must both be either None or float"
-        )
-
-    source = ColumnDataSource({"asdr": med, "freqs": freqs})
-    p = figure(
-        height=300,
-        width=600,
-        title="Ratio of clean strain to raw strain",
-        x_axis_label="Frequency [Hz]",
-        y_axis_label="Ratio [Clean / Raw]",
-        sizing_mode="scale_width",
-        tools="reset",
-    )
-    r = p.line(
-        x="freqs",
-        y="asdr",
-        line_color=palette[2],
-        line_width=2.3,
-        line_alpha=0.8,
-        source=source,
-    )
-    p.add_tools(
-        HoverTool(
-            renderers=[r],
-            tooltips=[("Frequency", "@freqs Hz"), ("ASDR", "@asdr")],
-            mode="vline",
-        ),
-        BoxZoomTool(dimensions="width"),
-    )
-
-    p.patch(
-        x=np.concatenate([freqs, freqs[::-1]]),
-        y=np.concatenate([high, low[::-1]]),
-        line_color=palette[2],
-        line_width=1.1,
-        line_alpha=0.8,
-        fill_color=palette[2],
-        fill_alpha=0.3,
-    )
-    return p
-
-
-def analyze_test_data(
-    raw_timeseries: np.ndarray,
-    clean_data_dir: Path,
-    output_directory: Path,
-    channels: List[str],
-    sample_rate: float,
-    window_length: float,
-    fftlength: float,
-    freq_low: Optional[float] = None,
-    freq_high: Optional[float] = None,
-    overlap: Optional[float] = None,
-):
-    """
-    Build plots of the ASDs of the cleaned and uncleaned
-    data, as well as a plot of the ratio of these ASDs
-    over a target frequency band. Return these plots as a
-    Bokeh `row` layout, and return the number of frames
-    analyzed as well.
-    """
-
-    # assume that the cleaned files represent a subset
-    # of the raw files, so use those to get the filenames
-    fnames = sorted(clean_data_dir.iterdir())
-
-    ts = None
-    num_frames = 0
-    for f in fnames:
-        if not f.name.startswith("STRAIN"):
-            continue
-        try:
-            y = TimeSeries.read(f, channel=channels[0] + "-CLEANED")
-        except ValueError:
-            raise ValueError(
-                "No channel {} in frame file {}".format(
-                    channels[0], clean_data_dir / f.name
-                )
-            )
-        y = y.resample(sample_rate)
-        if ts is None:
-            ts = y
-        else:
-            ts = ts.append(y)
-        num_frames += 1
-
-    clean_timeseries = ts
-    clean_asd = clean_timeseries.asd(fftlength, overlap=overlap)
-
-    raw_timeseries = raw_timeseries[: len(clean_timeseries)]
-    raw_timeseries = TimeSeries(raw_timeseries, dt=1 / sample_rate)
-    raw_asd = raw_timeseries.asd(fftlength, overlap=overlap)
-
-    p_asd = plot_asds(raw_asd, clean_asd)
-    p_asdr = plot_asdr(
-        raw_timeseries,
-        clean_timeseries,
-        window_length,
-        fftlength,
-        freq_low,
-        freq_high,
-    )
-    return row(p_asd, p_asdr), num_frames
 
 
 @typeo
@@ -363,6 +74,8 @@ def main(
     freq_low: Optional[float] = None,
     freq_high: Optional[float] = None,
     overlap: Optional[float] = None,
+    column_width: int = 590,
+    min_border: int = 80,
 ) -> None:
     """
     Build an HTML document analyzing a set of gravitational
@@ -411,39 +124,158 @@ def main(
 
     # load the channels from a file if we specified one
     channels = get_channels(channels)
+
+    # not worth starting if we don't have any cleaned data
+    # to analyze, so do a lazy check on this here
     clean_data_dir = clean_data_dir or output_directory / "cleaned"
+    if not clean_data_dir.is_dir():
+        raise ValueError(
+            f"Cleaned data directory '{clean_data_dir}' does not exist"
+        )
+
+    # start by loading in the saved analyses from training
+    with h5py.File(output_directory / "train_results.h5", "r") as f:
+        losses = {"train_asdr": f["train_loss"][:]}
+        grads = f["train_gradients"][2]
+        train_coherences = f["train_coherences"][:]
+
+        if "valid_loss" in f.keys():
+            losses["valid_asdr"] = f["valid_loss"][:]
+            valid_grads = f["valid_gradients"][2]
+            grads = np.stack([grads, valid_grads])
+
+    # plot the training and validation losses
+    loss_plot = plot_utils.make_plot(
+        title="Training Curves",
+        x_axis_label="Epoch",
+        y_axis_label="Loss",
+        height=300 + min_border,
+        width=column_width + min_border,
+        tools="reset",
+        min_border=min_border,
+    )
+    loss_plot = plots.plot_loss(loss_plot, hover_on="train_asdr", **losses)
+
+    # next plot the coherence of each witness channel
+    # with the strain channel, aggregated over batches
+    # in the training set
+
+    # TODO: 2 is the fftlength used for the coherences,
+    # which we'll hardcode for the time being but shouldn't
+    coherence_fftlength = 2
+    step = 1 / coherence_fftlength
+    freqs = np.arange(0, sample_rate / 2 + step, step)
+    if freq_low is not None and freq_high is not None:
+        mask = (freq_low <= freqs) & (freqs <= freq_high)
+        freqs = freqs[mask]
+        train_coherences = train_coherences[:, :, mask]
+    elif freq_low is not None or freq_high is not None:
+        raise ValueError(
+            "freq_high and freq_low most either both "
+            "be None or neither can be None"
+        )
+
+    # create 25-75 percentile confidence intervals
+    # around the median for each channel
+    coherences = {}
+    for i, channel in enumerate(channels[1:]):
+        coherence = train_coherences[:, i]
+        bands = np.concatenate([coherence[1], coherence[3, ::-1]])
+        coherences[channel] = [coherence[2], bands]
+
+    title = "Channel wise coherence with strain and mean gradient magnitude"
+    coherence_plot = plot_utils.make_plot(
+        title=title,
+        x_axis_label="Frequency [Hz]",
+        height=700 + min_border,
+        width=int(column_width * 1.5) + min_border,
+        x_range=(freqs.min(), freqs.max()),
+        y_range=channels[1:],
+        min_border=min_border,
+    )
+    coherence_plot.yaxis.major_label_text_font_size = "6pt"
+    coherence_plot.xgrid.grid_line_width = 0.8
+    coherence_plot.xgrid.grid_line_alpha = 0.2
+    coherence_plot = plots.plot_coherence(
+        coherence_plot, frequencies=freqs, gradients=grads, **coherences
+    )
+
+    # now let's load in the cleaned and raw data and
+    # plot both their individual ASDs as well as their
+    # ASDR over the frequency range of interest
+    fnames = sorted(clean_data_dir.iterdir())
+    fnames = [f for f in fnames if f.name.startswith("STRAIN")]
+
+    strain_channel = channels[0]
+    clean_channel = strain_channel + "-CLEANED"
+    clean_timeseries = TimeSeries.read(fnames, channel=clean_channel)
+    clean_timeseries = clean_timeseries.resample(sample_rate)
 
     raw_data = find(
-        channels[:1], t0, duration, sample_rate, data_path=raw_data_path
+        [strain_channel], t0, duration, sample_rate, data_path=raw_data_path
     )
-    raw_data = raw_data[channels[0]]
+    raw_data = raw_data[channels[0]][: len(clean_timeseries)]
+    raw_timeseries = TimeSeries(raw_data, t0=t0, dt=1 / sample_rate)
 
-    asdr_plots, num_frames = analyze_test_data(
-        raw_data,
-        clean_data_dir,
-        output_directory,
-        channels=channels,
-        sample_rate=sample_rate,
+    duration = clean_timeseries.duration
+    asd_plot = plot_utils.make_plot(
+        title=f"ASD from {duration} data of {strain_channel}",
+        height=300 + min_border,
+        width=column_width + min_border,
+        y_axis_label=f"ASD [{ASD_UNITS}]",
+        x_axis_label="Frequency [Hz]",
+        y_axis_type="log",
+        tools="reset",
+        min_border=min_border,
+    )
+    asd_plot = plots.plot_asd(
+        asd_plot,
+        fftlength,
+        overlap,
+        raw=raw_timeseries,
+        deepcleaned=clean_timeseries,
+    )
+
+    asdr_plot = plot_utils.make_plot(
+        title="ASD Ratio",
+        height=300 + min_border,
+        width=column_width + min_border,
+        y_axis_label="ASD Ratio [Cleaned / Raw]",
+        x_axis_label="Frequency [Hz]",
+        tools="reset",
+        min_border=min_border,
+    )
+    asdr_plot = plots.plot_asdr(
+        asdr_plot,
+        raw_timeseries,
+        clean_timeseries,
         window_length=window_length,
         fftlength=fftlength,
+        overlap=overlap,
+        percentile=25,
         freq_low=freq_low,
         freq_high=freq_high,
-        overlap=overlap,
     )
 
+    # grab our configs and add a header
     header = Div(
-        text=f"""
-        <h1>DeepClean Sandbox Experiment Results</h1>
-        <h2>Analysis on {num_frames} frames of test data</h2>
-    """
+        text=(
+            f"<h1 style='color:{WHITISH}'>"
+            "DeepClean Sandbox Experiment Results</h1>"
+        )
     )
-
-    train_curves = get_training_curves(output_directory)
     tabs = get_logs_box(output_directory)
-    metadata = row(train_curves, tabs)
-    layout = column(header, metadata, asdr_plots)
-    save(
-        layout,
+
+    # compile everything into a single page and save it
+    grid = layout(
+        [header],
+        [loss_plot, tabs],
+        [coherence_plot],
+        [asd_plot, asdr_plot],
+        background=BACKGROUND_COLOR,
+    )
+    plot_utils.save(
+        grid,
         filename=output_directory / "analysis.html",
         title="DeepClean Results",
     )

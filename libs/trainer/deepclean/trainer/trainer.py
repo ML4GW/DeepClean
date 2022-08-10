@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
+import h5py
 import numpy as np
 import torch
 
@@ -11,7 +12,7 @@ from deepclean.export import PrePostDeepClean
 from deepclean.signal import BandpassFilter, StandardScaler
 from deepclean.signal.filter import FREQUENCY
 from deepclean.trainer import ChunkedTimeSeriesDataset, CompositePSDLoss
-from deepclean.trainer.viz import plot_data_asds
+from deepclean.trainer.analysis import analyze_model
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
@@ -269,11 +270,9 @@ def train(
     # the datasets) and save them for later use
     witness_pipeline = witness_scaler
     witness_pipeline.fit(X)
-    witness_pipeline.write(output_directory / "witness_pipeline.pkl")
 
     strain_pipeline = strain_scaler >> bandpass
     strain_pipeline.fit(y)
-    strain_pipeline.write(output_directory / "strain_pipeline.pkl")
 
     # use these preprocessed arrays to
     # instantiate iterable datasets
@@ -327,33 +326,11 @@ def train(
         sample_rate,
         fftlength=fftlength,
         overlap=None,
-        asd=False,
+        asd=True,
         device=device,
         freq_low=freq_low,
         freq_high=freq_high,
     )
-
-    if alpha > 0:
-        # if we have a welch transform to work with,
-        # plot the ASDs of training data as they go
-        # into the network so we have a sense for
-        # what the NN is learning from
-        # zoom in on the frequency range or
-        # ranges we actually care about
-        try:
-            x_range = (0.9 * min(freq_low), 1.1 * max(freq_high))
-        except TypeError:
-            x_range = (0.9 * freq_low, 1.1 * freq_high)
-
-        plot_data_asds(
-            train_data,
-            sample_rate=sample_rate,
-            write_dir=output_directory / "train_asds",
-            welch=criterion.psd_loss.welch,
-            channels=range(len(X) + 1),
-            x_range=x_range,
-        )
-
     optimizer = torch.optim.Adam(
         model.parameters(), lr=lr, weight_decay=weight_decay
     )
@@ -443,25 +420,36 @@ def train(
 
     # load in the best version of the model from training
     model.load_state_dict(torch.load(weights_path))
-    if valid_data is not None and alpha > 0:
-        # if we have validation data and a welch transform,
-        # plot the same ASDs above for the validation data,
-        # this time using our optimized model and postprocessing
-        # pipeline to also plot the residuals against the
-        # strain channel
-        plot_data_asds(
-            valid_data,
-            sample_rate=sample_rate,
-            write_dir=output_directory / "valid_asds",
-            welch=criterion.psd_loss.welch,
-            channels=range(len(X) + 1),
-            x_range=x_range,
-            model=model,
+
+    # generate some analyses of our model
+    logging.info("Performing post-hoc analysis on trained model")
+    gradients, coherences = analyze_model(train_data, model, sample_rate)
+    history.update(
+        {
+            "percentiles": [5, 25, 50, 75, 95],
+            "train_gradients": gradients,
+            "train_coherences": coherences,
+        }
+    )
+    if valid_data is not None:
+        # we'll actually need gradients on the validation data,
+        # so we can't be as liberal with the memory. Reset its
+        # batch size to keep things within reason
+        valid_data.batch_size = train_data.batch_size
+        gradients, coherences = analyze_model(valid_data, model, sample_rate)
+        history.update(
+            {
+                "valid_gradients": gradients,
+                "valid_coherences": coherences,
+            }
         )
+    with h5py.File(output_directory / "train_results.h5", "w") as f:
+        for key, value in history.items():
+            f.create_dataset(key, data=value)
 
     # now create a version of the model which
     # has the pre- and postprocessing built in
     nn = PrePostDeepClean(model)
     nn.fit(X, y)
     torch.save(nn.state_dict(), weights_path)
-    return history
+    # return history

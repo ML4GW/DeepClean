@@ -270,11 +270,9 @@ def train(
     # the datasets) and save them for later use
     witness_pipeline = witness_scaler
     witness_pipeline.fit(X)
-    witness_pipeline.write(output_directory / "witness_pipeline.pkl")
 
     strain_pipeline = strain_scaler >> bandpass
     strain_pipeline.fit(y)
-    strain_pipeline.write(output_directory / "strain_pipeline.pkl")
 
     # use these preprocessed arrays to
     # instantiate iterable datasets
@@ -454,4 +452,4 @@ def train(
     nn = PrePostDeepClean(model)
     nn.fit(X, y)
     torch.save(nn.state_dict(), weights_path)
-    return history
+    # return history

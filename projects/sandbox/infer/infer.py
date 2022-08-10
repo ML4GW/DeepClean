@@ -213,6 +213,10 @@ def main(
                     )
                     time.sleep(1 / inference_rate)
 
+                    if i == 0:
+                        while writer._latest_seen < 0:
+                            time.sleep(1e-3)
+
                     # check if any files have been written or if the
                     # client's callback thread has raised any exceptions
                     response = client.get()

@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "deepclean.viz"
+version = "0.0.1"
+description = "DeepClean visualization utilities"
+authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+# readme = "README.md"
+packages = [
+    {include = "deepclean"}
+]
+
+[tool.poetry.dependencies]
+python = "^3.8,<3.11"
+bokeh = "^2.4"
+
+"deepclean.base" = {path = "../base", develop = true}
+"deepclean.gwftools" = {path = "../gwftools", develop = true}
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2"
+
+[build-system]
+requires = ["poetry>=1.2"]
+build-backend = "poetry.masonry.api"

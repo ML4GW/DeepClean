@@ -205,7 +205,7 @@ def main(
                 for i in range(num_steps):
                     x = X[:, i * stride : (i + 1) * stride]
                     client.infer(
-                        x,
+                        x.astype("float32"),
                         request_id=i,
                         sequence_id=sequence_id,
                         sequence_start=i == 0,

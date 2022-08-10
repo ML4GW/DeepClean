@@ -136,11 +136,13 @@ def main(
     # start by loading in the saved analyses from training
     with h5py.File(output_directory / "train_results.h5", "r") as f:
         losses = {"train_asdr": f["train_loss"][:]}
-        # grads = f["train_gradients"][:]
+        grads = f["train_gradients"][:]
         train_coherences = f["train_coherences"][:]
 
         if "valid_loss" in f.keys():
             losses["valid_asdr"] = f["valid_loss"][:]
+            valid_grads = f["valid_gradients"][:]
+            grads = np.stack([grads, valid_grads])
 
     # plot the training and validation losses
     loss_plot = plot_utils.make_plot(
@@ -181,8 +183,9 @@ def main(
         bands = np.concatenate([coherence[1], coherence[3, ::-1]])
         coherences[channel] = [coherence[2], bands]
 
+    title = "Channel wise coherence with strain and mean gradient magnitude"
     coherence_plot = plot_utils.make_plot(
-        title=f"Channel wise coherence with {channels[0]} in training set",
+        title=title,
         x_axis_label="Frequency [Hz]",
         height=700 + min_border,
         width=int(column_width * 1.5) + min_border,
@@ -194,7 +197,7 @@ def main(
     coherence_plot.xgrid.grid_line_width = 0.8
     coherence_plot.xgrid.grid_line_alpha = 0.2
     coherence_plot = plots.plot_coherence(
-        coherence_plot, frequencies=freqs, **coherences
+        coherence_plot, frequencies=freqs, gradients=grads, **coherences
     )
 
     # now let's load in the cleaned and raw data and

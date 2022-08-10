@@ -4,7 +4,7 @@ import numpy as np
 from bokeh.models import BoxZoomTool, ColumnDataSource, HoverTool
 from bokeh.plotting import Figure
 
-from deepclean.viz import palette, spectrum
+from deepclean.viz import WHITISH, palette, spectrum
 
 
 def plot_loss(
@@ -62,6 +62,7 @@ def plot_coherence(
     p: Figure,
     frequencies: np.ndarray,
     scale: float = 1.5,
+    gradients: Optional[np.ndarray] = None,
     **channels: Union[np.ndarray, List[np.ndarray]],
 ) -> Figure:
     lines, patches = [], []
@@ -131,6 +132,64 @@ def plot_coherence(
     p.y_range.factors = channels
     p.y_range.range_padding = 0.1
     p.yaxis.major_label_orientation = np.pi / 8
+
+    # plot gradients if we have any before we plot any
+    # of the coherences that way they're on the bottom
+    if gradients is not None:
+        if gradients.shape[-1] != len(channels):
+            raise ValueError(
+                "Too many channels in gradients: {}".format(
+                    gradients.shape[-1]
+                )
+            )
+        gradients -= gradients.min() * 1.05
+        gradients /= gradients.max() * 1.05
+
+        freq_range = frequencies.max() - frequencies.min()
+        gradients = frequencies.min() + freq_range * gradients
+
+        if gradients.ndim == 2:
+            if len(gradients) > 2:
+                raise ValueError(f"Too many gradients: {len(gradients)}")
+            gradients = gradients[:, idx]
+            gradients, valid_gradients = gradients
+            height = width = 0.4
+        else:
+            gradients = gradients[idx]
+            valid_gradients = None
+            height, width = 0.25, 1
+
+        p.hbar(
+            [(i, 2 * height) for i in channels],
+            right=gradients,
+            height=width,
+            fill_color=WHITISH,
+            fill_alpha=0.4,
+            line_width=1.2,
+            line_alpha=0.6,
+            line_color=WHITISH,
+            legend_label="Train Gradients",
+        )
+        if valid_gradients is not None:
+            p.hbar(
+                [(i, height) for i in channels],
+                right=valid_gradients,
+                height=width,
+                fill_color=WHITISH,
+                fill_alpha=0.4,
+                line_width=1.2,
+                line_alpha=0.6,
+                line_color=WHITISH,
+                hatch_pattern=".",
+                hatch_alpha=1.0,
+                hatch_weight=2.0,
+                hatch_scale=1.0,
+                legend_label="Valid Gradients",
+            )
+
+        # add a legend for these
+        p.legend.location = "bottom_left"
+        p.legend.orientation = "horizontal"
 
     # plot each line individually and give it its
     # own hovertool for inspection

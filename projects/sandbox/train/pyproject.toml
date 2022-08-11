@@ -6,7 +6,8 @@ authors = ["Alec Gunny <alec.gunny@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.scripts]
-train = "train:main"
+train = "train:get_data"
+search = "train:hp_search"
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
@@ -14,6 +15,7 @@ python = "^3.8,<3.10"
 "deepclean.gwftools" = {path = "../../../libs/gwftools", develop = true}
 "deepclean.logging" = {path = "../../../libs/logging", develop = true}
 "deepclean.trainer" = {path = "../../../libs/trainer", develop = true, extras=["wrapper"]}
+ray = {version = "^1.13", extras=["tune"]}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

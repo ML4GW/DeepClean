@@ -95,6 +95,45 @@ verbose = "${base.verbose}"
 # architecture subcommands
 commands.autoencoder = "${base.autoencoder}"
 
+[tool.typeo.scripts.search]
+output_directory = "${PROJECT_DIR}"
+data_path = "${DATA_DIR}"
+
+# data parameters
+channels = "${base.channels}"
+t0 = "${base.train_t0}"
+duration = "${base.train_duration}"
+valid_frac = 0.25
+
+# data loading parameters
+sample_rate = "${base.sample_rate}"
+kernel_length = 8
+kernel_stride = 0.25
+chunk_length = 0
+
+# preprocessing parameters
+freq_low = "${base.freq_low}"
+freq_high = "${base.freq_high}"
+filter_order = 8
+
+# optimization parameters
+batch_size = 128
+max_epochs = 500
+patience = 8
+factor = 0.2
+early_stop = 50
+
+# criterion parameters
+fftlength = 2
+overlap = 1
+alpha = 1.0
+
+# miscellaneous parameters
+device = "cuda"
+profile = false
+verbose = "${base.verbose}"
+
+
 [tool.typeo.scripts.export-model]
 repository_directory = "${MODEL_REPOSITORY}"
 output_directory = "${PROJECT_DIR}"

@@ -452,4 +452,4 @@ def train(
     nn = PrePostDeepClean(model)
     nn.fit(X, y)
     torch.save(nn.state_dict(), weights_path)
-    # return history
+    return history

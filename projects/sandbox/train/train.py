@@ -173,25 +173,25 @@ def hp_search(
     use_amp: bool = False,
     verbose: bool = False,
 ):
-    data = get_data(
-        channels=channels,
-        t0=t0,
-        duration=duration,
-        sample_rate=sample_rate,
-        output_directory=output_directory,
-        data_path=data_path,
-        valid_frac=valid_frac,
-        force_download=force_download,
-        verbose=verbose,
-    )
-    if valid_frac is not None:
-        X, y, valid_X, valid_y = data
-        valid_data = (valid_X, valid_y)
-    else:
-        X, y = data
-        valid_data = None
+    def trainable(config):
+        data = get_data(
+            channels=channels,
+            t0=t0,
+            duration=duration,
+            sample_rate=sample_rate,
+            output_directory=output_directory,
+            data_path=data_path,
+            valid_frac=valid_frac,
+            force_download=force_download,
+            verbose=verbose,
+        )
+        if valid_frac is not None:
+            X, y, valid_X, valid_y = data
+            valid_data = (valid_X, valid_y)
+        else:
+            X, y = data
+            valid_data = None
 
-    def trainable(learning_rate, weight_decay):
         history = train(
             architecture=DeepCleanAE,
             output_directory=tune.get_trial_dir(),
@@ -208,8 +208,8 @@ def hp_search(
             batch_size=batch_size,
             max_epochs=max_epochs,
             init_weights=init_weights,
-            lr=learning_rate,
-            weight_decay=weight_decay,
+            lr=config["learning_rate"],
+            weight_decay=config["weight_decay"],
             patience=patience,
             factor=factor,
             early_stop=early_stop,
@@ -223,8 +223,8 @@ def hp_search(
         return {"score": min(history["valid_loss"])}
 
     space = {
-        "learning_rate": tune.uniform(1e-4, 1e-1),
-        "weight_decay": tune.uniform(1e-2),
+        "learning_rate": tune.loguniform(5e-2, 5e-1),
+        "weight_decay": tune.loguniform(1e-6, 1e-4),
     }
 
     output_directory = Path(output_directory)
@@ -236,8 +236,11 @@ def hp_search(
         resources_per_trial={"cpu": cpus_per_trial, "gpu": 1},
         local_dir=output_directory.parent,
         name=output_directory.name,
+        trial_name_creator=lambda trial: trial.trial_id,
     )
-    logging.info("Best ASDR: {}".format(results.best_result["score"]))
+
+    best_trial = results.get_best_trial("score", "min")
+    logging.info(f"Best ASDR: {best_trial.last_result}")
 
 
 if __name__ == "__main__":

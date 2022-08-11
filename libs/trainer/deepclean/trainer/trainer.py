@@ -285,7 +285,7 @@ def train(
         batch_size=batch_size,
         chunk_length=chunk_length,
         num_chunks=num_chunks,
-        shuffle=False,
+        shuffle=True,
         device=device,
     )
 
@@ -423,6 +423,7 @@ def train(
 
     # generate some analyses of our model
     logging.info("Performing post-hoc analysis on trained model")
+    train_data.batch_size = 32
     gradients, coherences = analyze_model(train_data, model, sample_rate)
     history.update(
         {

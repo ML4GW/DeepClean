@@ -223,8 +223,8 @@ def hp_search(
         return {"score": min(history["valid_loss"])}
 
     space = {
-        "learning_rate": tune.loguniform(5e-2, 5e-1),
-        "weight_decay": tune.loguniform(1e-6, 1e-4),
+        "learning_rate": tune.loguniform(1e-3, 1e-1),
+        "weight_decay": tune.loguniform(1e-6, 1e-3),
     }
 
     output_directory = Path(output_directory)

@@ -24,7 +24,6 @@ def write_strain(
     strain: np.ndarray,
     t0: float,
     num_frames: int,
-    stride: int,
     sample_rate: float,
     channel: str,
 ):
@@ -53,8 +52,10 @@ def main(
     data_path: Path,
     output_directory: Path,
     kernel_length: float,
-    inference_sampling_rate: float,
     sample_rate: float,
+    batch_size: int,
+    inference_sampling_rate: float,
+    inference_rate: float,
     max_latency: float,
     memory: float,
     look_ahead: float,
@@ -62,7 +63,6 @@ def main(
     freq_high: FREQUENCY,
     model_version: int = -1,
     sequence_id: int = 1001,
-    inference_rate: Optional[float] = None,
     force_download: bool = False,
     verbose: bool = False,
     gpus: Optional[List[int]] = None,
@@ -140,7 +140,7 @@ def main(
     # load the channels from a file if we specified one
     channels = get_channels(channels)
     configure_logging(output_directory / "infer.log", verbose)
-    inference_rate = inference_rate or 1.05 * inference_sampling_rate
+    sleep = batch_size / (inference_rate * inference_sampling_rate)
 
     # launch a singularity container hosting the server and
     # take care of some data bookkeeping while we wait for
@@ -163,28 +163,29 @@ def main(
 
         # extract the non-strain channels into our input array
         X = np.stack([data[channel] for channel in channels[1:]])
-        stride = int(sample_rate // inference_sampling_rate)
+        stride = int(sample_rate // inference_sampling_rate) * batch_size
         num_steps = int(X.shape[-1] // stride)
 
         # since the FrameWriter class loads strain data internally,
         # split the strain channel into 1s frames and write them to
         # a temporary directory for the writer to load them
-        tmpdir_ctx = write_strain(
-            data[channels[0]], t0, duration, stride, sample_rate, channels[0]
-        )
-        with tmpdir_ctx as tmpdir:
+        strain = data[channels[0]]
+        ctx = write_strain(strain, t0, duration, sample_rate, channels[0])
+        with ctx as tmpdir:
             # set up a file writer to use as a callback
             # for the client to handle server responses
             if max_latency is None:
                 aggregation_steps = 0
             else:
                 aggregation_steps = int(max_latency * inference_sampling_rate)
+
             writer = FrameWriter(
                 tmpdir,
                 output_directory / "cleaned",
                 channel_name=channels[0],
                 inference_sampling_rate=inference_sampling_rate,
                 sample_rate=sample_rate,
+                batch_size=batch_size,
                 t0=int(t0),
                 postprocessor=BandpassFilter(freq_low, freq_high, sample_rate),
                 memory=memory,
@@ -211,7 +212,7 @@ def main(
                         sequence_start=i == 0,
                         sequence_end=i == (num_steps - 1),
                     )
-                    time.sleep(1 / inference_rate)
+                    time.sleep(sleep)
 
                     if i == 0:
                         while writer._latest_seen < 0:

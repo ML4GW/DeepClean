@@ -19,6 +19,7 @@ class FrameWriter:
         channel_name: str,
         inference_sampling_rate: float,
         sample_rate: float,
+        batch_size: float = 1,
         t0: Optional[float] = None,
         postprocessor: Optional[Callable] = None,
         memory: float = 10,
@@ -76,7 +77,12 @@ class FrameWriter:
         # from time or frequency units to sample units
         self.memory = int(memory * sample_rate)
         self.look_ahead = int(look_ahead * sample_rate)
+
+        self.batch_size = batch_size
         self.aggregation_steps = aggregation_steps
+        self.agg_batches, self.agg_leftover = divmod(
+            aggregation_steps, batch_size
+        )
 
         self.frame_size = int(sample_rate * self.crawler.length)
         self.stride = int(sample_rate // inference_sampling_rate)
@@ -130,7 +136,7 @@ class FrameWriter:
             # the new latest request id is
             self._latest_seen = request_id
 
-        if request_id < self.aggregation_steps:
+        if request_id < self.agg_batches:
             # throw away the first `aggregation_steps` responses, since
             # these technically corresponds to predictions from the _past_.
             # Return `None`s so that we know not to update our internal arrays
@@ -138,11 +144,13 @@ class FrameWriter:
                 f"Throwing away received package id {request_id}"
             )
             return None
+        elif request_id == self.agg_batches:
+            x = x[self.agg_leftover * self.stride :]
 
         # otherwise return the parsed array and its request id
         return x
 
-    def update_prediction_array(self, x: np.ndarray, request_id: int) -> None:
+    def update_prediction_array(self, x: np.ndarray, request_id: int) -> int:
         """
         Update our initialized `_noise` array with the prediction
         `x` by inserting it at the appropriate location. Update
@@ -153,12 +161,14 @@ class FrameWriter:
         # use the package request id to figure out where
         # in the blank noise array we need to insert
         # this prediction. Subtract the steps that we threw away
-        start_id = request_id - self.aggregation_steps
-        start_idx = int(start_id * self.stride)
+        total_steps = request_id * self.batch_size
+        step_idx = total_steps - self.aggregation_steps
+        start_idx = int(step_idx * self.stride)
 
         # If we've sloughed off any past data so far,
         # make sure to account for that
-        start_idx -= max(self._frame_idx - self.memory, 0)
+        frame_idx = self._frame_idx * self.frame_size
+        start_idx -= max(frame_idx - self.memory, 0)
 
         # now make sure that we have data to fill out,
         # otherwise extend the array
@@ -169,6 +179,7 @@ class FrameWriter:
         # TODO: should we check that this is all 0s to
         # double check ourselves here?
         self._noise[start_idx : start_idx + len(x)] = x
+        return step_idx
 
     def clean(self, noise: np.ndarray) -> Tuple[Path, float]:
         """
@@ -243,7 +254,7 @@ class FrameWriter:
 
         # increment our _frame_idx to account for
         # the frame we're about to write
-        self._frame_idx += len(strain)
+        self._frame_idx += 1
 
         return write_path, latency
 
@@ -261,23 +272,12 @@ class FrameWriter:
 
         # now insert it into our `_noises` prediction
         # array and update our `_mask` to reflect this
-        self.update_prediction_array(noise_prediction, request_id)
+        step_idx = self.update_prediction_array(noise_prediction, request_id)
 
-        # TODO: this won't generalize to strides that
-        # aren't a factor of the frame size, which doesn't
-        # feel like an insane constraint. Should this be
-        # enforced explicitly somewhere?
         # compute how many update steps are contained in the
         # `look_ahead` period, taking the _ceiling_ rather than
         # floor if we need to.
         steps_ahead = (self.look_ahead - 1) // self.stride + 1
-
-        # then offset this by the number of steps we threw
-        # away up front (self.aggregation_steps) and subtract
-        # them from the request_id to get the index of cleanable
-        # data (data which has at least `look_ahead` samples in
-        # front of it)
-        step_idx = request_id - steps_ahead - self.aggregation_steps
 
         # modulate by the number of steps in each frame to see if
         # the current cleanable index is at the end of a frame.
@@ -288,8 +288,9 @@ class FrameWriter:
         # memory + frame_size + look_ahead worth of data
         # and use this to clean the next strain file
         # we can find.
-        if div > 0 and rem == 0:
-            idx = min(self.memory, self._frame_idx)
+        if div > self._frame_idx and rem > steps_ahead:
+            frame_idx = self._frame_idx * self.frame_size
+            idx = min(self.memory, frame_idx)
             idx += self.frame_size + self.look_ahead
             noise = self._noise[:idx]
 

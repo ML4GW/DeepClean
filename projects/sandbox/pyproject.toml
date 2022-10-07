@@ -34,15 +34,14 @@ channels = [
 sample_rate = 4096
 verbose = false
 
-train_t0 = 1250980674
+train_t0 = 1243278913
 train_duration = 4096
 
 infer_kernel_length = 1
-infer_batch_size = 64
-inference_sampling_rate = 128
+inference_sampling_rate = 512
 
-test_t0 = 1250984770
-test_duration = 65536
+test_t0 = 1243283009
+test_duration = 1024
 
 max_latency = 0.5
 freq_low = 55
@@ -103,41 +102,35 @@ channels = "${base.channels}"
 kernel_length = "${base.infer_kernel_length}"
 sample_rate = "${base.sample_rate}"
 inference_sampling_rate = "${base.inference_sampling_rate}"
-batch_size = "${base.infer_batch_size}"
-max_latency = 0.5
+max_latency = [0.25, 0.5, 0.75]
 instances = 6
 verbose = "${base.verbose}"
 commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.infer]
-# paths and what not
+url = "localhost:8001"
+model_name = "deepclean-stream-${base.max_latency}"
+
 output_directory = "${PROJECT_DIR}"
+model_repo_dir = "${MODEL_REPOSITORY}"
 data_path = "${DATA_DIR}"
 
-# server parameters
-url = "localhost:8001"
-model_name = "deepclean-stream"
-model_repo_dir = "${MODEL_REPOSITORY}"
-gpus = [0]
-sequence_id = 1001
-
-# data parameters
 t0 = "${base.test_t0}"
-duration = 4096 # "${base.test_duration}"
+duration = "${base.test_duration}"
 channels = "${base.channels}"
 kernel_length = "${base.infer_kernel_length}"
 inference_sampling_rate = "${base.inference_sampling_rate}"
-batch_size = "${base.infer_batch_size}"
-inference_rate = 128
+inference_rate = 1024
 sample_rate = "${base.sample_rate}"
-
-# pre/post-processing
 freq_low = "${base.freq_low}"
 freq_high = "${base.freq_high}"
+
 max_latency = "${base.max_latency}"
 memory = 10
 look_ahead = 0.5
 
+gpus = [0]
+sequence_id = 1001
 verbose = "${base.verbose}"
 
 [tool.typeo.scripts.analyze]

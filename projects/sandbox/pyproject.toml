@@ -38,6 +38,7 @@ train_t0 = 1243278913
 train_duration = 4096
 
 infer_kernel_length = 1
+infer_batch_size = 64
 inference_sampling_rate = 512
 
 test_t0 = 1243283009
@@ -102,6 +103,7 @@ channels = "${base.channels}"
 kernel_length = "${base.infer_kernel_length}"
 sample_rate = "${base.sample_rate}"
 inference_sampling_rate = "${base.inference_sampling_rate}"
+batch_size = "${base.infer_batch_size}"
 max_latency = [0.25, 0.5, 0.75]
 instances = 6
 verbose = "${base.verbose}"
@@ -122,6 +124,7 @@ kernel_length = "${base.infer_kernel_length}"
 inference_sampling_rate = "${base.inference_sampling_rate}"
 inference_rate = 1024
 sample_rate = "${base.sample_rate}"
+batch_size = "${base.infer_batch_size}"
 freq_low = "${base.freq_low}"
 freq_high = "${base.freq_high}"
 

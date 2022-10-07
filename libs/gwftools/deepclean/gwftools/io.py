@@ -99,25 +99,27 @@ def read(
                 )
 
             # now grab the actual data array and preprocess it
-            data_sample_rate = dataset.attrs["sample_rate"]
-            x = dataset[: int(data_sample_rate * duration)]
+            x = dataset[:]
+
+            # resample if necessary TODO: raise an error if this
+            # resampling is an upsample?
+            if sample_rate != dataset.attrs["sample_rate"]:
+                x = TimeSeries(x, dt=1 / dataset.attrs["sample_rate"])
+                x = x.resample(sample_rate).value
 
             # allow for shorter durations so that we only need
             # to download one stretch of long data then reuse
             # it for shorter stretches if need be
-            if len(x) < (data_sample_rate * duration):
+            if len(x) < (sample_rate * duration):
                 raise ValueError(
                     "Channel {} has only {}s worth of data, "
                     "expected at least {}".format(
-                        channel, len(x) // data_sample_rate, duration
+                        channel, len(x) // sample_rate, duration
                     )
                 )
 
-            # resample if necessary
-            if sample_rate != data_sample_rate:
-                x = TimeSeries(x, sample_rate=data_sample_rate)
-                x = x.resample(sample_rate).value
-            data[channel] = x
+            # grab the first `duration` seconds of data
+            data[channel] = x[: int(sample_rate * duration)]
     return data
 
 

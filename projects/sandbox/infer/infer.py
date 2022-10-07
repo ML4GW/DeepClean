@@ -140,7 +140,7 @@ def main(
     # load the channels from a file if we specified one
     channels = get_channels(channels)
     configure_logging(output_directory / "infer.log", verbose)
-    sleep = batch_size / (inference_rate * inference_sampling_rate)
+    sleep = batch_size / inference_rate / inference_sampling_rate
 
     # launch a singularity container hosting the server and
     # take care of some data bookkeeping while we wait for
@@ -203,6 +203,7 @@ def main(
                 callback=writer,
             )
             with client:
+                num_frames = 0
                 for i in range(num_steps):
                     x = X[:, i * stride : (i + 1) * stride]
                     client.infer(
@@ -217,6 +218,7 @@ def main(
                     if i == 0:
                         while writer._latest_seen < 0:
                             time.sleep(1e-3)
+                            client.get()
 
                     # check if any files have been written or if the
                     # client's callback thread has raised any exceptions
@@ -224,6 +226,15 @@ def main(
                     if response is not None:
                         fname, latency = response
                         logging.info(f"Wrote file {fname}")
+                        num_frames += 1
+
+            while num_frames < duration:
+                response = client.get()
+                if response is not None:
+                    fname, latency = response
+                    logging.info(f"Wrote file {fname}")
+                    num_frames += 1
+                time.sleep(1e-3)
 
 
 if __name__ == "__main__":

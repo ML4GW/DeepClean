@@ -113,9 +113,9 @@ def make_ensemble(
             deepclean.outputs["noise"],
             update_size=stream_size,
             num_updates=num_updates,
+            batch_size=batch_size,
             name=name,
             streams_per_gpu=streams_per_gpu,
-            batch_size=batch_size,
         )
         aggregator = repo.models[name]
         aggregator.config.sequence_batching.max_sequence_idle_microseconds = (

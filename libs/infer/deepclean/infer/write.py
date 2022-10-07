@@ -116,7 +116,7 @@ class FrameWriter:
         # flatten out to 1D and verify that this
         # output aligns with our expectations
         x = noise_prediction.reshape(-1)
-        if len(x) != self.stride:
+        if len(x) != (self.stride * self.batch_size):
             raise ValueError(
                 "Noise prediction is of wrong length {}, "
                 "expected length {}".format(len(x), self.stride)
@@ -163,7 +163,7 @@ class FrameWriter:
         # this prediction. Subtract the steps that we threw away
         total_steps = request_id * self.batch_size
         step_idx = total_steps - self.aggregation_steps
-        start_idx = int(step_idx * self.stride)
+        start_idx = 0 if step_idx < 0 else int(step_idx * self.stride)
 
         # If we've sloughed off any past data so far,
         # make sure to account for that
@@ -179,7 +179,9 @@ class FrameWriter:
         # TODO: should we check that this is all 0s to
         # double check ourselves here?
         self._noise[start_idx : start_idx + len(x)] = x
-        return step_idx
+
+        # return the number of steps that have been completed
+        return step_idx + self.batch_size
 
     def clean(self, noise: np.ndarray) -> Tuple[Path, float]:
         """
@@ -288,7 +290,7 @@ class FrameWriter:
         # memory + frame_size + look_ahead worth of data
         # and use this to clean the next strain file
         # we can find.
-        if div > self._frame_idx and rem > steps_ahead:
+        if div > self._frame_idx and rem >= steps_ahead:
             frame_idx = self._frame_idx * self.frame_size
             idx = min(self.memory, frame_idx)
             idx += self.frame_size + self.look_ahead

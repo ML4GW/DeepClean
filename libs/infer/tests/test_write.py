@@ -1,3 +1,5 @@
+# from unittest.mock import MagicMock
+
 import numpy as np
 import pytest
 from gwpy.timeseries import TimeSeries
@@ -16,12 +18,12 @@ def channel_name():
     return "test-channel"
 
 
-@pytest.fixture(params=[50, 200])
+@pytest.fixture(params=[0, 5, 20])
 def aggregation_steps(request):
     return request.param
 
 
-@pytest.fixture(params=[1, 4])
+@pytest.fixture(params=[1, 3, 4])
 def batch_size(request):
     return request.param
 
@@ -99,6 +101,54 @@ def dataset(
         x = x[:total_length]
     updates = np.split(x, num_splits)
     return updates
+
+
+def test_writer_validate_response(read_dir, batch_size, aggregation_steps):
+    writer = FrameWriter(
+        read_dir,
+        write_dir="",
+        channel_name="",
+        inference_sampling_rate=16,
+        sample_rate=128,
+        batch_size=batch_size,
+        aggregation_steps=aggregation_steps,
+    )
+
+    x = np.random.randn(1, 8 * batch_size - 1)
+    with pytest.raises(ValueError) as exc:
+        writer.validate_response(x, 0)
+    assert str(exc.value).startswith("Noise prediction is of wrong length")
+
+    x = np.random.randn(1, 8 * batch_size)
+    result = writer.validate_response(x, 0)
+    if aggregation_steps == 0:
+        assert result.shape == (x.shape[-1],)
+    else:
+        assert result is None
+
+    result = writer.validate_response(x, 1)
+    if aggregation_steps == 0:
+        assert result.shape == (x.shape[-1],)
+    elif aggregation_steps == 5:
+        if batch_size == 1:
+            assert result is None
+        elif batch_size == 3:
+            assert result.shape == (8,)
+        else:
+            assert result.shape == (24,)
+    elif aggregation_steps == 20:
+        assert result is None
+    else:
+        raise ValueError(
+            "aggregation_steps value is {}, "
+            "update testing code".format(aggregation_steps)
+        )
+
+    result = writer.validate_response(x, 2)
+    if aggregation_steps < 20 and batch_size > 1:
+        assert result.shape == (x.shape[-1],)
+    else:
+        assert result is None
 
 
 def test_writer(

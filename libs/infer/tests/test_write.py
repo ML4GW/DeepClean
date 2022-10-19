@@ -184,7 +184,7 @@ def test_writer_update_prediction_array(
         idx = writer.update_prediction_array(response, 0)
         assert idx == batch_size
         assert len(writer._noise) == 128
-        assert (writer._noise[: len(x)] == x[0]).all()
+        assert (writer._noise[: 8 * batch_size] == x[0]).all()
 
     response = writer.validate_response(x, 1)
     if aggregation_steps == 20:
@@ -193,9 +193,9 @@ def test_writer_update_prediction_array(
         idx = writer.update_prediction_array(response, 1)
 
         if aggregation_steps == 0:
-            expected = np.conatenate([x[0], x[0]])
+            expected = np.concatenate([x[0], x[0]])
             assert idx == (2 * batch_size), idx
-            assert (writer._noise[: 2 * len(x)] == expected).all()
+            assert (writer._noise[: 16 * batch_size] == expected).all()
         elif batch_size == 3:
             assert idx == 1, idx
             assert (writer._noise[:8] == x[0, -8:]).all()
@@ -215,8 +215,8 @@ def test_writer_update_prediction_array(
     response = writer.validate_response(x, 5)
     idx = writer.update_prediction_array(response, 5)
     assert idx == batch_size, (idx, batch_size)
-    assert (writer._noise[:batch_size] == x[0]).all()
-    assert (writer._noise[batch_size:] == 0).all()
+    assert (writer._noise[: 8 * batch_size] == x[0]).all()
+    assert (writer._noise[8 * batch_size :] == 0).all()
 
 
 def test_writer(

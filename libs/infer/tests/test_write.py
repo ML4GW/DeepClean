@@ -21,6 +21,11 @@ def aggregation_steps(request):
     return request.param
 
 
+@pytest.fixture(params=[1, 4])
+def batch_size(request):
+    return request.param
+
+
 @pytest.fixture
 def validate_fname(
     validate_frame, start_timestamp, frame_length, num_frames, channel_name
@@ -65,11 +70,13 @@ def dataset(
     num_frames,
     frame_length,
     channel_name,
+    batch_size,
 ):
     # build a dummy arange array for testing, but
     # add negative elements to the start that we
     # expect to get thrown away due to aggregation
-    throw_away = int(aggregation_steps * sample_rate / inference_sampling_rate)
+    stride = int(sample_rate / inference_sampling_rate)
+    throw_away = aggregation_steps * stride
     x = np.arange(-throw_away, num_frames * frame_length * sample_rate)
 
     # break the non-negative parts of x into frame-sized
@@ -85,10 +92,9 @@ def dataset(
     # that will be our dummy "witnesses," pass
     # all the updates as dummy package objects
     # into the writer's in_q for processing
-    num_splits = (len(x) / sample_rate) * inference_sampling_rate
+    num_splits = int(len(x) // (stride * batch_size))
     if num_splits % 1 != 0:
-        num_splits = int(num_splits)
-        total_length = num_splits * int(sample_rate / inference_sampling_rate)
+        total_length = num_splits * batch_size * stride
         x = x[:total_length]
     updates = np.split(x, num_splits)
     return updates
@@ -104,6 +110,7 @@ def test_writer(
     memory,
     look_ahead,
     aggregation_steps,
+    batch_size,
     num_frames,
     frame_length,
     validate_fname,
@@ -116,6 +123,7 @@ def test_writer(
         channel_name=channel_name,
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
+        batch_size=batch_size,
         postprocessor=postprocessor,
         memory=memory,
         look_ahead=look_ahead,

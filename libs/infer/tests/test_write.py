@@ -92,8 +92,9 @@ def dataset(
     # that will be our dummy "witnesses," pass
     # all the updates as dummy package objects
     # into the writer's in_q for processing
-    num_splits = int(len(x) // (stride * batch_size))
+    num_splits = len(x) / stride / batch_size
     if num_splits % 1 != 0:
+        num_splits = int(num_splits)
         total_length = num_splits * batch_size * stride
         x = x[:total_length]
     updates = np.split(x, num_splits)
@@ -133,7 +134,7 @@ def test_writer(
     frame_idx = 0
     for i, update in enumerate(dataset):
         response = writer(update, i)
-        if i < aggregation_steps:
+        if (i * batch_size) < aggregation_steps:
             assert len(writer._noise) == 0
             continue
 

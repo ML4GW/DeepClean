@@ -164,6 +164,61 @@ def test_writer_validate_response(
         assert result is None
 
 
+def test_writer_update_prediction_array(
+    write_dataset, read_dir, batch_size, aggregation_steps
+):
+    write_dataset(128, 2, "", 1)
+    writer = FrameWriter(
+        read_dir,
+        write_dir=MagicMock(),
+        channel_name="",
+        inference_sampling_rate=16,
+        sample_rate=128,
+        batch_size=batch_size,
+        aggregation_steps=aggregation_steps,
+    )
+
+    x = np.random.randn(1, 8 * batch_size)
+    response = writer.validate_response(x, 0)
+    if aggregation_steps == 0:
+        idx = writer.update_prediction_array(response, 0)
+        assert idx == batch_size
+        assert len(writer._noise) == 128
+        assert (writer._noise[: len(x)] == x[0]).all()
+
+    response = writer.validate_response(x, 1)
+    if aggregation_steps == 20:
+        assert response is None
+    elif batch_size > 1 or aggregation_steps == 0:
+        idx = writer.update_prediction_array(response, 1)
+
+        if aggregation_steps == 0:
+            expected = np.conatenate([x[0], x[0]])
+            assert idx == (2 * batch_size), idx
+            assert (writer._noise[: 2 * len(x)] == expected).all()
+        elif batch_size == 3:
+            assert idx == 1, idx
+            assert (writer._noise[:8] == x[0, -8:]).all()
+            assert (writer._noise[8:] == 0).all()
+        elif batch_size == 4:
+            assert idx == 3, idx
+            assert (writer._noise[:24] == x[0, -24:]).all()
+            assert (writer._noise[24:] == 0).all()
+
+    if not (aggregation_steps == 20 and batch_size == 4):
+        return
+
+    for i in range(2, 5):
+        response = writer.validate_response(x, i)
+        assert response is None, i
+
+    response = writer.validate_response(x, 5)
+    idx = writer.update_prediction_array(response, 5)
+    assert idx == batch_size, (idx, batch_size)
+    assert (writer._noise[:batch_size] == x[0]).all()
+    assert (writer._noise[batch_size:] == 0).all()
+
+
 def test_writer(
     read_dir,
     write_dir,

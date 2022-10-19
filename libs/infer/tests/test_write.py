@@ -1,4 +1,4 @@
-# from unittest.mock import MagicMock
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -62,8 +62,23 @@ def validate_fname(
 
 
 @pytest.fixture
+def write_dataset(read_dir, start_timestamp):
+    def f(sample_rate, num_frames, channel, frame_length=1):
+        x = np.arange(num_frames * frame_length * sample_rate)
+        strains = np.split(x, num_frames)
+        for i, strain in enumerate(strains):
+            ts = TimeSeries(strain, sample_rate=sample_rate, channel=channel)
+            tstamp = start_timestamp + i * frame_length
+            fname = f"H1:STRAIN-{tstamp}-{frame_length}.gwf"
+            ts.write(read_dir / fname)
+        return x
+
+    return f
+
+
+@pytest.fixture
 def dataset(
-    read_dir,
+    write_dataset,
     write_dir,
     aggregation_steps,
     sample_rate,
@@ -79,16 +94,9 @@ def dataset(
     # expect to get thrown away due to aggregation
     stride = int(sample_rate / inference_sampling_rate)
     throw_away = aggregation_steps * stride
-    x = np.arange(-throw_away, num_frames * frame_length * sample_rate)
-
-    # break the non-negative parts of x into frame-sized
-    # chunks that will be our dummy "strain"
-    strains = np.split(x[throw_away:], num_frames)
-    for i, strain in enumerate(strains):
-        ts = TimeSeries(strain, dt=1 / sample_rate, channel=channel_name)
-        tstamp = start_timestamp + i * frame_length
-        fname = f"H1:STRAIN-{tstamp}-{frame_length}.gwf"
-        ts.write(read_dir / fname)
+    x = write_dataset(sample_rate, num_frames, channel_name, frame_length)
+    prepend = np.arange(-throw_away, 0)
+    x = np.concatenate([prepend, x])
 
     # break all of x up into update-sized chunks
     # that will be our dummy "witnesses," pass
@@ -103,10 +111,13 @@ def dataset(
     return updates
 
 
-def test_writer_validate_response(read_dir, batch_size, aggregation_steps):
+def test_writer_validate_response(
+    write_dataset, read_dir, batch_size, aggregation_steps
+):
+    write_dataset(128, 2, "", 1)
     writer = FrameWriter(
         read_dir,
-        write_dir="",
+        write_dir=MagicMock(),
         channel_name="",
         inference_sampling_rate=16,
         sample_rate=128,
@@ -145,7 +156,9 @@ def test_writer_validate_response(read_dir, batch_size, aggregation_steps):
         )
 
     result = writer.validate_response(x, 2)
-    if aggregation_steps < 20 and batch_size > 1:
+    if aggregation_steps == 0:
+        assert result.shape == (x.shape[-1],)
+    elif aggregation_steps < 20 and batch_size > 1:
         assert result.shape == (x.shape[-1],)
     else:
         assert result is None

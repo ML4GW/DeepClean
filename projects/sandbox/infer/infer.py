@@ -1,5 +1,4 @@
 # TODO: complete documentation
-import logging
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -203,7 +202,6 @@ def main(
                 callback=writer,
             )
             with client:
-                num_frames = 0
                 for i in range(num_steps):
                     x = X[:, i * stride : (i + 1) * stride]
                     client.infer(
@@ -214,27 +212,8 @@ def main(
                         sequence_end=i == (num_steps - 1),
                     )
                     time.sleep(sleep)
-
-                    if i == 0:
-                        while writer._latest_seen < 0:
-                            time.sleep(1e-3)
-                            client.get()
-
-                    # check if any files have been written or if the
-                    # client's callback thread has raised any exceptions
-                    response = client.get()
-                    if response is not None:
-                        fname, latency = response
-                        logging.info(f"Wrote file {fname}")
-                        num_frames += 1
-
-            while num_frames < duration:
-                response = client.get()
-                if response is not None:
-                    fname, latency = response
-                    logging.info(f"Wrote file {fname}")
-                    num_frames += 1
-                time.sleep(1e-3)
+                    writer.block(0, client.get)
+                writer.block(i, client.get)
 
 
 if __name__ == "__main__":

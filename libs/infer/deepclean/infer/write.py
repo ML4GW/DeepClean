@@ -100,6 +100,12 @@ class FrameWriter:
 
         self.logger = logging.getLogger("Frame Writer")
 
+    def block(self, i: int, callback: Optional[Callable] = None):
+        while self._latest_seen < i:
+            if callback is not None:
+                callback()
+            time.sleep(1e-3)
+
     def validate_response(
         self, noise_prediction: np.ndarray, request_id: int
     ) -> Tuple[np.ndarray, int]:
@@ -147,6 +153,9 @@ class FrameWriter:
             )
             return None
         elif request_id == self.agg_batches:
+            # if our batch size doesn't evenly divide the number
+            # of aggregation steps, slice off any steps in this
+            # batch of responses that are aggregation steps
             x = x[self.agg_leftover * self.stride :]
 
         # otherwise return the parsed array and its request id
@@ -201,9 +210,6 @@ class FrameWriter:
                 postprocessing before subtraction.
         Returns:
             The name of the file the cleaned strain was written to
-            The time delta in seconds between the creation timestamp
-                of the raw strain file and the time at which file
-                writing completed in this process.
         """
 
         # use our frame crawler
@@ -218,11 +224,12 @@ class FrameWriter:
                 )
             )
 
-        # apply any postprocessing to the noise channel
+        # apply any postprocessing
+        # to the padded noise channel
         if self.postprocessor is not None:
             noise = self.postprocessor(noise)
 
-        # now slice out just the segment we're concerned with
+        # now slice out just the current frame
         # and subtract it from the strain channel
         start = -len(strain) - self.samples_ahead
         stop = -self.samples_ahead
@@ -246,7 +253,6 @@ class FrameWriter:
         # frame file for profiling purposes
         write_path = self.write_dir / strain_fname.name
         timeseries.write(write_path)
-        latency = time.time() - strain_fname.stat().st_mtime
 
         # if moving this frame into our memory will
         # give us more than `memory` samples, then
@@ -255,19 +261,9 @@ class FrameWriter:
         extra = len(noise) - self.samples_ahead - self.memory
         if extra > 0:
             self._noise = self._noise[extra:]
+        return write_path
 
-        # increment our _frame_idx to account for
-        # the frame we're about to write
-        self._frame_idx += 1
-
-        return write_path, latency
-
-    def __call__(
-        self,
-        noise_prediction: dict,
-        request_id: int,
-        *args,
-    ):
+    def __call__(self, noise_prediction: np.ndarray, request_id: int, *arg):
         # get the server response and corresponding
         # request id from the passed package
         noise_prediction = self.validate_response(noise_prediction, request_id)
@@ -285,16 +281,18 @@ class FrameWriter:
         if div <= self._frame_idx:
             return None
         elif rem >= self.steps_ahead or div > self._frame_idx + 1:
-            # slice out the data corresponding to this
-            # segment that we'd like to clean, first
-            # figuring out if we have a full memory to
-            # use or not
+            # slice out the data corresponding to current
+            # frame, first figuring out if we have a full
+            # memory to use or not
             frame_idx = self._frame_idx * self.frame_size
             idx = min(self.memory, frame_idx)
             idx += self.frame_size + self.samples_ahead
             noise = self._noise[:idx]
 
-            fname, latency = self.clean(noise)
-            return fname, latency
+            fname = self.clean(noise)
+            self.logger.info(f"Wrote cleaned frame {fname}")
+
+            self._frame_idx += 1
+            return fname
         else:
             return None

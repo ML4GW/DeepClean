@@ -1,4 +1,5 @@
 import logging
+import math
 import time
 from pathlib import Path
 from typing import Callable, Optional, Tuple
@@ -75,18 +76,19 @@ class FrameWriter:
 
         # record some of the parameters of the data, mapping
         # from time or frequency units to sample units
+        self.frame_size = int(sample_rate * self.crawler.length)
+        self.stride = int(sample_rate // inference_sampling_rate)
+        self.steps_per_frame = math.ceil(self.frame_size / self.stride)
+
         self.memory = int(memory * sample_rate)
-        self.look_ahead = int(look_ahead * sample_rate)
+        self.samples_ahead = int(look_ahead * sample_rate)
+        self.steps_ahead = math.ceil(self.samples_ahead / self.stride)
 
         self.batch_size = batch_size
         self.aggregation_steps = aggregation_steps
         self.agg_batches, self.agg_leftover = divmod(
             aggregation_steps, batch_size
         )
-
-        self.frame_size = int(sample_rate * self.crawler.length)
-        self.stride = int(sample_rate // inference_sampling_rate)
-        self.steps_per_frame = self.frame_size // self.stride
 
         # load in our postprocessing pipeline
         self.postprocessor = postprocessor
@@ -222,8 +224,8 @@ class FrameWriter:
 
         # now slice out just the segment we're concerned with
         # and subtract it from the strain channel
-        start = -len(strain) - self.look_ahead
-        stop = -self.look_ahead
+        start = -len(strain) - self.samples_ahead
+        stop = -self.samples_ahead
         noise_segment = noise[start:stop]
         strain = strain - noise_segment
 
@@ -250,7 +252,7 @@ class FrameWriter:
         # give us more than `memory` samples, then
         # slough off a frame from the start of our
         # _noises and _mask arrays
-        extra = len(noise) - self.look_ahead - self.memory
+        extra = len(noise) - self.samples_ahead - self.memory
         if extra > 0:
             self._noise = self._noise[extra:]
 
@@ -276,28 +278,23 @@ class FrameWriter:
         # array and update our `_mask` to reflect this
         step_idx = self.update_prediction_array(noise_prediction, request_id)
 
-        # compute how many update steps are contained in the
-        # `look_ahead` period, taking the _ceiling_ rather than
-        # floor if we need to.
-        steps_ahead = (self.look_ahead - 1) // self.stride + 1
-
-        # modulate by the number of steps in each frame to see if
-        # the current cleanable index is at the end of a frame.
+        # modulate the total number of cleaning steps taken by the
+        # number of steps in each frame to see if the current
+        # cleanable index is past the end of the next frame
         div, rem = divmod(step_idx, self.steps_per_frame)
-
-        # if so (and if div > 0 i.e. the cleanable index
-        # is not at 0), cut off the first
-        # memory + frame_size + look_ahead worth of data
-        # and use this to clean the next strain file
-        # we can find.
-        if (
-            div == (self._frame_idx + 1) and rem >= steps_ahead
-        ) or div >= self._frame_idx + 2:
+        if div <= self._frame_idx:
+            return None
+        elif rem >= self.steps_ahead or div > self._frame_idx + 1:
+            # slice out the data corresponding to this
+            # segment that we'd like to clean, first
+            # figuring out if we have a full memory to
+            # use or not
             frame_idx = self._frame_idx * self.frame_size
             idx = min(self.memory, frame_idx)
-            idx += self.frame_size + self.look_ahead
+            idx += self.frame_size + self.samples_ahead
             noise = self._noise[:idx]
 
             fname, latency = self.clean(noise)
             return fname, latency
-        return None
+        else:
+            return None

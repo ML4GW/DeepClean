@@ -290,7 +290,9 @@ class FrameWriter:
         # memory + frame_size + look_ahead worth of data
         # and use this to clean the next strain file
         # we can find.
-        if div > self._frame_idx and rem >= steps_ahead:
+        if (
+            div == (self._frame_idx + 1) and rem >= steps_ahead
+        ) or div >= self._frame_idx + 2:
             frame_idx = self._frame_idx * self.frame_size
             idx = min(self.memory, frame_idx)
             idx += self.frame_size + self.look_ahead

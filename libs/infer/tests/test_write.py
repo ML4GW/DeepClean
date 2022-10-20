@@ -219,7 +219,7 @@ def test_writer_update_prediction_array(
     assert (writer._noise[8 * batch_size :] == 0).all()
 
 
-def test_writer(
+def test_writer_call(
     read_dir,
     write_dir,
     channel_name,
@@ -252,7 +252,7 @@ def test_writer(
     frame_idx = 0
     for i, update in enumerate(dataset):
         response = writer(update, i)
-        if (i * batch_size) < aggregation_steps:
+        if (i + 1) * batch_size < aggregation_steps:
             assert len(writer._noise) == 0
             continue
 
@@ -268,17 +268,23 @@ def test_writer(
     # aggregation steps that are getting ditched, since
     # the case of look_ahead == frame_length is causing
     # problems in this context
-    num_valid = len(dataset) - aggregation_steps
+    num_valid = len(dataset) * batch_size - aggregation_steps
     size = num_valid * int(sample_rate / inference_sampling_rate)
-    length, leftover = divmod(size, sample_rate)
-    expected_frames = length // frame_length
+    expected_frames, leftover = divmod(size, sample_rate * frame_length)
 
     if leftover > (sample_rate * look_ahead):
+        # we have enough future data leftover to be able
+        # to process the last of the frames we expected
         missing_frames = 0
-    elif look_ahead < frame_length:
+    elif look_ahead <= frame_length:
+        # we didn't have enough future data, but the current
+        # frame provided enough future data to finish processing
+        # the previous one
         missing_frames = 1
     else:
+        # trying to look ahead too far, not enought data
+        # to process either of the last two frames
         missing_frames = 2
 
     expected_idx = expected_frames - missing_frames
-    assert frame_idx == expected_idx, (size, i, leftover)
+    assert frame_idx == expected_idx

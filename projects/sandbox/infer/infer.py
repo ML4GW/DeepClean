@@ -1,12 +1,9 @@
 # TODO: complete documentation
 import time
-from contextlib import contextmanager
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import List, Optional
 
 import numpy as np
-from gwpy.timeseries import TimeSeries
 
 from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.gwftools.io import find
@@ -18,26 +15,17 @@ from hermes.aeriel.serve import serve
 from hermes.typeo import typeo
 
 
-@contextmanager
-def write_strain(
-    strain: np.ndarray,
-    t0: float,
-    num_frames: int,
-    sample_rate: float,
-    channel: str,
-):
-    # since the FrameWriter class loads strain data internally,
-    # split the strain channel into 1s frames and write them to
-    # a temporary directory for the writer to load them
-    strain = strain[: int(num_frames * sample_rate)]
-    strain = np.split(strain, num_frames)
-    with TemporaryDirectory() as tmpdir:
-        tmpdir = Path(tmpdir)
-        for i, y in enumerate(strain):
-            ts = TimeSeries(y, dt=1 / sample_rate, channel=channel)
-            tstamp = int(t0 + i)
-            ts.write(tmpdir / f"STRAIN-{tstamp}-1.gwf")
-        yield tmpdir
+def strain_iterator(
+    strain: np.ndarray, frame_length: int, sample_rate: float, t0: int
+) -> np.ndarray:
+    frame_size = int(frame_length * sample_rate)
+    num_frames = len(strain) // frame_size
+    i = 0
+    while i < num_frames:
+        tstamp = int(t0 + i * frame_length)
+        fname = f"STRAIN-{tstamp}-{frame_length}.gwf"
+        yield strain[i * frame_size : (i + 1) * frame_size], Path(fname)
+        i += 1
 
 
 @typeo
@@ -144,13 +132,13 @@ def main(
     # launch a singularity container hosting the server and
     # take care of some data bookkeeping while we wait for
     # it to come online
-    with serve(
-        model_repo_dir,
-        gpus=gpus,
-        log_file=output_directory / "server.log",
-        wait=False,
-    ) as instance:
-        # load all of the test data into memory
+    log_file = output_directory / "server.log"
+    instance = serve(model_repo_dir, gpus=gpus, log_file=log_file, wait=False)
+    with instance:
+        # load all of the test data into memory, making sure we
+        # have enough to fully process the desired interval
+        # (including any future data _past_ that interval)
+        max_latency = max_latency or 0
         data = find(
             channels,
             t0,
@@ -160,60 +148,54 @@ def main(
             force_download=force_download,
         )
 
+        # set up a lazy data iterator for the strain data
+        strain = data[channels[0]]
+        strain_iter = strain_iterator(strain, 1, sample_rate, t0)
+
+        # set up a file writer to use as a callback
+        # for the client to handle server responses
+        callback = FrameWriter(
+            strain_iter=strain_iter,
+            write_dir=output_directory / "cleaned",
+            channel_name=channels[0],
+            inference_sampling_rate=inference_sampling_rate,
+            sample_rate=sample_rate,
+            batch_size=batch_size,
+            postprocessor=BandpassFilter(freq_low, freq_high, sample_rate),
+            memory=memory,
+            look_ahead=look_ahead,
+            aggregation_steps=int(max_latency * inference_sampling_rate),
+        )
+
         # extract the non-strain channels into our input array
         X = np.stack([data[channel] for channel in channels[1:]])
+        X = X.astype("float32")
+
         stride = int(sample_rate // inference_sampling_rate) * batch_size
         num_steps = int(X.shape[-1] // stride)
 
-        # since the FrameWriter class loads strain data internally,
-        # split the strain channel into 1s frames and write them to
-        # a temporary directory for the writer to load them
-        strain = data[channels[0]]
-        ctx = write_strain(strain, t0, duration, sample_rate, channels[0])
-        with ctx as tmpdir:
-            # set up a file writer to use as a callback
-            # for the client to handle server responses
-            if max_latency is None:
-                aggregation_steps = 0
-            else:
-                aggregation_steps = int(max_latency * inference_sampling_rate)
-
-            writer = FrameWriter(
-                tmpdir,
-                output_directory / "cleaned",
-                channel_name=channels[0],
-                inference_sampling_rate=inference_sampling_rate,
-                sample_rate=sample_rate,
-                batch_size=batch_size,
-                t0=int(t0),
-                postprocessor=BandpassFilter(freq_low, freq_high, sample_rate),
-                memory=memory,
-                look_ahead=look_ahead,
-                aggregation_steps=aggregation_steps,
-            )
-
-            # wait for the server to come online so we can
-            # connect to it with our client, then run inference
-            instance.wait()
-            client = InferenceClient(
-                address=url,
-                model_name=model_name,
-                model_version=model_version,
-                callback=writer,
-            )
-            with client:
-                for i in range(num_steps):
-                    x = X[:, i * stride : (i + 1) * stride]
-                    client.infer(
-                        x.astype("float32"),
-                        request_id=i,
-                        sequence_id=sequence_id,
-                        sequence_start=i == 0,
-                        sequence_end=i == (num_steps - 1),
-                    )
-                    time.sleep(sleep)
-                    writer.block(0, client.get)
-                writer.block(i, client.get)
+        # wait for the server to come online so we can
+        # connect to it with our client, then run inference
+        instance.wait()
+        client = InferenceClient(
+            address=url,
+            model_name=model_name,
+            model_version=model_version,
+            callback=callback,
+        )
+        with client:
+            for i in range(num_steps):
+                x = X[:, i * stride : (i + 1) * stride]
+                client.infer(
+                    x,
+                    request_id=i,
+                    sequence_id=sequence_id,
+                    sequence_start=i == 0,
+                    sequence_end=i == (num_steps - 1),
+                )
+                time.sleep(sleep)
+                callback.block(0, client.get)
+            callback.block(i, client.get)
 
 
 if __name__ == "__main__":

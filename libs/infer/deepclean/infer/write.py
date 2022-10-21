@@ -2,26 +2,24 @@ import logging
 import math
 import time
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Callable, Iterator, Optional, Tuple
 
 import numpy as np
 from gwpy.timeseries import TimeSeries
 
 from deepclean.gwftools.frames import parse_frame_name
-from deepclean.infer.frame_crawler import FrameCrawler
 from deepclean.infer.load import load_frame
 
 
 class FrameWriter:
     def __init__(
         self,
-        data_dir: Path,
         write_dir: Path,
+        strain_iter: Iterator,
         channel_name: str,
         inference_sampling_rate: float,
         sample_rate: float,
         batch_size: float = 1,
-        t0: Optional[float] = None,
         postprocessor: Optional[Callable] = None,
         memory: float = 10,
         look_ahead: float = 0.05,
@@ -37,8 +35,6 @@ class FrameWriter:
         same filename given to the associated raw strain file.
 
         Args:
-            data_dir:
-                The directory from which to read strain files to clean
             write_dir:
                 The directory to which to save the cleaned strain frames
             channel_name:
@@ -64,13 +60,13 @@ class FrameWriter:
                 The number of overlapping timesteps over which overlapping
                 segments are averaged on the inference server
         """
-        self.crawler = FrameCrawler(data_dir, t0, timeout=1)
 
         # make the write directory if it doesn't exist
         write_dir.mkdir(parents=True, exist_ok=True)
 
         # record some of our writing parameters as-is
         self.write_dir = write_dir
+        self.strain_iter = strain_iter
         self.sample_rate = sample_rate
         self.channel_name = channel_name
 
@@ -225,21 +221,22 @@ class FrameWriter:
             )
 
         # apply any postprocessing
-        # to the padded noise channel
+        # to the padded noise channel,
+        # then slice out current frame
         if self.postprocessor is not None:
             noise = self.postprocessor(noise)
+        offset = -self.samples_ahead
+        noise_segment = noise[offset - self.frame_size : offset]
 
-        # now slice out just the current frame
-        # and subtract it from the strain channel
-        start = -len(strain) - self.samples_ahead
-        stop = -self.samples_ahead
-        noise_segment = noise[start:stop]
+        # now grab the next strain segment
+        # and subtract this noise from it
+        strain, fname = next(self.strain_iter)
         strain = strain - noise_segment
 
         # create a timeseries from the cleaned strain that
         # we can write to a .gwf. Make sure to give it
         # the same timestamp as the original file
-        timestamp = parse_frame_name(strain_fname.name)[1]
+        timestamp = parse_frame_name(fname.name)[1]
         timeseries = TimeSeries(
             strain,
             t0=timestamp,
@@ -251,7 +248,7 @@ class FrameWriter:
         # measure the latency from when the witness
         # file became available and when we wrote the
         # frame file for profiling purposes
-        write_path = self.write_dir / strain_fname.name
+        write_path = self.write_dir / fname.name
         timeseries.write(write_path)
 
         # if moving this frame into our memory will

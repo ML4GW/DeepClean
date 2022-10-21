@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -62,23 +63,25 @@ def validate_fname(
 
 
 @pytest.fixture
-def write_dataset(read_dir, start_timestamp):
+def get_strain_iter(start_timestamp):
     def f(sample_rate, num_frames, channel, frame_length=1):
         x = np.arange(num_frames * frame_length * sample_rate)
-        strains = np.split(x, num_frames)
-        for i, strain in enumerate(strains):
-            ts = TimeSeries(strain, sample_rate=sample_rate, channel=channel)
-            tstamp = start_timestamp + i * frame_length
-            fname = f"H1:STRAIN-{tstamp}-{frame_length}.gwf"
-            ts.write(read_dir / fname)
-        return x
+
+        def gen():
+            strains = np.split(x, num_frames)
+            for i, strain in enumerate(strains):
+                tstamp = start_timestamp + i * frame_length
+                fname = f"H1:STRAIN-{tstamp}-{frame_length}.gwf"
+                yield strain, Path(fname)
+
+        return x, iter(gen())
 
     return f
 
 
 @pytest.fixture
 def dataset(
-    write_dataset,
+    get_strain_iter,
     write_dir,
     aggregation_steps,
     sample_rate,
@@ -94,7 +97,9 @@ def dataset(
     # expect to get thrown away due to aggregation
     stride = int(sample_rate / inference_sampling_rate)
     throw_away = aggregation_steps * stride
-    x = write_dataset(sample_rate, num_frames, channel_name, frame_length)
+    x, strain_iter = get_strain_iter(
+        sample_rate, num_frames, channel_name, frame_length
+    )
     prepend = np.arange(-throw_away, 0)
     x = np.concatenate([prepend, x])
 
@@ -108,15 +113,13 @@ def dataset(
         total_length = num_splits * batch_size * stride
         x = x[:total_length]
     updates = np.split(x, num_splits)
-    return updates
+
+    return updates, strain_iter
 
 
-def test_writer_validate_response(
-    write_dataset, read_dir, batch_size, aggregation_steps
-):
-    write_dataset(128, 2, "", 1)
+def test_writer_validate_response(batch_size, aggregation_steps):
     writer = FrameWriter(
-        read_dir,
+        MagicMock(),
         write_dir=MagicMock(),
         channel_name="",
         inference_sampling_rate=16,
@@ -164,12 +167,9 @@ def test_writer_validate_response(
         assert result is None
 
 
-def test_writer_update_prediction_array(
-    write_dataset, read_dir, batch_size, aggregation_steps
-):
-    write_dataset(128, 2, "", 1)
+def test_writer_update_prediction_array(batch_size, aggregation_steps):
     writer = FrameWriter(
-        read_dir,
+        MagicMock(),
         write_dir=MagicMock(),
         channel_name="",
         inference_sampling_rate=16,
@@ -220,7 +220,6 @@ def test_writer_update_prediction_array(
 
 
 def test_writer_call(
-    read_dir,
     write_dir,
     channel_name,
     inference_sampling_rate,
@@ -236,8 +235,9 @@ def test_writer_call(
     start_timestamp,
     dataset,
 ):
+    x, strain_iter = dataset
     writer = FrameWriter(
-        read_dir,
+        strain_iter,
         write_dir,
         channel_name=channel_name,
         inference_sampling_rate=inference_sampling_rate,
@@ -250,7 +250,7 @@ def test_writer_call(
     )
 
     frame_idx = 0
-    for i, update in enumerate(dataset):
+    for i, update in enumerate(x):
         response = writer(update, i)
         if (i + 1) * batch_size < aggregation_steps:
             assert len(writer._noise) == 0
@@ -268,7 +268,7 @@ def test_writer_call(
     # aggregation steps that are getting ditched, since
     # the case of look_ahead == frame_length is causing
     # problems in this context
-    num_valid = len(dataset) * batch_size - aggregation_steps
+    num_valid = len(x) * batch_size - aggregation_steps
     size = num_valid * int(sample_rate / inference_sampling_rate)
     expected_frames, leftover = divmod(size, sample_rate * frame_length)
 

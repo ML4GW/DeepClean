@@ -33,16 +33,16 @@ padded = np.concatenate([pad, x], axis=1)
 
 print("Initializing deepclean and loading in weights")
 nn = DeepCleanAE(21)
-nn = PrePostDeepClean(nn)
+nn = PrePostDeepClean(nn).to("cuda")
 nn.eval()
 nn.load_state_dict(torch.load(project_dir / "weights.pt"))
 
 print("Running vanilla inference")
-num_kernels = (padded.shape[-1] - SAMPLE_RATE) // STRIDE + 1
+num_kernels = (padded.shape[-1] - SAMPLE_RATE) // STRIDE
 local_results = []
 for i in range(num_kernels):
-    slc = (i * STRIDE, i * STRIDE + SAMPLE_RATE)
-    kernel = torch.Tensor(padded[None, :, slc])
+    slc = slice(i * STRIDE, i * STRIDE + SAMPLE_RATE)
+    kernel = torch.Tensor(padded[None, :, slc]).to("cuda")
 
     with torch.no_grad():
         y = nn(kernel).cpu().numpy()[0]
@@ -51,7 +51,7 @@ for i in range(num_kernels):
 print("Averaging vanilla inference results")
 averaged_local_results = np.zeros((4096 * (NUM_SECONDS - 1),))
 num_steps = len(averaged_local_results) // STRIDE
-num_average = SAMPLE_RATE / 2 / STRIDE
+num_average = int(SAMPLE_RATE / 2 / STRIDE)
 for i in range(num_steps):
     output_slice = slice(i * STRIDE, (i + 1) * STRIDE)
     for j in range(num_average):

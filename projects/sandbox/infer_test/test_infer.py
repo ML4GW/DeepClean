@@ -22,7 +22,7 @@ with open("../pyproject.toml", "r") as f:
 
 channels = config["tool"]["typeo"]["base"]["channels"]
 project_dir = Path("/home/alec.gunny/deepclean/results/august-o3")
-fname = project_dir.parent.parent / "data" / "deepclean-1243283009-4097.h5"
+fname = project_dir.parent.parent / "data" / "deepclean-1250984770-4097.h5"
 
 chans = []
 with h5py.File(fname, "r") as f:

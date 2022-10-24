@@ -119,8 +119,8 @@ def dataset(
 
 def test_writer_validate_response(batch_size, aggregation_steps):
     writer = FrameWriter(
-        MagicMock(),
         write_dir=MagicMock(),
+        strain_iter=MagicMock(),
         channel_name="",
         inference_sampling_rate=16,
         sample_rate=128,
@@ -169,8 +169,8 @@ def test_writer_validate_response(batch_size, aggregation_steps):
 
 def test_writer_update_prediction_array(batch_size, aggregation_steps):
     writer = FrameWriter(
-        MagicMock(),
         write_dir=MagicMock(),
+        strain_iter=MagicMock(),
         channel_name="",
         inference_sampling_rate=16,
         sample_rate=128,
@@ -237,9 +237,10 @@ def test_writer_call(
 ):
     x, strain_iter = dataset
     writer = FrameWriter(
-        strain_iter,
         write_dir,
+        strain_iter,
         channel_name=channel_name,
+        frame_length=frame_length,
         inference_sampling_rate=inference_sampling_rate,
         sample_rate=sample_rate,
         batch_size=batch_size,
@@ -251,13 +252,12 @@ def test_writer_call(
 
     frame_idx = 0
     for i, update in enumerate(x):
-        response = writer(update, i)
+        fname = writer(update, i)
         if (i + 1) * batch_size < aggregation_steps:
             assert len(writer._noise) == 0
             continue
 
-        if response is not None:
-            fname, _ = response
+        if fname is not None:
             validate_fname(fname, frame_idx)
             frame_idx += 1
 

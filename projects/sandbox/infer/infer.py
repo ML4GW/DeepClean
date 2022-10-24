@@ -133,8 +133,8 @@ def main(
     # take care of some data bookkeeping while we wait for
     # it to come online
     log_file = output_directory / "server.log"
-    instance = serve(model_repo_dir, gpus=gpus, log_file=log_file, wait=False)
-    with instance:
+    serve_ctx = serve(model_repo_dir, gpus=gpus, log_file=log_file, wait=False)
+    with serve_ctx as instance:
         # load all of the test data into memory, making sure we
         # have enough to fully process the desired interval
         # (including any future data _past_ that interval)
@@ -164,7 +164,7 @@ def main(
             postprocessor=BandpassFilter(freq_low, freq_high, sample_rate),
             memory=memory,
             look_ahead=look_ahead,
-            aggregation_steps=int(max_latency * inference_sampling_rate),
+            aggregation_steps=int(max_latency * inference_sampling_rate) - 1,
         )
 
         # extract the non-strain channels into our input array

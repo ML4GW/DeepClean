@@ -8,7 +8,6 @@ import numpy as np
 from gwpy.timeseries import TimeSeries
 
 from deepclean.gwftools.frames import parse_frame_name
-from deepclean.infer.load import load_frame
 
 
 class FrameWriter:
@@ -19,6 +18,7 @@ class FrameWriter:
         channel_name: str,
         inference_sampling_rate: float,
         sample_rate: float,
+        frame_length: int = 1,
         batch_size: float = 1,
         postprocessor: Optional[Callable] = None,
         memory: float = 10,
@@ -72,7 +72,7 @@ class FrameWriter:
 
         # record some of the parameters of the data, mapping
         # from time or frequency units to sample units
-        self.frame_size = int(sample_rate * self.crawler.length)
+        self.frame_size = int(sample_rate * frame_length)
         self.stride = int(sample_rate // inference_sampling_rate)
         self.steps_per_frame = math.ceil(self.frame_size / self.stride)
 
@@ -207,18 +207,6 @@ class FrameWriter:
         Returns:
             The name of the file the cleaned strain was written to
         """
-
-        # use our frame crawler
-        strain_fname = next(self.crawler)
-        self.logger.debug(f"Cleaning strain file {strain_fname}")
-
-        strain = load_frame(strain_fname, self.channel_name, self.sample_rate)
-        if len(strain) != self.frame_size:
-            raise ValueError(
-                "Strain from file {} has unexpected length {}".format(
-                    strain_fname, len(strain)
-                )
-            )
 
         # apply any postprocessing
         # to the padded noise channel,

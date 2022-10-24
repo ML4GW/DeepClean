@@ -9,8 +9,8 @@ from gwpy.timeseries import TimeSeries
 from deepclean.architectures import DeepCleanAE
 from deepclean.export import PrePostDeepClean
 from deepclean.signal.filter import BandpassFilter
-from hermes.quiver.streaming_input import Snapshotter
-from hermes.quiver.streaming_output import OnlineAverager
+from hermes.quiver.streaming.streaming_input import Snapshotter
+from hermes.quiver.streaming.streaming_output import OnlineAverager
 
 NUM_SECONDS = 11
 STRIDE = 32
@@ -44,7 +44,7 @@ nn.eval()
 nn.load_state_dict(torch.load(project_dir / "weights.pt"))
 
 print("Running vanilla inference")
-num_kernels = (padded.shape[-1] - SAMPLE_RATE) // STRIDE
+num_kernels = (padded.shape[-1] - SAMPLE_RATE) // STRIDE + 1
 local_results = []
 for i in range(num_kernels):
     slc = slice(i * STRIDE, i * STRIDE + SAMPLE_RATE)
@@ -73,13 +73,14 @@ local_asd = local_cleaned.asd(fftlength=2, window="hann", method="median")
 local_asdr = local_asd / strain_asd
 print(local_asdr.crop(55, 65))
 
+print("Setting up hermes inference")
 snapshotter = Snapshotter(
     SAMPLE_RATE,
     stride_size=STRIDE,
     batch_size=BATCH_SIZE,
-    channels_per_snapshot=21,
+    channels_per_snapshot=[21],
 ).to("cuda")
-snapshot = torch.zeros(1, 21, SAMPLE_RATE).to("cuda")
+snapshot = torch.zeros((1, 21, SAMPLE_RATE)).to("cuda")
 
 averager = OnlineAverager(
     update_size=STRIDE,
@@ -92,8 +93,9 @@ online_average = torch.zeros((average_shape,)).to("cuda")
 update_idx = torch.zeros((1,)).to("cuda")
 
 num_kernels = x.shape[-1] // STRIDE
-num_batches = num_kernels // BATCH_SIZE
+num_batches = int(num_kernels // BATCH_SIZE)
 
+print("Doing inference with hermes models")
 hermes_results = np.array([])
 for i in range(num_batches):
     slc = slice(i * STRIDE * BATCH_SIZE, (i + 1) * STRIDE * BATCH_SIZE)
@@ -102,14 +104,17 @@ for i in range(num_batches):
     with torch.no_grad():
         kernel, snapshot = snapshotter(update, snapshot)
         prediction = nn(kernel)
+        assert np.isclose(
+            prediction.cpu().numpy()[0], local_results[i], atol=0.0, rtol=1e-6
+        ).all()
         averaged, online_average, update_idx = averager(
             prediction, online_average, update_idx
         )
     averaged = averaged.cpu().numpy()[0]
     hermes_results = np.append(hermes_results, averaged)
 
-hermes_results = hermes_results[num_average * STRIDE :]
-hermes_prediction = bpf(hermes_results)
+hermes_valid = hermes_results[(num_average - 1) * STRIDE :]
+hermes_prediction = bpf(hermes_valid)
 hermes_prediction = hermes_prediction[
     SAMPLE_RATE : (NUM_SECONDS - 2) * SAMPLE_RATE
 ]

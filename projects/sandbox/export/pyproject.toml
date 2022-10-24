@@ -11,17 +11,19 @@ export-model = "export:export"
 [tool.poetry.dependencies]
 python = "^3.8,<3.10"
 packaging = "<21.0"
+numpy = ">=1.22,<1.22.4"
 
 "deepclean.export" = {path = "../../../libs/export", develop = true}
 "deepclean.gwftools" = {path = "../../../libs/gwftools", develop = true}
 "deepclean.architectures" = {path = "../../../libs/architectures", develop = true}
 "deepclean.logging" = {path = "../../../libs/logging", develop = true}
 "hermes.typeo" = "^0.1.5"
+h5py = "^3.7.0"
 
 [tool.poetry.dependencies."hermes.quiver"]
 path = "../../../hermes/hermes/hermes.quiver"
 develop = true
-extras = ["torch", "tensorflow"]
+extras = ["torch"]
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"

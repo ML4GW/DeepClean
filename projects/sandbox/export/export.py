@@ -17,6 +17,7 @@ def make_ensemble(
     ensemble_name: str,
     stream_size: int,
     num_updates: int,
+    batch_size: int,
     snapshotter: Optional[qv.Model] = None,
     streams_per_gpu: int = 1,
 ) -> qv.Model:
@@ -66,6 +67,7 @@ def make_ensemble(
                 stream_size=stream_size,
                 name="snapshotter",
                 streams_per_gpu=streams_per_gpu,
+                batch_size=batch_size,
             )
         else:
             # pipe the output of the existing snapshotter
@@ -94,7 +96,7 @@ def make_ensemble(
     # for a few seconds
     snapshotter = repo.models["snapshotter"]
     snapshotter.config.sequence_batching.max_sequence_idle_microseconds = int(
-        6e9
+        6e7
     )
     snapshotter.config.write()
 
@@ -111,12 +113,13 @@ def make_ensemble(
             deepclean.outputs["noise"],
             update_size=stream_size,
             num_updates=num_updates,
+            batch_size=batch_size,
             name=name,
             streams_per_gpu=streams_per_gpu,
         )
         aggregator = repo.models[name]
         aggregator.config.sequence_batching.max_sequence_idle_microseconds = (
-            int(6e9)
+            int(6e7)
         )
         aggregator.config.write()
 
@@ -135,6 +138,7 @@ def export(
     kernel_length: float,
     sample_rate: float,
     inference_sampling_rate: float,
+    batch_size: int,
     max_latency: Union[float, Iterable[float]],
     weights: Optional[Path] = None,
     streams_per_gpu: int = 1,
@@ -248,7 +252,7 @@ def export(
 
     # export this version of the model (with its current
     # weights), to this entry in the model repository
-    input_shape = (1, len(channels) - 1, kernel_size)
+    input_shape = (batch_size, len(channels) - 1, kernel_size)
     model.export_version(
         nn, input_shapes={"witness": input_shape}, output_names=["noise"]
     )
@@ -279,6 +283,7 @@ def export(
             name,
             stream_size=stride,
             num_updates=num_updates,
+            batch_size=batch_size,
             snapshotter=repo.models.get("snapshotter", None),
             streams_per_gpu=streams_per_gpu,
         )

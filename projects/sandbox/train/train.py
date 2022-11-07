@@ -1,12 +1,18 @@
+import logging
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
+import torch
+from ray import tune
 
+from deepclean.architectures import DeepCleanAE
 from deepclean.gwftools.channels import ChannelList, get_channels
 from deepclean.gwftools.io import find as find_data
 from deepclean.logging import configure_logging
+from deepclean.trainer.trainer import train
 from deepclean.trainer.wrapper import trainify
+from hermes.typeo import typeo
 
 
 # note that this function decorator acts both to
@@ -17,7 +23,7 @@ from deepclean.trainer.wrapper import trainify
 # from deepclean.trainer.trainer.train to command line
 # execution and parsing
 @trainify
-def main(
+def get_data(
     channels: ChannelList,
     t0: float,
     duration: float,
@@ -129,5 +135,113 @@ def main(
     return train_X, train_y, valid_X, valid_y
 
 
+@typeo
+def hp_search(
+    output_directory: Path,
+    # data params
+    channels: ChannelList,
+    t0: float,
+    duration: float,
+    sample_rate: float,
+    kernel_length: float,
+    kernel_stride: float,
+    valid_frac: Optional[float] = None,
+    # data loading params
+    data_path: Optional[Path] = None,
+    force_download: bool = False,
+    chunk_length: float = 0,
+    num_chunks: int = 1,
+    # preproc params
+    freq_low: float = 55.0,
+    freq_high: float = 65.0,
+    filter_order: int = 8,
+    # optimization params
+    num_trials: int = 10,
+    cpus_per_trial: int = 8,
+    batch_size: int = 32,
+    max_epochs: int = 40,
+    init_weights: Optional[Path] = None,
+    patience: Optional[int] = None,
+    factor: float = 0.1,
+    early_stop: int = 20,
+    # criterion params
+    fftlength: float = 2,
+    overlap: Optional[float] = None,
+    alpha: float = 1.0,
+    # misc params
+    profile: bool = False,
+    use_amp: bool = False,
+    verbose: bool = False,
+):
+    def trainable(config):
+        data = get_data(
+            channels=channels,
+            t0=t0,
+            duration=duration,
+            sample_rate=sample_rate,
+            output_directory=output_directory,
+            data_path=data_path,
+            valid_frac=valid_frac,
+            force_download=force_download,
+            verbose=verbose,
+        )
+        if valid_frac is not None:
+            X, y, valid_X, valid_y = data
+            valid_data = (valid_X, valid_y)
+        else:
+            X, y = data
+            valid_data = None
+
+        history = train(
+            architecture=DeepCleanAE,
+            output_directory=tune.get_trial_dir(),
+            X=X,
+            y=y,
+            kernel_length=kernel_length,
+            kernel_stride=kernel_stride,
+            sample_rate=sample_rate,
+            chunk_length=chunk_length,
+            valid_data=valid_data,
+            freq_low=freq_low,
+            freq_high=freq_high,
+            filter_order=filter_order,
+            batch_size=batch_size,
+            max_epochs=max_epochs,
+            init_weights=init_weights,
+            lr=config["learning_rate"],
+            weight_decay=config["weight_decay"],
+            patience=patience,
+            factor=factor,
+            early_stop=early_stop,
+            fftlength=fftlength,
+            overlap=overlap,
+            alpha=alpha,
+            device="cuda" if torch.cuda.is_available() else "cpu",
+            profile=profile,
+            use_amp=use_amp,
+        )
+        return {"score": min(history["valid_loss"])}
+
+    space = {
+        "learning_rate": tune.loguniform(1e-3, 1e-1),
+        "weight_decay": tune.loguniform(1e-6, 1e-3),
+    }
+
+    output_directory = Path(output_directory)
+    results = tune.run(
+        trainable,
+        config=space,
+        num_samples=num_trials,
+        mode="min",
+        resources_per_trial={"cpu": cpus_per_trial, "gpu": 1},
+        local_dir=output_directory.parent,
+        name=output_directory.name,
+        trial_name_creator=lambda trial: trial.trial_id,
+    )
+
+    best_trial = results.get_best_trial("score", "min")
+    logging.info(f"Best ASDR: {best_trial.last_result}")
+
+
 if __name__ == "__main__":
-    main()
+    get_data()

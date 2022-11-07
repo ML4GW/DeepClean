@@ -10,6 +10,7 @@ jobs:
   # tests the libraries that our projects depend on
   library-ci-tests:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     permissions:
       packages: read
     container:

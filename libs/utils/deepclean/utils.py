@@ -1,14 +1,28 @@
-from typing import Iterable, List, Tuple, Union
+from typing import List, Sequence, Tuple, Union
 
 from scipy import signal
 
-from deepclean.signal.op import Op
+ChannelList = Union[str, Sequence[str]]
+Frequency = Union[float, Sequence[float]]
 
-FREQUENCY = Union[float, Iterable[float]]
+
+def get_channels(channels: ChannelList) -> List[str]:
+    if isinstance(channels, str) or len(channels) == 1:
+        if len(channels) == 1:
+            channels = channels[0]
+
+        try:
+            with open(channels, "r") as f:
+                channels = [i for i in f.read().splitlines() if i]
+        except FileNotFoundError:
+            raise FileNotFoundError(f"No channel file {channels} exists")
+
+    channels = list(channels)
+    return channels[:1] + sorted(channels[1:])
 
 
 def normalize_frequencies(
-    freq_low: FREQUENCY, freq_high: FREQUENCY
+    freq_low: Frequency, freq_high: Frequency
 ) -> Tuple[List[float], List[float]]:
     """Standardize frequency bands to sorted lists
 
@@ -98,11 +112,11 @@ def normalize_frequencies(
     return freq_low, freq_high
 
 
-class BandpassFilter(Op):
+class BandpassFilter:
     def __init__(
         self,
-        freq_low: FREQUENCY,
-        freq_high: FREQUENCY,
+        freq_low: Frequency,
+        freq_high: Frequency,
         sample_rate: float,
         order: int = 8,
     ) -> None:
@@ -121,7 +135,7 @@ class BandpassFilter(Op):
                 )
             )
 
-    def __call__(self, x, **kwargs):
+    def __call__(self, x):
         output = 0.0
         for sos in self.sos:
             output += signal.sosfiltfilt(sos, x, axis=-1)

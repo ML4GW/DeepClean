@@ -1,114 +1,34 @@
 import logging
-import os
-import time
+from functools import partial
 from pathlib import Path
 from typing import Callable, Optional, Tuple
 
-import h5py
 import numpy as np
 import torch
 
-from deepclean.export import PrePostDeepClean
-from deepclean.signal import BandpassFilter, StandardScaler
-from deepclean.signal.filter import FREQUENCY
-from deepclean.trainer import ChunkedTimeSeriesDataset, CompositePSDLoss
+from deepclean.trainer import CompositePSDLoss
 from deepclean.trainer.analysis import analyze_model
+from deepclean.trainer.utils import Checkpointer, Trainer
+from deepclean.utils import BandpassFilter, Frequency
+from ml4gw.dataloading import InMemoryDataset
+from ml4gw.transforms import ChannelWiseScaler, SpectralDensity
 
 torch.set_default_tensor_type(torch.FloatTensor)
 
 
-def train_for_one_epoch(
-    model: torch.nn.Module,
-    optimizer: torch.optim.Optimizer,
-    criterion: torch.nn.Module,
-    train_data: ChunkedTimeSeriesDataset,
-    valid_data: Optional[ChunkedTimeSeriesDataset] = None,
-    profiler: Optional[torch.profiler.profile] = None,
-    scaler: Optional[torch.cuda.amp.GradScaler] = None,
-):
-    """Run a single epoch of training"""
-
-    train_loss = 0
-    samples_seen = 0
-    start_time = time.time()
-    model.train()
-    for witnesses, strain in train_data:
-        optimizer.zero_grad(set_to_none=True)  # reset gradient
-        # do forward step in mixed precision
-        # if a gradient scaler got passed
-        with torch.autocast("cuda", enabled=scaler is not None):
-            noise_prediction = model(witnesses)
-            loss = criterion(noise_prediction, strain)
-
-        train_loss += loss.item() * len(witnesses)
-        samples_seen += len(witnesses)
-
-        if scaler is not None:
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
-        else:
-            loss.backward()
-            optimizer.step()
-
-        if profiler is not None:
-            profiler.step()
-        logging.debug(f"{samples_seen}/{train_data.num_kernels}")
-
-    if profiler is not None:
-        profiler.stop()
-
-    end_time = time.time()
-    duration = end_time - start_time
-    throughput = samples_seen / duration
-    train_loss /= samples_seen
-
-    logging.info(
-        "Duration {:0.2f}s, Throughput {:0.1f} samples/s".format(
-            duration, throughput
-        )
-    )
-    msg = f"Train Loss: {train_loss:.4e}"
-
-    # Evaluate performance on validation set if given
-    if valid_data is not None:
-        valid_loss = 0
-        samples_seen = 0
-
-        model.eval()
-        with torch.no_grad():
-            for witnesses, strain in valid_data:
-                noise_prediction = model(witnesses)
-                loss = criterion(noise_prediction, strain)
-
-                valid_loss += loss.item() * len(witnesses)
-                samples_seen += len(witnesses)
-
-        valid_loss /= samples_seen
-        msg += f", Valid Loss: {valid_loss:.4e}"
-    else:
-        valid_loss = None
-
-    logging.info(msg)
-    return train_loss, valid_loss, duration, throughput
-
-
 def train(
     architecture: Callable,
-    output_directory: str,
+    output_directory: Path,
     # data params
     X: np.ndarray,
     y: np.ndarray,
     kernel_length: float,
     kernel_stride: float,
     sample_rate: float,
-    chunk_length: float = 0,
-    num_chunks: int = 1,
     valid_data: Optional[Tuple[np.ndarray, np.ndarray]] = None,
     # preproc params
-    # TODO: make optional
-    freq_low: FREQUENCY = 55.0,
-    freq_high: FREQUENCY = 65.0,
+    freq_low: Frequency = 55.0,
+    freq_high: Frequency = 65.0,
     filter_order: int = 8,
     # optimization params
     batch_size: int = 32,
@@ -127,7 +47,7 @@ def train(
     device: Optional[str] = None,
     profile: bool = False,
     use_amp: bool = False,
-) -> float:
+) -> None:
     """Train a DeepClean model on in-memory data
 
     Args:
@@ -241,82 +161,64 @@ def train(
 
     if not (0 <= alpha <= 1):
         raise ValueError("Alpha value must be between 0 and 1")
-    os.makedirs(output_directory, exist_ok=True)
-    output_directory = Path(output_directory)
-
-    # TODO: is there more complicated device
-    # logic we want to do or should "cpu" just
-    # be the default?
+    output_directory.mkdir(parents=True, exist_ok=True)
     device = device or "cpu"
 
-    # Create pipelines for preprocessing both
-    # witness and strain data. Witness data
-    # just gets normalized on a channel-wise
-    # basis, strain data gets normalized then
-    # bandpass filtered to ensure only the
-    # target frequency range gets optimized
-    logging.info("Preprocessing")
-    witness_scaler = StandardScaler()
-    strain_scaler = StandardScaler()
-    bandpass = BandpassFilter(
-        freq_low=freq_low,
-        freq_high=freq_high,
-        sample_rate=sample_rate,
-        order=filter_order,
+    # scale both the inputs and outputs to 0 mean unit variance
+    input_scaler = ChannelWiseScaler(len(X)).to(device)
+    output_scaler = ChannelWiseScaler().to(device)
+
+    # fit the means and standard deviations _before_ filtering
+    input_scaler.fit(X)
+    output_scaler.fit(y)
+
+    # bandpass the strain up front so that we only
+    # deal with the frequency ranges we care about
+    strain_filter = BandpassFilter(
+        freq_low, freq_high, sample_rate, filter_order
     )
+    y = strain_filter(y)
 
-    # fit the pipelines to the data (i.e. compute
-    # the mean and standard deviation across
-    # the datasets) and save them for later use
-    witness_pipeline = witness_scaler
-    witness_pipeline.fit(X)
-
-    strain_pipeline = strain_scaler >> bandpass
-    strain_pipeline.fit(y)
-
-    # use these preprocessed arrays to
-    # instantiate iterable datasets
-    train_data = ChunkedTimeSeriesDataset(
-        witness_pipeline(X),
-        strain_pipeline(y),
-        kernel_length=kernel_length,
-        kernel_stride=kernel_stride,
-        sample_rate=sample_rate,
+    train_data = InMemoryDataset(
+        X,
+        y=y,
+        kernel_size=int(sample_rate * kernel_length),
         batch_size=batch_size,
-        chunk_length=chunk_length,
-        num_chunks=num_chunks,
-        shuffle=False,
+        stride=int(sample_rate * kernel_stride),
+        coincident=True,
+        shuffle=True,
         device=device,
     )
+    train_data.X = input_scaler(train_data.X)
+    train_data.y = output_scaler(train_data.y)
 
     if valid_data is not None:
         valid_X, valid_y = valid_data
-        valid_data = ChunkedTimeSeriesDataset(
-            witness_pipeline(valid_X),
-            strain_pipeline(valid_y),
-            kernel_length=kernel_length,
-            kernel_stride=kernel_stride,
-            sample_rate=sample_rate,
-            batch_size=batch_size * 2,
-            chunk_length=-1,
+        valid_y = strain_filter(valid_y)
+
+        valid_data = InMemoryDataset(
+            valid_X,
+            y=valid_y,
+            kernel_size=int(sample_rate * kernel_length),
+            batch_size=batch_size,
+            stride=int(sample_rate * kernel_stride),
+            coincident=True,
             shuffle=False,
             device=device,
         )
+        valid_data.X = input_scaler(valid_data.X)
+        valid_data.y = output_scaler(valid_data.y)
 
     # Creating model, loss function, optimizer and lr scheduler
     logging.info("Building and initializing model")
-    model = architecture(len(X))
-    model.to(device)
-
+    model = architecture(len(X)).to(device)
     if init_weights is not None:
         # allow us to easily point to the best weights
         # from another run of this same function
         if init_weights.is_dir():
             init_weights = init_weights / "weights.pt"
 
-        logging.debug(
-            f"Initializing model weights from checkpoint '{init_weights}'"
-        )
+        logging.info(f"Initializing model from checkpoint '{init_weights}'")
         model.load_state_dict(torch.load(init_weights))
     logging.info(model)
 
@@ -325,38 +227,24 @@ def train(
         alpha,
         sample_rate,
         fftlength=fftlength,
-        overlap=None,
+        overlap=overlap,
         asd=True,
         device=device,
         freq_low=freq_low,
         freq_high=freq_high,
     )
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=lr, weight_decay=weight_decay
+    trainer = Trainer(criterion, model, lr, weight_decay, use_amp)
+    checkpointer = Checkpointer(
+        output_directory,
+        trainer.optimizer,
+        patience=patience,
+        decay_factor=factor,
+        min_lr=lr * factor**2,
+        early_stop=early_stop,
+        checkpoint_every=5,
     )
-    if patience is not None:
-        lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer,
-            patience=patience,
-            factor=factor,
-            threshold=0.0001,
-            min_lr=lr * factor**2,
-            verbose=True,
-        )
-
-    # start training
-    scaler = None
-    if use_amp and device.startswith("cuda"):
-        scaler = torch.cuda.amp.GradScaler()
-    elif use_amp:
-        logging.warning("'use_amp' flag set but no cuda device, ignoring")
 
     torch.backends.cudnn.benchmark = True
-    best_valid_loss = float("inf")
-    since_last_improvement = 0
-    weights_path = output_directory / "weights.pt"
-    history = {"train_loss": [], "valid_loss": []}
-
     logging.info("Beginning training loop")
     for epoch in range(max_epochs):
         if epoch == 0 and profile:
@@ -371,85 +259,24 @@ def train(
             profiler = None
 
         logging.info(f"=== Epoch {epoch + 1}/{max_epochs} ===")
-        train_loss, valid_loss, duration, throughput = train_for_one_epoch(
-            model,
-            optimizer,
-            criterion,
-            train_data,
-            valid_data,
-            profiler,
-            scaler,
-        )
-        history["train_loss"].append(train_loss)
-
-        # do some house cleaning with our
-        # validation loss if we have one
-        if valid_loss is not None:
-            history["valid_loss"].append(valid_loss)
-
-            # update our learning rate scheduler if we
-            # indicated a schedule with `patience`
-            if patience is not None:
-                lr_scheduler.step(valid_loss)
-
-            # save this version of the model weights if
-            # we achieved a new best loss, otherwise check
-            # to see if we need to early stop based on
-            # plateauing validation loss
-            if valid_loss < best_valid_loss:
-                logging.debug(
-                    "Achieved new lowest validation loss, "
-                    "saving model weights"
-                )
-                best_valid_loss = valid_loss
-
-                torch.save(model.state_dict(), weights_path)
-                since_last_improvement = 0
-            else:
-                since_last_improvement += 1
-                if since_last_improvement >= early_stop:
-                    logging.info(
-                        "No improvement in validation loss in {} "
-                        "epochs, halting training early".format(early_stop)
-                    )
-                    break
-        else:
-            # if we don't have validation data, just
-            # always keep the last version of the model
-            torch.save(model.state_dict(), weights_path)
+        train_loss, valid_loss = trainer(train_data, valid_data, profiler)
+        stop = checkpointer(train_loss, valid_loss, model)
+        if stop:
+            break
 
     # load in the best version of the model from training
+    weights_path = output_directory / "weights.pt"
     model.load_state_dict(torch.load(weights_path))
 
     # generate some analyses of our model
     logging.info("Performing post-hoc analysis on trained model")
-    gradients, coherences = analyze_model(train_data, model, sample_rate)
-    history.update(
-        {
-            "percentiles": [5, 25, 50, 75, 95],
-            "train_gradients": gradients,
-            "train_coherences": coherences,
-        }
+    welch = SpectralDensity(
+        sample_rate, fftlength, average="median", fast=True
     )
-    if valid_data is not None:
-        # we'll actually need gradients on the validation data,
-        # so we can't be as liberal with the memory. Reset its
-        # batch size to keep things within reason
-        valid_data.batch_size = train_data.batch_size
-        gradients, coherences = analyze_model(valid_data, model, sample_rate)
-        history.update(
-            {
-                "valid_gradients": gradients,
-                "valid_coherences": coherences,
-            }
-        )
-    with h5py.File(output_directory / "train_results.h5", "w") as f:
-        for key, value in history.items():
-            f.create_dataset(key, data=value)
+    analyze_model(output_directory, model, welch, train_data, valid_data)
 
     # now create a version of the model which
     # has the pre- and postprocessing built in
-    nn = PrePostDeepClean(model)
-    nn.fit(X, y)
-    torch.save(nn.state_dict(), weights_path)
-    # return history
+    output_scaler.forward = partial(output_scaler.forward, reverse=True)
+    model = torch.nn.Sequential(input_scaler, model, output_scaler)
+    torch.save(model.state_dict(), weights_path)

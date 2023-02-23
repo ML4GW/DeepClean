@@ -27,7 +27,7 @@ class EpochTracker:
             self.profiler.step()
 
         if loss is not None:
-            self.loss += loss
+            self.loss += loss * num_samples
             self.samples_seen += num_samples
 
     def stop(self) -> Tuple[float, float, float]:
@@ -35,7 +35,7 @@ class EpochTracker:
             self.profiler.stop()
 
         end_time = time.time()
-        duration = self.start_time - end_time
+        duration = end_time - self.start_time
         throughput = self.samples_seen / duration
         loss = self.loss / self.samples_seen
         return loss, duration, throughput
@@ -59,7 +59,7 @@ def backward(
         raise ValueError("Encountered nan loss")
     elif isnan:
         return None
-    return loss.item()
+    return loss
 
 
 def backwardize(forward_fn: Callable) -> Callable:
@@ -70,7 +70,7 @@ def backwardize(forward_fn: Callable) -> Callable:
         # do forward step in mixed precision
         # if a gradient scaler got passed
         with torch.autocast("cuda", enabled=obj.scaler is not None):
-            loss = forward_fn(X, y)
+            loss = forward_fn(obj, X, y)
         return backward(loss, obj.optimizer, obj.scaler)
 
     return step
@@ -112,7 +112,7 @@ class Trainer:
         self.model.train()
         tracker = EpochTracker(profiler)
         for witnesses, strain in train_data:
-            loss = self.step(witnesses, strain)
+            loss = self.step(witnesses, strain).item()
             tracker.update(loss, len(witnesses))
         train_loss, duration, throughput = tracker.stop()
 
@@ -128,7 +128,7 @@ class Trainer:
             self.model.eval()
             with torch.no_grad():
                 for witnesses, strain in valid_data:
-                    loss = self.forward(witnesses, strain)
+                    loss = self.forward(witnesses, strain).item()
                     tracker.update(loss, len(witnesses))
                 valid_loss, _, __ = tracker.stop()
             msg += f", Valid Loss: {valid_loss:.4e}"

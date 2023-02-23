@@ -19,7 +19,6 @@ class PSDLoss(torch.nn.Module):
         overlap: Optional[float] = None,
         freq_low: Union[Frequency, None] = None,
         freq_high: Union[Frequency, None] = None,
-        device: str = "cpu",
     ):
         super().__init__()
 
@@ -40,7 +39,8 @@ class PSDLoss(torch.nn.Module):
             # implementation of the welch transform
             if not mask[:2].any():
                 fast = True
-            self.mask = torch.tensor(mask, dtype=torch.bool).to(device)
+            mask = torch.tensor(mask, dtype=torch.bool)
+            self.register_buffer("mask", mask)
         elif freq_low is None and freq_high is None:
             # no frequencies were specified, so ignore the mask
             self.mask = None
@@ -60,7 +60,6 @@ class PSDLoss(torch.nn.Module):
             fftlength,
             overlap,
             average="mean",
-            device=device,
             fast=fast,
         )
         self.asd = asd
@@ -100,7 +99,6 @@ class CompositePSDLoss(torch.nn.Module):
         asd: bool = False,
         freq_low: Union[float, List[float], None] = None,
         freq_high: Union[float, List[float], None] = None,
-        device: str = "cpu",
     ):
         super().__init__()
         if not 0 <= alpha <= 1:
@@ -121,7 +119,6 @@ class CompositePSDLoss(torch.nn.Module):
                 fftlength=fftlength,
                 overlap=overlap,
                 asd=asd,
-                device=device,
             )
         self.mse_loss = torch.nn.MSELoss()
 

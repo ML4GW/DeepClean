@@ -34,15 +34,15 @@ channels = [
 sample_rate = 4096
 verbose = false
 
-train_t0 = 1243278913
+train_t0 = 1251335314
 train_duration = 4096
 
 infer_kernel_length = 1
 infer_batch_size = 64
 inference_sampling_rate = 512
 
-test_t0 = 1243283009
-test_duration = 1024
+test_t0 = 1251339410
+test_duration = 16384
 
 max_latency = 0.5
 freq_low = 55
@@ -55,7 +55,7 @@ autoencoder = {}
 [tool.typeo.scripts.train]
 # paths
 output_directory = "${PROJECT_DIR}"
-data_path = "${DATA_DIR}"
+data_directory = "${DATA_DIR}"
 
 # data parameters
 channels = "${base.channels}"
@@ -66,8 +66,7 @@ valid_frac = 0.25
 # data loading parameters
 sample_rate = "${base.sample_rate}"
 kernel_length = 8
-kernel_stride = 0.25
-chunk_length = 0
+kernel_stride = 0.0625
 
 # preprocessing parameters
 freq_low = "${base.freq_low}"
@@ -75,7 +74,7 @@ freq_high = "${base.freq_high}"
 filter_order = 8
 
 # optimization parameters
-batch_size = 32
+batch_size = 256
 max_epochs = 500
 lr = 3.2e-2
 weight_decay = 1e-5

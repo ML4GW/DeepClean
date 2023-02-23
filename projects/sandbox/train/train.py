@@ -72,7 +72,7 @@ def main(
     channels = get_channels(channels)
     tf = t0 + duration
 
-    X = read_timeseries(data_directory, channels, t0, tf, array_like=True)
+    X, _ = read_timeseries(data_directory, channels, t0, tf, array_like=True)
     if X.shape[-1] != (duration * sample_rate):
         inferred_sample_rate = X.shape[-1] / duration
         raise ValueError(
@@ -81,7 +81,7 @@ def main(
                 data_directory, inferred_sample_rate, sample_rate
             )
         )
-    y, X = np.split(X, [1], axis=0)
+    [y], X = np.split(X, [1], axis=0)
 
     # if we didn't specify to create any validation data,
     # return these arrays as-is

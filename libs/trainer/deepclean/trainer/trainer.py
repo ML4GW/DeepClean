@@ -229,11 +229,14 @@ def train(
         fftlength=fftlength,
         overlap=overlap,
         asd=True,
-        device=device,
         freq_low=freq_low,
         freq_high=freq_high,
     )
-    trainer = Trainer(criterion, model, lr, weight_decay, use_amp)
+    if alpha > 0:
+        criterion.psd_loss.to(device)
+        criterion.psd_loss.welch.to(device)
+
+    trainer = Trainer(model, criterion, lr, weight_decay, use_amp)
     checkpointer = Checkpointer(
         output_directory,
         trainer.optimizer,
@@ -273,6 +276,10 @@ def train(
     welch = SpectralDensity(
         sample_rate, fftlength, average="median", fast=True
     )
+
+    # reset batch sizes to be more manageable since
+    # gradient computation is analysis is expensive
+    valid_data.batch_size = train_data.batch_size = 64
     analyze_model(output_directory, model, welch, train_data, valid_data)
 
     # now create a version of the model which

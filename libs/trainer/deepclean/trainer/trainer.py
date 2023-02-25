@@ -1,4 +1,3 @@
-import logging
 from functools import partial
 from pathlib import Path
 from typing import Callable, Optional, Tuple
@@ -6,6 +5,7 @@ from typing import Callable, Optional, Tuple
 import numpy as np
 import torch
 
+from deepclean.logging import logger
 from deepclean.trainer import CompositePSDLoss
 from deepclean.trainer.analysis import analyze_model
 from deepclean.trainer.utils import Checkpointer, Trainer
@@ -210,7 +210,7 @@ def train(
         valid_data.y = output_scaler(valid_data.y)
 
     # Creating model, loss function, optimizer and lr scheduler
-    logging.info("Building and initializing model")
+    logger.info("Building and initializing model")
     model = architecture(len(X)).to(device)
     if init_weights is not None:
         # allow us to easily point to the best weights
@@ -218,11 +218,11 @@ def train(
         if init_weights.is_dir():
             init_weights = init_weights / "weights.pt"
 
-        logging.info(f"Initializing model from checkpoint '{init_weights}'")
+        logger.info(f"Initializing model from checkpoint '{init_weights}'")
         model.load_state_dict(torch.load(init_weights))
-    logging.info(model)
+    logger.info(model)
 
-    logging.info("Initializing loss and optimizer")
+    logger.info("Initializing loss and optimizer")
     criterion = CompositePSDLoss(
         alpha,
         sample_rate,
@@ -248,7 +248,7 @@ def train(
     )
 
     torch.backends.cudnn.benchmark = True
-    logging.info("Beginning training loop")
+    logger.info("Beginning training loop")
     for epoch in range(max_epochs):
         if epoch == 0 and profile:
             profiler = torch.profiler.profile(
@@ -261,7 +261,7 @@ def train(
         else:
             profiler = None
 
-        logging.info(f"=== Epoch {epoch + 1}/{max_epochs} ===")
+        logger.info(f"=== Epoch {epoch + 1}/{max_epochs} ===")
         train_loss, valid_loss = trainer(train_data, valid_data, profiler)
         stop = checkpointer(train_loss, valid_loss, model)
         if stop:
@@ -272,7 +272,7 @@ def train(
     model.load_state_dict(torch.load(weights_path))
 
     # generate some analyses of our model
-    logging.info("Performing post-hoc analysis on trained model")
+    logger.info("Performing post-hoc analysis on trained model")
     welch = SpectralDensity(
         sample_rate, fftlength, average="median", fast=True
     )

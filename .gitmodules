@@ -7,3 +7,6 @@
 [submodule "mldatafind"]
 	path = mldatafind
 	url = git@github.com:ML4GW/mldatafind.git
+[submodule "typeo"]
+	path = typeo
+	url = git@github.com:ML4GW/typeo.git

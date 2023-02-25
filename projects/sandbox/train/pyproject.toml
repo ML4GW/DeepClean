@@ -10,21 +10,17 @@ train = "train:main"
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
-mldatafind = {path = "../../../mldatafind", develop = true}
 gwpy = "^2.1"
 
+typeo = {path = "../../../typeo", develop = true}
+mldatafind = {path = "../../../mldatafind", develop = true}
+"deepclean.architectures" = {path = "../../../libs/architectures", develop = true}
 "deepclean.logging" = {path = "../../../libs/logging", develop = true}
-"deepclean.trainer" = {path = "../../../libs/trainer", develop = true, extras=["wrapper"]}
-
-[[tool.poetry.source]]
-name = "torch"
-url = "https://download.pytorch.org/whl/cu116"
-secondary = true
-default = false
+"deepclean.trainer" = {path = "../../../libs/trainer", develop = true}
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
 
 [build-system]
-requires = ["poetry>=1.2"]
+requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

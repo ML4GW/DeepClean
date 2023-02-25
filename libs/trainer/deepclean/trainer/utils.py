@@ -1,4 +1,3 @@
-import logging
 import time
 from dataclasses import dataclass
 from functools import wraps
@@ -7,6 +6,8 @@ from typing import Callable, Iterable, Optional, Tuple
 
 import h5py
 import torch
+
+from deepclean.logging import logger
 
 DataGenerator = Iterable[Tuple[torch.nn.Module, torch.nn.Module]]
 
@@ -116,7 +117,7 @@ class Trainer:
             tracker.update(loss, len(witnesses))
         train_loss, duration, throughput = tracker.stop()
 
-        logging.info(
+        logger.info(
             f"Duration {duration:0.2f}s, "
             f"Throughput {throughput:0.1f} samples/s"
         )
@@ -134,7 +135,7 @@ class Trainer:
             msg += f", Valid Loss: {valid_loss:.4e}"
         else:
             valid_loss = None
-        logging.info(msg)
+        logger.info(msg)
 
         return train_loss, valid_loss
 

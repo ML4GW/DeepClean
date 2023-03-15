@@ -9,7 +9,7 @@ from deepclean.logging import logger
 from deepclean.trainer import CompositePSDLoss
 from deepclean.trainer.analysis import analyze_model
 from deepclean.trainer.utils import Checkpointer, Trainer
-from deepclean.utils import BandpassFilter, Frequency
+from deepclean.utils.filtering import BandpassFilter, Frequency
 from ml4gw.dataloading import InMemoryDataset
 from ml4gw.transforms import ChannelWiseScaler, SpectralDensity
 
@@ -287,3 +287,4 @@ def train(
     output_scaler.forward = partial(output_scaler.forward, reverse=True)
     model = torch.nn.Sequential(input_scaler, model, output_scaler)
     torch.save(model.state_dict(), weights_path)
+    return weights_path

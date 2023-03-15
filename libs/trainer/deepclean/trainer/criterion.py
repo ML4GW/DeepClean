@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 import numpy as np
 import torch
 
-from deepclean.utils import Frequency, normalize_frequencies
+from deepclean.utils.filtering import Frequency, normalize_frequencies
 from ml4gw.transforms import SpectralDensity
 
 

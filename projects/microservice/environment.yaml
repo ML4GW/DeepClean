@@ -1,0 +1,8 @@
+name: deepclean-production-base
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - gwpy
+  - astropy
+  - ldas-tools-framecpp

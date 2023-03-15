@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "trainer"
+version = "0.0.1"
+description = "DeepClean production training deployment"
+authors = ["Alec Gunny <alecg@mit.edu>"]
+
+[tool.poetry.scripts]
+train = "trainer.trainer:main"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.11"
+typeo = {path = "../../../typeo", develop = true}
+microservice = {path = "../utils", develop = true}
+
+"deepclean.architectures" = {path = "../../../libs/architectures", develop = true}
+"deepclean.logging" = {path = "../../../libs/logging", develop = true}
+"deepclean.trainer" = {path = "../../../libs/trainer", develop = true}
+"deepclean.utils" = {path = "../../../libs/utils", develop = true}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

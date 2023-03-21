@@ -98,7 +98,7 @@ def main(
 
     last_start = None
     for X, y, start in data_it:
-        if last_start is not None and start > (last_start + train_duration):
+        if last_start is not None and start > (last_start + retrain_cadence):
             # TODO: insert any logic about how we do
             # training differently on a new lock segment
             pass

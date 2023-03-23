@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import numpy as np
-from trainer.dataloader import data_collector
+from trainer.dataloader import DataCollector
 
 from deepclean.architectures import architectures
 from deepclean.logging import logger
@@ -63,7 +63,7 @@ def train_on_segment(
 
 
 @scriptify(
-    kwargs=make_dummy(train, exclude=["X", "y", "architecture"]),
+    kwargs=make_dummy(train, exclude=["X", "y", "architecture", "valid_data"]),
     architecture=architectures,
 )
 def main(
@@ -85,7 +85,7 @@ def main(
         "DeepClean trainer", log_directory / "root.log", verbose=verbose
     )
 
-    data_it = data_collector(
+    frame_collector = DataCollector(
         data_directory,
         log_directory,
         channels,
@@ -97,41 +97,44 @@ def main(
     )
 
     last_start = None
-    for X, y, start in data_it:
-        if last_start is not None and start > (last_start + retrain_cadence):
-            # TODO: insert any logic about how we do
-            # training differently on a new lock segment
-            pass
+    with frame_collector as data_it:
+        for X, y, start in data_it:
+            if last_start is not None:
+                expected_start = last_start + retrain_cadence
+                if start > expected_start:
+                    # TODO: insert any logic about how we do
+                    # training differently on a new lock segment
+                    pass
 
-        root_logger.info(
-            "Launching training on segment {}-{}".format(
-                start, start + train_duration
+            root_logger.info(
+                "Launching training on segment {}-{}".format(
+                    start, start + train_duration
+                )
             )
-        )
 
-        weights_path = train_on_segment(
-            X,
-            y,
-            output_directory=output_directory,
-            start=start,
-            architecture=architecture,
-            sample_rate=sample_rate,
-            valid_frac=valid_frac,
-            verbose=verbose,
-            **kwargs,
-        )
-
-        logger.set_logger("DeepClean train")
-        logger.info(
-            "Training on segment {}-{} complete, saved "
-            "optimized weights to {}".format(
-                start, start + train_duration, weights_path
+            weights_path = train_on_segment(
+                X,
+                y,
+                output_directory=output_directory,
+                start=start,
+                architecture=architecture,
+                sample_rate=sample_rate,
+                valid_frac=valid_frac,
+                verbose=verbose,
+                **kwargs,
             )
-        )
 
-        # for trainings after the first, use the previous
-        # optimized weights and reduce the learning rate
-        kwargs["init_weights"] = weights_path
-        if last_start is None:
-            kwargs["lr"] = kwargs["lr"] * fine_tune_decay
-        last_start = start
+            logger.set_logger("DeepClean train")
+            logger.info(
+                "Training on segment {}-{} complete, saved "
+                "optimized weights to {}".format(
+                    start, start + train_duration, weights_path
+                )
+            )
+
+            # for trainings after the first, use the previous
+            # optimized weights and reduce the learning rate
+            kwargs["init_weights"] = weights_path
+            if last_start is None:
+                kwargs["lr"] = kwargs["lr"] * fine_tune_decay
+            last_start = start

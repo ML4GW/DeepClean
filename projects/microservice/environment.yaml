@@ -3,6 +3,6 @@ channels:
   - conda-forge
 dependencies:
   - python=3.10
-  - gwpy
+  - gwpy<3.0
   - astropy
-  - ldas-tools-framecpp
+  - python-ldas-tools-framecpp<3.0

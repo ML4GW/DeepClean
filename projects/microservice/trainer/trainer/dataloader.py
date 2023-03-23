@@ -1,6 +1,7 @@
 import sys
 import time
 import traceback
+from dataclasses import dataclass
 from multiprocessing import Event, Process, Queue
 from pathlib import Path
 from queue import Empty
@@ -29,13 +30,20 @@ def collect_frames(
 
     size = int(duration * sample_rate)
     edge_size = int(cadence * sample_rate)
-    X = np.zeros((len(channels), 0))
+    X = np.zeros((len(channels) - 1, 0))
     y = np.zeros((0,))
+
+    # clear the first couple filenames to avoid
+    # a race condition where the first file
+    # accidentally gets cycled out before we start
+    for _ in range(2):
+        next(crawler)
 
     while not event.is_set():
         fname = next(crawler)
         witnesses = load_frame(fname, channels[1:], sample_rate)
         strain = load_frame(fname, channels[0], sample_rate)
+        # logger.debug(f"Loaded {fname} with size {len(strain)}, {len(y)}/{size}")
 
         X = np.concatenate([X, witnesses], axis=1)
         y = np.concatenate([y, strain])
@@ -58,88 +66,59 @@ def collect_frames(
             )
             yield X, y, start
 
-        X = X[:, edge_size:]
-        y = y[edge_size:]
-        start += cadence
+            X = X[:, edge_size:]
+            y = y[edge_size:]
+            start += cadence
 
 
-def target(
-    q: Queue,
-    event: Event,
-    data_directory: Path,
-    log_directory: Path,
-    channels: ChannelList,
-    duration: float,
-    cadence: float,
-    sample_rate: float,
-    timeout: Optional[float] = None,
-    verbose: bool = False,
-):
-    logger.set_logger(
-        "DeepClean dataloading",
-        log_directory / "dataloader.log",
-        verbose=verbose,
-    )
-    try:
-        it = collect_frames(
-            event,
-            data_directory,
-            channels,
-            duration,
-            cadence,
-            sample_rate,
-            timeout,
-        )
-        for X, y, start in it:
-            q.put((X, y, start))
-    except Exception:
-        exc_type, exc, tb = sys.exc_info()
-        tb = traceback.format_exception(exc_type, exc, tb)
-        tb = "".join(tb[:-1])
-        q.put((exc_type, str(exc), tb))
-    finally:
-        # if we arrived here from an exception, i.e.
-        # the event has not been set, then don't
-        # close the queue until the parent process
-        # has received the error message and set the
-        # event itself, otherwise it will never be
-        # able to receive the message from the queue
-        while not event.is_set():
+@dataclass
+class DataCollector:
+    data_directory: Path
+    log_directory: Path
+    channels: ChannelList
+    duration: float
+    cadence: float
+    sample_rate: float
+    timeout: Optional[float] = None
+    verbose: bool = False
+
+    def __enter__(self):
+        self.q = Queue()
+        self.event = Event()
+        self.done_event = Event()
+        self.clear_event = Event()
+        self.p = Process(target=self)
+        self.p.start()
+        return self._iter_through_q()
+
+    def __exit__(self, *_):
+        # set the event to let the child process
+        # know that we're done with whatever data
+        # it's generating and it should stop
+        self.event.set()
+
+        # wait for the child to indicate to us
+        # that it has been able to finish gracefully
+        while not self.done_event.is_set():
             time.sleep(1e-3)
-        q.close()
 
+        # remove any remaining data from the queue
+        # to flush the child process's buffer so
+        # that it can exit gracefully, then close
+        # the queue from our end
+        self._clear_q()
+        self.q.close()
+        self.clear_event.set()
 
-def data_collector(
-    data_directory: Path,
-    log_directory: Path,
-    channels: ChannelList,
-    duration: float,
-    cadence: float,
-    sample_rate: float,
-    timeout: Optional[float] = None,
-    verbose: bool = False,
-):
-    q = Queue()
-    event = Event()
-    args = (
-        q,
-        event,
-        data_directory,
-        log_directory,
-        channels,
-        duration,
-        cadence,
-        sample_rate,
-        timeout,
-        verbose,
-    )
+        # now wait for the child to exit
+        # gracefully then close it
+        self.p.join()
+        self.p.close()
 
-    p = Process(target=target, args=args)
-    p.start()
-    try:
+    def _iter_through_q(self):
         while True:
             try:
-                X, y, start = q.get_nowait()
+                X, y, start = self.q.get_nowait()
             except Empty:
                 time.sleep(1)
                 continue
@@ -151,8 +130,54 @@ def data_collector(
                 )
                 raise exc_type(msg)
             yield X, y, start
-    finally:
-        event.set()
-        q.close()
-        p.join()
-        p.close()
+
+    def _clear_q(self):
+        """Greedily empty our internal queue"""
+
+        while True:
+            try:
+                self.q.get_nowait()
+            except Empty:
+                break
+            time.sleep(1e-3)
+
+    def __call__(self):
+        logger.set_logger(
+            "DeepClean dataloading",
+            self.log_directory / "dataloader.log",
+            verbose=self.verbose,
+        )
+        try:
+            it = collect_frames(
+                self.event,
+                self.data_directory,
+                self.channels,
+                self.duration,
+                self.cadence,
+                self.sample_rate,
+                self.timeout,
+            )
+            for X, y, start in it:
+                self.q.put((X, y, start))
+        except Exception:
+            exc_type, exc, tb = sys.exc_info()
+            tb = traceback.format_exception(exc_type, exc, tb)
+            tb = "".join(tb[:-1])
+            self.q.put((exc_type, str(exc), tb))
+        finally:
+            # now let the parent process know that
+            # there's no more information going into
+            # the queue, and it's free to empty it
+            self.done_event.set()
+
+            # if we arrived here from an exception, i.e.
+            # the event has not been set, then don't
+            # close the queue until the parent process
+            # has received the error message and set the
+            # event itself, otherwise it will never be
+            # able to receive the message from the queue
+            while not self.event.is_set() or not self.clear_event.is_set():
+                time.sleep(1e-3)
+
+            self.q.close()
+            self.q.cancel_join_thread()

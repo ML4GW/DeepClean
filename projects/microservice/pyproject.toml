@@ -1,29 +1,92 @@
 [tool.typeo.base]
 channels = [
     "H1:GDS-CALIB_STRAIN",
-    "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
-    "H1:ASC-INP1_P_INMON",
-    "H1:ASC-INP1_Y_INMON",
-    "H1:ASC-MICH_P_INMON",
-    "H1:ASC-MICH_Y_INMON",
-    "H1:ASC-PRC1_P_INMON",
-    "H1:ASC-PRC1_Y_INMON",
-    "H1:ASC-PRC2_P_INMON",
-    "H1:ASC-PRC2_Y_INMON",
-    "H1:ASC-SRC1_P_INMON",
-    "H1:ASC-SRC1_Y_INMON",
-    "H1:ASC-SRC2_P_INMON",
-    "H1:ASC-SRC2_Y_INMON",
-    "H1:ASC-DHARD_P_INMON",
-    "H1:ASC-DHARD_Y_INMON",
-    "H1:ASC-CHARD_P_INMON",
-    "H1:ASC-CHARD_Y_INMON",
-    "H1:ASC-DSOFT_P_INMON",
-    "H1:ASC-DSOFT_Y_INMON",
-    "H1:ASC-CSOFT_P_INMON",
-    "H1:ASC-CSOFT_Y_INMON"
+    "H1:GDS-CALIB_F_S_SQUARED",
+    "H1:GDS-CALIB_F_S_SQUARED_NOGATE",
+    "H1:GDS-CALIB_SRC_Q_INVERSE",
+    "H1:GDS-CALIB_SRC_Q_INVERSE_NOGATE",
+    "H1:GDS-CALIB_F_CC",
+    "H1:GDS-CALIB_F_CC_NOGATE",
+    "H1:GDS-CALIB_KAPPA_C",
+    "H1:GDS-CALIB_KAPPA_C_NOGATE",
+    "H1:GDS-CALIB_KAPPA_PUM_IMAGINARY",
+    "H1:GDS-CALIB_KAPPA_PUM_IMAGINARY_NOGATE",
+    "H1:GDS-CALIB_KAPPA_PUM_REAL",
+    "H1:GDS-CALIB_KAPPA_PUM_REAL_NOGATE",
+    "H1:GDS-CALIB_KAPPA_UIM_IMAGINARY",
+    "H1:GDS-CALIB_KAPPA_UIM_IMAGINARY_NOGATE",
+    "H1:GDS-CALIB_KAPPA_UIM_REAL",
+    "H1:GDS-CALIB_KAPPA_UIM_REAL_NOGATE",
+    "H1:GDS-CALIB_KAPPA_TST_IMAGINARY",
+    "H1:GDS-CALIB_KAPPA_TST_IMAGINARY_NOGATE",
+    "H1:GDS-CALIB_KAPPA_TST_REAL",
+    "H1:GDS-CALIB_KAPPA_TST_REAL_NOGATE",
+    "H1:GDS-CALIB_STATE_VECTOR",
 ]
+#     "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
+#     "H1:ASC-INP1_P_INMON",
+#     "H1:ASC-INP1_Y_INMON",
+#     "H1:ASC-MICH_P_INMON",
+#     "H1:ASC-MICH_Y_INMON",
+#     "H1:ASC-PRC1_P_INMON",
+#     "H1:ASC-PRC1_Y_INMON",
+#     "H1:ASC-PRC2_P_INMON",
+#     "H1:ASC-PRC2_Y_INMON",
+#     "H1:ASC-SRC1_P_INMON",
+#     "H1:ASC-SRC1_Y_INMON",
+#     "H1:ASC-SRC2_P_INMON",
+#     "H1:ASC-SRC2_Y_INMON",
+#     "H1:ASC-DHARD_P_INMON",
+#     "H1:ASC-DHARD_Y_INMON",
+#     "H1:ASC-CHARD_P_INMON",
+#     "H1:ASC-CHARD_Y_INMON",
+#     "H1:ASC-DSOFT_P_INMON",
+#     "H1:ASC-DSOFT_Y_INMON",
+#     "H1:ASC-CSOFT_P_INMON",
+#     "H1:ASC-CSOFT_Y_INMON"
+# ]
 sample_rate = 4096
+verbose = true
+
+[tool.typeo.scripts.train]
+# paths
+output_directory = "${PROJECT_DIR}/train"
+data_directory = "${DATA_DIR}/H1"
+
+# data parameters
+channels = "${base.channels}"
+train_duration = 2048
+retrain_cadence = 1024
+sample_rate = "${base.sample_rate}"
+valid_frac = 0.25
+
+# preprocessing parameters
+kernel_length = 8
+kernel_stride = 0.0625
+freq_low = 55
+freq_high = 65
+filter_order = 8
+fftlength = 2
+overlap = 1
+alpha = 1
+
+# optimziation parameters
+batch_size = 256
+lr = 1e-3
+fine_tune_decay = 0.1
+weight_decay = 1e-5
+max_epochs = 50
+patience = 5
+factor = 0.1
+
+# misc. parameters
+device = "cuda:0"
+verbose = "${base.verbose}"
+
+# architectures
+[tool.typeo.scripts.train.architecture]
+autoencoder = {}
+
 
 [tool.typeo.scripts.clean]
 url = "localhost:8001"
@@ -32,7 +95,7 @@ model_version = 1
 
 witness_data_dir = "${DATA_DIR}/lldetchar"
 strain_data_dir = "${DATA_DIR}/llhoft"
-write_dir = "${PROJECT_DIR}/production"
+write_dir = "${PROJECT_DIR}/production/data"
 
 channels = "${base.channels}"
 kernel_length = 1

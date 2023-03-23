@@ -1,6 +1,5 @@
-from functools import partial
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
 import torch
@@ -14,6 +13,50 @@ from ml4gw.dataloading import InMemoryDataset
 from ml4gw.transforms import ChannelWiseScaler, SpectralDensity
 
 torch.set_default_tensor_type(torch.FloatTensor)
+
+
+class DeepClean(torch.nn.Module):
+    def __init__(self, preprocessor, deepclean, postprocessor):
+        super().__init__()
+        self.preprocessor = preprocessor
+        self.deepclean = deepclean
+        self.postprocessor = postprocessor
+
+    def forward(self, X):
+        X = self.preprocessor(X)
+        X = self.deepclean(X)
+        X = self.postprocessor(X, reverse=True)
+        return X
+
+
+def get_weights(state_dict: Dict, prefix: str):
+    prefix = f"{prefix}."
+    weights = {}
+    for name, param in state_dict.items():
+        if name.startswith(prefix):
+            name = name.replace(prefix, "")
+            weights[name] = param
+    return weights
+
+
+def load_weights(
+    init_weights: Path,
+    model: torch.nn.Module,
+    preprocessor: ChannelWiseScaler
+):
+    logger.info(f"Initializing model from checkpoint '{init_weights}'")
+    state_dict = torch.load(init_weights)
+    weights = get_weights(state_dict, "deepclean")
+    model.load_state_dict(weights)
+
+    # if any of the witness channels have been
+    # dropped or gone constant since the last
+    # training, keep the old preprocessing params
+    preproc_params = get_weights(state_dict, "preprocessor")
+    mask = preprocessor.std == 0
+    for param_name in ["mean", "std"]:
+        param = getattr(preprocessor, param_name)
+        param[mask] = preproc_params[param_name][mask]
 
 
 def train(
@@ -172,6 +215,24 @@ def train(
     input_scaler.fit(X)
     output_scaler.fit(y)
 
+    # Create the model, potentially loading in weights from
+    # a file. Do this _before_ performing preprocessing
+    # so that we can potentially resolve any bad preprocessing
+    # parameters fit from the current witness data
+    logger.info("Building and initializing model")
+    model = architecture(len(X)).to(device)
+    logger.info(model)
+
+    if init_weights is not None:
+        # allow us to easily point to the best weights
+        # from another run of this same function
+        if init_weights.is_dir():
+            init_weights = init_weights / "weights.pt"
+        load_weights(init_weights, model, input_scaler)
+    # get rid of any remaining 0s in the preprocessing module
+    input_scaler.std[input_scaler.std == 0] = 1
+    print(input_scaler.std)
+
     # bandpass the strain up front so that we only
     # deal with the frequency ranges we care about
     strain_filter = BandpassFilter(
@@ -191,7 +252,6 @@ def train(
     )
     train_data.X = input_scaler(train_data.X)
     train_data.y = output_scaler(train_data.y)
-
     if valid_data is not None:
         valid_X, valid_y = valid_data
         valid_y = strain_filter(valid_y)
@@ -209,19 +269,7 @@ def train(
         valid_data.X = input_scaler(valid_data.X)
         valid_data.y = output_scaler(valid_data.y)
 
-    # Creating model, loss function, optimizer and lr scheduler
-    logger.info("Building and initializing model")
-    model = architecture(len(X)).to(device)
-    if init_weights is not None:
-        # allow us to easily point to the best weights
-        # from another run of this same function
-        if init_weights.is_dir():
-            init_weights = init_weights / "weights.pt"
-
-        logger.info(f"Initializing model from checkpoint '{init_weights}'")
-        model.load_state_dict(torch.load(init_weights))
-    logger.info(model)
-
+    # now set up the optimization function
     logger.info("Initializing loss and optimizer")
     criterion = CompositePSDLoss(
         alpha,
@@ -278,13 +326,10 @@ def train(
     )
 
     # reset batch sizes to be more manageable since
-    # gradient computation is analysis is expensive
+    # gradient computation in analysis is expensive
     valid_data.batch_size = train_data.batch_size = 64
     analyze_model(output_directory, model, welch, train_data, valid_data)
 
-    # now create a version of the model which
-    # has the pre- and postprocessing built in
-    output_scaler.forward = partial(output_scaler.forward, reverse=True)
-    model = torch.nn.Sequential(input_scaler, model, output_scaler)
+    model = DeepClean(input_scaler, model, output_scaler)
     torch.save(model.state_dict(), weights_path)
     return weights_path

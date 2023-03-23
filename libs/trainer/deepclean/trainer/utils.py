@@ -109,7 +109,6 @@ class Trainer:
         valid_data: Optional[DataGenerator] = None,
         profiler: Optional[torch.profiler.profile] = None,
     ) -> Tuple[float, Optional[float]]:
-
         self.model.train()
         tracker = EpochTracker(profiler)
         for witnesses, strain in train_data:

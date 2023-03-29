@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "deepclean.export"
+version = "0.0.1"
+description = "IaaS export utilities"
+authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+# readme = "README.md"
+packages = [
+    {include = "deepclean"}
+]
+
+[tool.poetry.dependencies]
+python = "^3.8,<3.11"
+ml4gw = {path = "../../ml4gw", develop = true}
+
+[tool.poetry.dependencies."hermes.quiver"]
+path = "../../hermes/hermes/hermes.quiver"
+develop = true
+extras = ["torch"]
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -36,7 +36,7 @@ def train_on_segment(
     duration = len(y) / sample_rate
     str_rep = _get_str(start, start + duration)
 
-    log_file = output_directory / "log" / f"train_{str_rep}.log"
+    log_file = output_directory / "log" / f"train-{str_rep}.log"
 
     output_directory = output_directory / "training" / str_rep
     logger.info(f"Saving training outputs to directory {output_directory}")

@@ -5,6 +5,7 @@ import numpy as np
 import torch
 
 from deepclean.logging import logger
+from deepclean.export.model import DeepClean
 from deepclean.trainer import CompositePSDLoss
 from deepclean.trainer.analysis import analyze_model
 from deepclean.trainer.utils import Checkpointer, Trainer
@@ -13,20 +14,6 @@ from ml4gw.dataloading import InMemoryDataset
 from ml4gw.transforms import ChannelWiseScaler, SpectralDensity
 
 torch.set_default_tensor_type(torch.FloatTensor)
-
-
-class DeepClean(torch.nn.Module):
-    def __init__(self, preprocessor, deepclean, postprocessor):
-        super().__init__()
-        self.preprocessor = preprocessor
-        self.deepclean = deepclean
-        self.postprocessor = postprocessor
-
-    def forward(self, X):
-        X = self.preprocessor(X)
-        X = self.deepclean(X)
-        X = self.postprocessor(X, reverse=True)
-        return X
 
 
 def get_weights(state_dict: Dict, prefix: str):

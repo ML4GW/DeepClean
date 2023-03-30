@@ -16,9 +16,10 @@ def initialize_repo(
     repo_dir: str,
     channels: List[str],
     platform: qv.Platform,
-    instances: Optional[int] = None
+    instances: Optional[int] = None,
+    clean: bool = False
 ):
-    repo = qv.ModelRepository(repo_dir)
+    repo = qv.ModelRepository(repo_dir, clean=clean)
     try:
         deepclean = repo.models["deepclean"]
     except KeyError:

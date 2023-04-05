@@ -19,7 +19,7 @@ class Cleaner:
             self.freq_low, self.freq_high, self.sample_rate
         )
         self.pad_size = int(self.filter_pad * self.sample_rate)
-        self.kernel_Size = int(self.kernel_length * self.sample_rate)
+        self.kernel_size = int(self.kernel_length * self.sample_rate)
         self.window = windows.hann(2 * self.pad_size)
 
     def __call__(self, noise: np.ndarray, strain: np.ndarray) -> np.ndarray:

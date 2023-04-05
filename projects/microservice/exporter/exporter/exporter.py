@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import torch
+import tritonclient.grpc.model_config_pb2 as model_config
 from ml4gw.transforms import ChannelWiseScaler
 from typeo.parser import make_parser
 
@@ -84,6 +85,7 @@ class Exporter:
             input_shapes={"witnesses": input_shape},
             output_names=["normalized"]
         )
+        self.set_version_policy(preproc)
 
         # now create a snapshotter instance
         # for this preprocessor, mapped to
@@ -115,6 +117,7 @@ class Exporter:
             input_shapes={"normalized": input_shape},
             output_names=["noise_prediction"]
         )
+        self.set_version_policy(self.repo.models["deepclean"])
 
         keys = {"canary": -1, "production": 1}
         for key, version in keys.items():
@@ -135,6 +138,7 @@ class Exporter:
             input_shapes={"noise_prediction": output_shape},
             output_names=["unscaled"]
         )
+        self.set_version_policy(postproc)
         for key, version in keys.items():
             ensemble.pipe(
                 self.repo.models["deepclean"].outputs["noise_prediction"],
@@ -155,13 +159,13 @@ class Exporter:
             )
         ensemble.export_version(None)
 
-    def update_ensemble_versions(self, ensemble, version):
-        for step in ensemble.config.ensemble_scheduling.step:
-            if step.model_version == -1:
-                continue
-            if step.model_name not in ["snapshotter", "aggregator"]:
-                step.model_version = version
-        ensemble.config.write()
+    def set_version_policy(self, model: qv.Model):
+        model.config.version_policy.MergeFrom(
+            model_config.ModelVersionPolicy(
+                latest=model_config.ModelVersionPolicy.Latest(num_versions=2)
+            )
+        )
+        model.config.write()
 
     @property
     def preprocessor(self):
@@ -175,12 +179,16 @@ class Exporter:
     def deepclean(self):
         return self.model.deepclean
 
-    def export_version(self, train_dir: Path):
-        weights_path = train_dir / "weights.pt"
+    def update_ensemble_versions(self, version):
+        ensemble = self.repo.models["deepclean-stream"]
+        for step in ensemble.config.steps:
+            if step.model_version == -1:
+                continue
+            if step.model_name not in ["snapshotter", "aggregator"]:
+                step.model_version = version
+        ensemble.config.write()
 
-        state_dict = torch.load(weights_path)
-        self.deepclean.load_state_dict(state_dict)
-
+    def export(self):
         self.repo.models["preprocessor"].export_version(self.preprocessor)
         self.repo.models["postprocessor"].export_version(self.postprocessor)
 
@@ -191,9 +199,14 @@ class Exporter:
             self.deepclean, **kwargs
         )
         version = int(Path(export_path).parent.name)
-        self.update_ensemble_versions(
-            self.repo.models["deepclean-stream-canary"], version
-        )
+        return version
+
+    def export_weights(self, train_dir: Path):
+        weights_path = train_dir / "weights.pt"
+
+        state_dict = torch.load(weights_path)
+        self.deepclean.load_state_dict(state_dict)
+        version = self.export()
 
         _, start, stop = train_dir.name.split("-")
         self.deepclean.config.parameters["versions"] += "{}={}-{},".format(

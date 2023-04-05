@@ -5,16 +5,16 @@ from typing import Iterable, Optional, Union
 
 from cleaner.dataloader import get_data_generators
 from cleaner.writer import Writer
-from typeo import scriptify
 
 from deepclean.infer.callback import Callback, State
 from deepclean.infer.clean import Cleaner
 from deepclean.utils.channels import ChannelList, get_channels
 from deepclean.logging import logger
 from hermes.aeriel.client import InferenceClient
+from hermes.typeo import typeo
 
 
-@scriptify
+@typeo
 def main(
     # IO args
     data_dir: Path,

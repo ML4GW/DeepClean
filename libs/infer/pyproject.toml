@@ -10,7 +10,7 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
-tritonclient = {extras = ["all"], version = "^2.18.0"}
+scipy = "^1.7"
 "deepclean.utils" = {path = "../utils", develop = true}
 
 [tool.poetry.dev-dependencies]

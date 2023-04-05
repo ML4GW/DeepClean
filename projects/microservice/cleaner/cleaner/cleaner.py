@@ -1,4 +1,3 @@
-import logging
 import time
 from pathlib import Path
 from typing import Iterable, Optional, Union
@@ -40,7 +39,7 @@ def main(
     memory: float = 10,
     look_ahead: float = 0.5,
     verbose: bool = False,
-    log_file: Optional[str] = None,
+    log_file: Optional[Path] = None,
 ) -> None:
     """
     Iterate through directories of witness and strain
@@ -131,6 +130,7 @@ def main(
             only go to stdout.
     """
 
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     logger.set_logger("DeepClean infer", log_file, verbose)
     channels = get_channels(channels)
 
@@ -157,7 +157,7 @@ def main(
     states = {}
     for model in ["production", "canary"]:
         # TODO: infer this from server
-        name = f"aggregation-{model}-output_stream"
+        name = f"aggregator-{model}-output_stream"
         state = State(
             model,
             frame_length,
@@ -195,6 +195,7 @@ def main(
     # server responses to the writer in a callback thread
     with client:
         for request_id, (x, sequence_end) in enumerate(witness_it):
+            logger.debug(f"Sending request {request_id}")
             client.infer(
                 x,
                 request_id,
@@ -203,7 +204,7 @@ def main(
                 sequence_end=sequence_end,
             )
             if request_id == 0:
-                callback.block()
+                callback.block(0, client.get)
             time.sleep(0.95 / inference_rate)
 
             # check if any files have been written or if the
@@ -211,7 +212,7 @@ def main(
             response = client.get()
             if response is not None:
                 fname, latency = response
-                logging.info(f"Wrote file {fname} with latency {latency}s")
+                logger.info(f"Wrote file {fname} with latency {latency}s")
 
 
 if __name__ == "__main__":

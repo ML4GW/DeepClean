@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.signal import windows
 
-from deepclean.utils.filtering import FREQUENCY, BandpassFilter
+from deepclean.utils.filtering import Frequency, BandpassFilter
 
 
 @dataclass
@@ -11,8 +11,8 @@ class Cleaner:
     kernel_length: float
     sample_rate: float
     filter_pad: float
-    freq_low: FREQUENCY = None
-    freq_high: FREQUENCY = None
+    freq_low: Frequency = None
+    freq_high: Frequency = None
 
     def __post_init__(self):
         self.bandpass = BandpassFilter(

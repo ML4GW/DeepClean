@@ -7,6 +7,7 @@ import torch
 import tritonclient.grpc.model_config_pb2 as model_config
 from ml4gw.transforms import ChannelWiseScaler
 from typeo.parser import make_parser
+from typeo.actions import TypeoTomlAction
 
 import hermes.quiver as qv
 from deepclean.architectures import DeepCleanAE as architecture
@@ -29,13 +30,34 @@ class Exporter:
     instances: Optional[int] = None
 
     @classmethod
-    def from_config(cls, config: Optional[Path] = None):
+    def from_config(
+        cls,
+        config: Optional[Path] = None,
+        script: Optional[str] = None
+    ):
+        args = ["--typeo"]
         if config is None:
-            config = Path(__file__).parent.parent / "pyproject.toml"
+            config = Path(__file__).parent.parent.parent / "pyproject.toml"
+            if script is None:
+                script = "exporter"
+
+        args.append(str(config))
+        if script is not None:
+            args.append(f"script={script}")
+
+        typeo_parser = argparse.ArgumentParser()
+        typeo_parser.add_argument(
+            "--typeo",
+            bools={},
+            subcommands={},
+            nargs="*",
+            action=TypeoTomlAction
+        )
+        args = typeo_parser.parse_args(args)
 
         parser = argparse.ArgumentParser()
         make_parser(cls, parser)
-        args = parser.parse_args(["--typeo", config])
+        args = parser.parse_args(args.typeo)
         return cls(**vars(args))
 
     def __post_init__(self):
@@ -179,13 +201,21 @@ class Exporter:
     def deepclean(self):
         return self.model.deepclean
 
-    def update_ensemble_versions(self, version):
+    def update_ensemble_versions(self, version: Optional[int] = None):
         ensemble = self.repo.models["deepclean-stream"]
         for step in ensemble.config.steps:
+            # don't update the version of the canary model,
+            # which will always point to the latest version
             if step.model_version == -1:
                 continue
-            if step.model_name not in ["snapshotter", "aggregator"]:
-                step.model_version = version
+            elif step.model_name in ["snapshotter", "aggregator"]:
+                # these models don't need to be versioned
+                # because they don't have any parameters
+                continue
+
+            if version is None:
+                version = step.model_version + 1
+            step.model_version = version
         ensemble.config.write()
 
     def export(self):

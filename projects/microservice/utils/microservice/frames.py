@@ -42,7 +42,7 @@ def parse_frame_name(fname: PATH_LIKE) -> Tuple[str, int, int]:
     if match is None:
         raise ValueError(f"Could not parse frame filename {fname}")
 
-    prefix, start, duration, _ = match.groups()
+    prefix, start, duration, *_ = match.groups()
     return prefix, int(start), int(duration)
 
 

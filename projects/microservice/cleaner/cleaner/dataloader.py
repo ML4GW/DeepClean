@@ -4,6 +4,7 @@ from queue import Empty, Queue
 from typing import Iterable, List
 
 import numpy as np
+from gwpy.timeseries import TimeSeries
 from microservice.frames import FrameCrawler, load_frame
 
 from deepclean.logging import logger
@@ -28,7 +29,9 @@ def witness_iterator(it: Iterable, stride: int) -> np.ndarray:
                 data = data[:, start:]
                 data = np.concatenate([data, frame], axis=-1)
                 idx, start, stop = 0, 0, stride
+
         yield data[:, start: stop], sequence_end
+        idx += 1
 
 
 def strain_iterator(q: Queue):
@@ -48,6 +51,9 @@ def frame_iter(crawler, channels, sample_rate, q):
         logger.debug(f"Loading frame file {fname}")
         frame = load_frame(fname, channels, sample_rate)
         strain, witnesses = np.split(frame, [1], axis=0)
+        strain = TimeSeries(
+            strain[0], sample_rate=sample_rate, channel=channels[0]
+        )
         q.put((strain, fname))
         yield witnesses
     q.put(None)

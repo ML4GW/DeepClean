@@ -1,9 +1,10 @@
-import logging
 import math
 import time
 from typing import Callable, Optional
 
 import numpy as np
+
+from deepclean.logging import logger
 
 
 class State:
@@ -32,9 +33,12 @@ class State:
             aggregation_steps, batch_size
         )
 
+        self._zeros = np.zeros((self.frame_size,), dtype=np.float32)
+        self._state = np.zeros((0,), dtype=np.float32)
+
         self._frame_idx = 0
-        self._latest_seen = 0
-        self.logger = logging.getLogger(f"Output state {name}")
+        self._latest_seen = -1
+        self.logger = logger.get_logger(f"Output state {name}")
 
     def validate(self, response, request_id):
         # flatten out to 1D and verify that this
@@ -96,13 +100,13 @@ class State:
 
         # now make sure that we have data to fill out,
         # otherwise extend the array
-        if (start_idx + len(x)) > len(self._noise):
-            self._noise = np.append(self._noise, self._zeros)
+        if (start_idx + len(x)) > len(self._state):
+            self._state = np.append(self._state, self._zeros)
 
         # now insert the response into the existing array
         # TODO: should we check that this is all 0s to
         # double check ourselves here?
-        self._noise[start_idx : start_idx + len(x)] = x
+        self._state[start_idx : start_idx + len(x)] = x
 
         # return the number of steps that have been completed
         step_idx = step_idx + self.batch_size
@@ -112,17 +116,17 @@ class State:
         # cleanable index is past the end of the next frame
         div, rem = divmod(step_idx, self.steps_per_frame)
         if (
-            (div == self._frame_idx and rem >= self.steps_ahead)
-            or div > self._frame_idx
+            (div == (self._frame_idx + 1) and rem >= self.steps_ahead)
+            or div > self._frame_idx + 1
         ):
             frame_idx = self._frame_idx * self.frame_size
             idx = min(self.memory, frame_idx)
             idx += self.frame_size + self.samples_ahead
-            noise = self._noise[:idx]
+            noise = self._state[:idx]
 
             extra = len(noise) - self.samples_ahead - self.memory
             if extra > 0:
-                self._noise = self._noise[extra:]
+                self._state = self._state[extra:]
             self._frame_idx += 1
             return noise
         return None
@@ -130,14 +134,19 @@ class State:
 
 class Callback:
     def __init__(
-        self, postprocessor: Optional[Callable] = None, **states: State
+        self, postprocessor: Callable, **states: State
     ):
         self.postprocessor = postprocessor
         self.states = states
+        self.logger = logger.get_logger("Infer callback")
+        self.logger.debug("In callback")
 
-    def block(self, i: int = 1):
+    def block(self, i: int = 0, callback: Optional[Callable] = None):
         while any([state._latest_seen < i for state in self.states.values()]):
-            time.sleep(1e-3)
+            if callback is not None:
+                response = callback()
+                if response is not None:
+                    return response
 
     def __call__(self, responses: np.ndarray, request_id: int, *arg):
         predictions = {}
@@ -147,6 +156,7 @@ class Callback:
             if prediction is not None:
                 predictions[state_name] = prediction
 
-        if predictions and self.postprocessor is not None:
+        if predictions:
+            self.logger.debug(f"Cleaning frame {state._frame_idx - 1}")
             return self.postprocessor(**predictions)
         return None

@@ -11,6 +11,7 @@ clean = "cleaner.cleaner:main"
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
 typeo = {path = "../../../typeo", develop = true}
+microservice = {path = "../utils", develop = true}
 
 "deepclean.logging" = {path = "../../../libs/logging", develop = true}
 "deepclean.infer" = {path = "../../../libs/infer", develop = true}

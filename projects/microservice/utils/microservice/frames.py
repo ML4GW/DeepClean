@@ -3,10 +3,13 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 from typing import Iterable, Literal, Optional, Tuple, Union
 
 import numpy as np
-from gwpy.timeseries import TimeSeries, TimeSeriesDict
+from gwpy.timeseries import TimeSeries
+
+from deepclean.logging import logger
 
 PATH_LIKE = Union[str, Path]
 
@@ -19,6 +22,8 @@ patterns = {
 groups = {k: f"(?P<{k}>{v})" for k, v in patterns.items()}
 pattern = "{prefix}-{start}-{duration}.{suffix}".format(**groups)
 fname_re = re.compile(pattern)
+
+lock = Lock()
 
 
 def parse_frame_name(fname: PATH_LIKE) -> Tuple[str, int, int]:
@@ -83,7 +88,7 @@ def _is_gwf(match):
 
 def get_prefix(data_dir: Path):
     if not data_dir.exists():
-        raise FileNotFoundError("No data directory '{data_dir}'")
+        raise FileNotFoundError(f"No data directory '{data_dir}'")
 
     fnames = map(str, data_dir.iterdir())
     matches = map(fname_re.search, fnames)
@@ -158,6 +163,61 @@ class FrameCrawler:
         return fname
 
 
+def resample(x: TimeSeries, sample_rate: float):
+    if x.sample_rate.value != sample_rate:
+        return x.resample(sample_rate).value
+    return x.value
+
+
+def read_channel(fname, channel, sample_rate):
+    for i in range(3):
+        try:
+            with lock:
+                x = TimeSeries.read(fname, channel=channel)
+        except ValueError as e:
+            if str(e) == (
+                "Cannot generate TimeSeries with 2-dimensional data"
+            ):
+                logger.warning(
+                    "Channel {} from file {} got corrupted and was "
+                    "read as 2D, attempting reread {}".format(
+                        channel, fname, i + 1
+                    )
+                )
+                time.sleep(1e-1)
+                continue
+            else:
+                raise
+        except RuntimeError as e:
+            if str(e).startswith("Failed to read the core"):
+                logger.warning(
+                    "Channel {} from file {} had corrupted header, "
+                    "attempting reread {}".format(channel, fname, i + 1)
+                )
+                time.sleep(2e-1)
+                continue
+            else:
+                raise
+
+        x = resample(x, sample_rate)
+        if len(x) != sample_rate:
+            logger.warning(
+                "Channel {} in file {} got corrupted with "
+                "length {}, attempting reread {}".format(
+                    channel, fname, len(x), i + 1
+                )
+            )
+            del x
+            time.sleep(1e-1)
+            continue
+
+        return x
+    else:
+        raise ValueError(
+            "Failed to read channel {} in file {}".format(channel, fname)
+        )
+
+
 def load_frame(
     fname: str, channels: Union[str, Iterable[str]], sample_rate: float
 ) -> np.ndarray:
@@ -165,14 +225,22 @@ def load_frame(
 
     if isinstance(channels, str):
         # if we don't have multiple channels, then just grab the data
-        data = TimeSeries.read(fname, channels)
-        data = data.resample(sample_rate)
-        data = data.value
+        data = read_channel(fname, channels, sample_rate)
     else:
         # otherwise stack the arrays
-        data = TimeSeriesDict.read(fname, channels)
-        data = data.resample(sample_rate)
-        data = np.stack([data[i].value for i in channels])
+        # with lock:
+        #     ts = TimeSeriesDict.read(fname, channels)
+        data = []
+        for channel in channels:
+            # x = resample(ts[channel], sample_rate)
+            x = read_channel(fname, channel, sample_rate)
+            data.append(x)
+
+        try:
+            data = np.stack(data)
+        except Exception:
+            print(fname, [(k, x.shape) for k, x in zip(channels, data)])
+            raise
 
     # return as the expected type
     return data.astype("float32")

@@ -17,7 +17,7 @@ class State:
         sample_rate: float,
         inference_sampling_rate: float,
         batch_size: int,
-        aggregation_steps: int
+        aggregation_steps: int,
     ) -> None:
         self.frame_size = int(sample_rate * frame_length)
         self.stride = int(sample_rate // inference_sampling_rate)
@@ -116,9 +116,8 @@ class State:
         # cleanable index is past the end of the next frame
         div, rem = divmod(step_idx, self.steps_per_frame)
         if (
-            (div == (self._frame_idx + 1) and rem >= self.steps_ahead)
-            or div > self._frame_idx + 1
-        ):
+            div == (self._frame_idx + 1) and rem >= self.steps_ahead
+        ) or div > self._frame_idx + 1:
             frame_idx = self._frame_idx * self.frame_size
             idx = min(self.memory, frame_idx)
             idx += self.frame_size + self.samples_ahead
@@ -133,13 +132,10 @@ class State:
 
 
 class Callback:
-    def __init__(
-        self, postprocessor: Callable, **states: State
-    ):
+    def __init__(self, postprocessor: Callable, **states: State):
         self.postprocessor = postprocessor
         self.states = states
         self.logger = logger.get_logger("Infer callback")
-        self.logger.debug("In callback")
 
     def block(self, i: int = 0, callback: Optional[Callable] = None):
         while any([state._latest_seen < i for state in self.states.values()]):
@@ -147,6 +143,7 @@ class Callback:
                 response = callback()
                 if response is not None:
                     return response
+            time.sleep(1e-3)
 
     def __call__(self, responses: np.ndarray, request_id: int, *arg):
         predictions = {}

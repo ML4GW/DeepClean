@@ -30,7 +30,7 @@ def witness_iterator(it: Iterable, stride: int) -> np.ndarray:
                 data = np.concatenate([data, frame], axis=-1)
                 idx, start, stop = 0, 0, stride
 
-        yield data[:, start: stop], sequence_end
+        yield data[:, start:stop], sequence_end
         idx += 1
 
 
@@ -49,27 +49,37 @@ def strain_iterator(q: Queue):
 def frame_iter(crawler, channels, sample_rate, q):
     for fname in crawler:
         logger.debug(f"Loading frame file {fname}")
-        frame = load_frame(fname, channels, sample_rate)
-        strain, witnesses = np.split(frame, [1], axis=0)
-        strain = TimeSeries(
-            strain[0], sample_rate=sample_rate, channel=channels[0]
-        )
+        # frame = load_frame(fname, channels, sample_rate)
+        # strain, witnesses = np.split(frame, [1], axis=0)
+        # strain = TimeSeries(
+        #     strain[0], sample_rate=sample_rate, channel=channels[0]
+        # )
+
+        witnesses = load_frame(fname, channels[1:], sample_rate)
+
+        strain_fname = fname.name.replace("Detchar", "HOFT")
+        strain_fname = fname.parent.parent / "llhoft" / strain_fname
+        strain = TimeSeries.read(strain_fname, channel=channels[0])
+        if strain.sample_rate.value != sample_rate:
+            strain = strain.resample(sample_rate)
+
         q.put((strain, fname))
         yield witnesses
     q.put(None)
 
 
 def get_data_generators(
-    witness_data_dir: Path,
+    data_dir: Path,
     channels: List[str],
     sample_rate: float,
     inference_sampling_rate: float,
     batch_size: int,
     start_first: bool = True,
-    timeout: float = 10
+    timeout: float = 10,
 ):
     t0 = 0 if start_first else -1
-    crawler = FrameCrawler(witness_data_dir, t0, timeout)
+    # crawler = FrameCrawler(data_dir, t0, timeout)
+    crawler = FrameCrawler(data_dir / "lldetchar", t0, timeout)
     strain_q = Queue()
     it = frame_iter(crawler, channels, sample_rate, strain_q)
 

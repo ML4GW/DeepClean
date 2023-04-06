@@ -4,13 +4,13 @@ from typing import Iterable, Optional, Union
 
 from cleaner.dataloader import get_data_generators
 from cleaner.writer import Writer
-from typeo import scriptify
 
 from deepclean.infer.callback import Callback, State
 from deepclean.infer.clean import Cleaner
-from deepclean.utils.channels import ChannelList, get_channels
 from deepclean.logging import logger
+from deepclean.utils.channels import ChannelList, get_channels
 from hermes.aeriel.client import InferenceClient
+from typeo import scriptify
 
 
 @scriptify
@@ -38,6 +38,7 @@ def main(
     timeout: Optional[float] = None,
     memory: float = 10,
     look_ahead: float = 0.5,
+    max_files: int = 300,
     verbose: bool = False,
     log_file: Optional[Path] = None,
 ) -> None:
@@ -141,7 +142,7 @@ def main(
         inference_sampling_rate=inference_sampling_rate,
         batch_size=batch_size,
         start_first=start_first,
-        timeout=timeout
+        timeout=timeout,
     )
     # now create a file writer which takes the
     # responses returned by the server and turns them
@@ -166,7 +167,7 @@ def main(
             sample_rate=sample_rate,
             inference_sampling_rate=inference_sampling_rate,
             batch_size=batch_size,
-            aggregation_steps=aggregation_steps
+            aggregation_steps=aggregation_steps,
         )
         states[name] = state
 
@@ -175,9 +176,9 @@ def main(
         sample_rate,
         filter_pad=look_ahead,
         freq_low=freq_low,
-        freq_high=freq_high
+        freq_high=freq_high,
     )
-    writer =  Writer(write_dir, strain_it, cleaner)
+    writer = Writer(write_dir, strain_it, cleaner, max_files)
     callback = Callback(writer, **states)
 
     # finally create an inference client which will stream

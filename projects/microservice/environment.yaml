@@ -5,4 +5,4 @@ dependencies:
   - python=3.10
   - gwpy<3.0
   - astropy
-  - python-ldas-tools-framecpp<3.0
+  - python-ldas-tools-framecpp=2.6.14

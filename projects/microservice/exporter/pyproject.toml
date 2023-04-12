@@ -14,6 +14,8 @@ torch = {version = "^1.10", source = "torch"}
 ml4gw = {path = "../../../ml4gw", develop = true}
 
 typeo = {path = "../../../typeo", develop = true}
+microservice = {path = "../utils", develop = true}
+
 "deepclean.architectures" = {path = "../../../libs/architectures", develop = true}
 "deepclean.export" = {path = "../../../libs/export", develop = true}
 "deepclean.logging" = {path = "../../../libs/logging", develop = true}

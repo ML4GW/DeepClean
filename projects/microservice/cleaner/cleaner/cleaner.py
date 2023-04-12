@@ -4,6 +4,7 @@ from typing import Iterable, Optional, Union
 
 from cleaner.dataloader import get_data_generators
 from cleaner.writer import Writer
+from microservice.deployment import Deployment
 
 from deepclean.infer.callback import Callback, State
 from deepclean.infer.clean import Cleaner
@@ -16,8 +17,8 @@ from typeo import scriptify
 @scriptify
 def main(
     # IO args
-    data_dir: Path,
-    write_dir: Path,
+    run_directory: Path,
+    data_directory: Path,
     # Data args
     sample_rate: float,
     frame_length: float,
@@ -40,7 +41,6 @@ def main(
     look_ahead: float = 0.5,
     max_files: int = 300,
     verbose: bool = False,
-    log_file: Optional[Path] = None,
 ) -> None:
     """
     Iterate through directories of witness and strain
@@ -126,17 +126,15 @@ def main(
             current frame. Useful for avoiding filtering edge effects.
         verbose:
             Flag indicating whether to log at DEBUG or INFO levels
-        log_file:
-            Path to a file to write logs to. If left as `None`, logs will
-            only go to stdout.
     """
 
-    log_file.parent.mkdir(parents=True, exist_ok=True)
+    deployment = Deployment(run_directory)
+    log_file = deployment.log_directory / "infer.log"
     logger.set_logger("DeepClean infer", log_file, verbose)
     channels = get_channels(channels)
 
     witness_it, strain_it = get_data_generators(
-        data_dir,
+        data_directory,
         channels,
         sample_rate=sample_rate,
         inference_sampling_rate=inference_sampling_rate,
@@ -178,6 +176,8 @@ def main(
         freq_low=freq_low,
         freq_high=freq_high,
     )
+
+    write_dir = deployment.frame_directory
     writer = Writer(write_dir, strain_it, cleaner, max_files)
     callback = Callback(writer, **states)
 

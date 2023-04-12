@@ -1,15 +1,18 @@
-from flask import Flask
 from exporter.exporter import Exporter
+from flask import Flask
 
-app = Flask(__name__)
 exporter = Exporter.from_config()
+exporter.export_weights("1251331220-1251333268")
+app = Flask(__name__)
 
 
 @app.route("/export/<train_dir>")
 def export_model(train_dir):
+    app.logger.info(f"Received export request for {train_dir}")
     exporter.export_weights(train_dir)
 
 
 @app.route("/increment")
 def increment_ensemble():
+    app.logger.info("Received ensemble version increment request")
     exporter.update_ensemble_version()

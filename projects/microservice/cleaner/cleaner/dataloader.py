@@ -5,7 +5,8 @@ from typing import Iterable, List
 
 import numpy as np
 from gwpy.timeseries import TimeSeries
-from microservice.frames import FrameCrawler, load_frame
+from microservice.deployment import DataStream
+from microservice.frames import load_frame
 
 from deepclean.logging import logger
 
@@ -47,23 +48,14 @@ def strain_iterator(q: Queue):
 
 
 def frame_iter(crawler, channels, sample_rate, q):
-    for fname in crawler:
+    for fname, strain_fname in crawler:
         logger.debug(f"Loading frame file {fname}")
-        # frame = load_frame(fname, channels, sample_rate)
-        # strain, witnesses = np.split(frame, [1], axis=0)
-        # strain = TimeSeries(
-        #     strain[0], sample_rate=sample_rate, channel=channels[0]
-        # )
-
         witnesses = load_frame(fname, channels[1:], sample_rate)
-
-        strain_fname = fname.name.replace("Detchar", "HOFT")
-        strain_fname = fname.parent.parent / "llhoft" / strain_fname
         strain = TimeSeries.read(strain_fname, channel=channels[0])
         if strain.sample_rate.value != sample_rate:
             strain = strain.resample(sample_rate)
 
-        q.put((strain, fname))
+        q.put((strain, strain_fname))
         yield witnesses
     q.put(None)
 
@@ -78,8 +70,8 @@ def get_data_generators(
     timeout: float = 10,
 ):
     t0 = 0 if start_first else -1
-    # crawler = FrameCrawler(data_dir, t0, timeout)
-    crawler = FrameCrawler(data_dir / "lldetchar", t0, timeout)
+    stream = DataStream(data_dir)
+    crawler = stream.crawl(t0, timeout)
     strain_q = Queue()
     it = frame_iter(crawler, channels, sample_rate, strain_q)
 

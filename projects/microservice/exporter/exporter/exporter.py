@@ -1,24 +1,27 @@
 import argparse
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 import torch
 import tritonclient.grpc.model_config_pb2 as model_config
-from ml4gw.transforms import ChannelWiseScaler
-from typeo.parser import make_parser
-from typeo.actions import TypeoTomlAction
+from microservice.deployment import Deployment
 
 import hermes.quiver as qv
 from deepclean.architectures import DeepCleanAE as architecture
-from deepclean.utils.channels import ChannelList, get_channels
 from deepclean.export import repo as repo_utils
 from deepclean.export.model import DeepClean
+from deepclean.logging import logger
+from deepclean.utils.channels import ChannelList, get_channels
+from ml4gw.transforms import ChannelWiseScaler
+from typeo.actions import TypeoTomlAction
+from typeo.parser import make_parser
 
 
 @dataclass
 class Exporter:
-    repository_directory: str
+    run_directory: Path
     channels: ChannelList
     kernel_length: float
     sample_rate: float
@@ -28,12 +31,11 @@ class Exporter:
     streams_per_gpu: int = 2
     platform: qv.Platform = qv.Platform.ONNX
     instances: Optional[int] = None
+    verbose: bool = False
 
     @classmethod
     def from_config(
-        cls,
-        config: Optional[Path] = None,
-        script: Optional[str] = None
+        cls, config: Optional[Path] = None, script: Optional[str] = None
     ):
         args = ["--typeo"]
         if config is None:
@@ -51,7 +53,7 @@ class Exporter:
             bools={},
             subcommands={},
             nargs="*",
-            action=TypeoTomlAction
+            action=TypeoTomlAction,
         )
         args = typeo_parser.parse_args(args)
 
@@ -61,6 +63,12 @@ class Exporter:
         return cls(**vars(args))
 
     def __post_init__(self):
+        self.deployment = Deployment(self.run_directory)
+        self.logger = logger.get_logger(
+            "Deepclean export",
+            self.deployment.log_directory / "exporter.log",
+            verbose=self.verbose,
+        )
         self.channels = get_channels(self.channels)
         self.num_witnesses = len(self.channels) - 1
 
@@ -87,11 +95,11 @@ class Exporter:
         # initialize an empty repository with an
         # associated deepclean entry already in it
         self.repo = repo_utils.initialize_repo(
-            self.repository_directory,
+            str(self.deployment.repository_directory),
             self.channels[1:],
             self.platform,
             self.instances,
-            clean=True
+            clean=True,
         )
 
         # initialize an ensemble that we'll add steps to
@@ -105,7 +113,7 @@ class Exporter:
         preproc.export_version(
             self.model.preprocessor,
             input_shapes={"witnesses": input_shape},
-            output_names=["normalized"]
+            output_names=["normalized"],
         )
         self.set_version_policy(preproc)
 
@@ -118,7 +126,7 @@ class Exporter:
             name="snapshotter",
             streams_per_gpu=self.streams_per_gpu,
             batch_size=self.batch_size,
-            versions=-1
+            versions=-1,
         )
 
         # now create a second mapping from the
@@ -128,7 +136,7 @@ class Exporter:
         ensemble.pipe(
             snapshotter.outputs["preprocessor.witnesses_snapshot"],
             preproc.inputs["witnesses"],
-            inbound_version=1
+            inbound_version=1,
         )
 
         # now export deepclean, and create mappings
@@ -137,7 +145,7 @@ class Exporter:
         self.repo.models["deepclean"].export_version(
             deepclean,
             input_shapes={"normalized": input_shape},
-            output_names=["noise_prediction"]
+            output_names=["noise_prediction"],
         )
         self.set_version_policy(self.repo.models["deepclean"])
 
@@ -148,7 +156,7 @@ class Exporter:
                 self.repo.models["deepclean"].inputs["normalized"],
                 key=f"normalized-{key}",
                 outbound_version=version,
-                inbound_version=version
+                inbound_version=version,
             )
 
         # now do the same for a postprocessing model,
@@ -158,7 +166,7 @@ class Exporter:
         postproc.export_version(
             self.model.postprocessor,
             input_shapes={"noise_prediction": output_shape},
-            output_names=["unscaled"]
+            output_names=["unscaled"],
         )
         self.set_version_policy(postproc)
         for key, version in keys.items():
@@ -167,7 +175,7 @@ class Exporter:
                 postproc.inputs["noise_prediction"],
                 key=f"noise_prediction-{key}",
                 outbound_version=version,
-                inbound_version=version
+                inbound_version=version,
             )
             ensemble.add_streaming_output(
                 postproc.outputs["unscaled"],
@@ -177,7 +185,7 @@ class Exporter:
                 name=f"aggregator-{key}",
                 key=f"unscaled-{key}",
                 streams_per_gpu=self.streams_per_gpu,
-                version=version
+                version=version,
             )
         ensemble.export_version(None)
 
@@ -216,6 +224,11 @@ class Exporter:
             if version is None:
                 version = step.model_version + 1
             step.model_version = version
+
+        self.logger.info(
+            "Updating production model in ensemble "
+            "to use version {}".format(version)
+        )
         ensemble.config.write()
 
     def export(self):
@@ -231,15 +244,23 @@ class Exporter:
         version = int(Path(export_path).parent.name)
         return version
 
-    def export_weights(self, train_dir: Path):
+    def export_weights(self, train_dir: str):
+        if not os.path.isabs(train_dir):
+            train_dir = self.deployment.train_directory / train_dir
         weights_path = train_dir / "weights.pt"
+        if not weights_path.exists():
+            raise ValueError(f"No model weights {weights_path}")
 
-        state_dict = torch.load(weights_path)
-        self.deepclean.load_state_dict(state_dict)
+        self.logger.info(f"Exporting model with weights {weights_path}")
+        state_dict = torch.load(weights_path, map_location=torch.device("cpu"))
+        self.model.load_state_dict(state_dict)
         version = self.export()
 
-        _, start, stop = train_dir.name.split("-")
-        self.deepclean.config.parameters["versions"] += "{}={}-{},".format(
-            version, start, stop
+        self.logger.info(
+            f"Export of version {version} complete, "
+            "adding metadata to DeepClean config"
         )
-        self.deepclean.config.write()
+        version_info = f"{version}={train_dir.name},"
+        deepclean = self.repo.models["deepclean"]
+        deepclean.config.parameters["versions"].string_value += version_info
+        deepclean.config.write()

@@ -8,7 +8,8 @@ from queue import Empty
 from typing import Optional
 
 import numpy as np
-from microservice.frames import FrameCrawler, load_frame
+from microservice.deployment import DataStream
+from microservice.frames import load_frame
 
 from deepclean.logging import logger
 from deepclean.utils.channels import ChannelList, get_channels
@@ -23,10 +24,11 @@ def collect_frames(
     sample_rate: float,
     timeout: Optional[float] = None,
 ) -> np.ndarray:
+    stream = DataStream(data_directory)
+    crawler = stream.crawl(t0=0, timeout=timeout)
+
     channels = get_channels(channels)
-    crawler = FrameCrawler(data_directory, timeout=timeout)
-    crawler = iter(crawler)
-    start = crawler.t0 + 0
+    start = None
 
     size = int(duration * sample_rate)
     edge_size = int(cadence * sample_rate)
@@ -40,10 +42,12 @@ def collect_frames(
         next(crawler)
 
     while not event.is_set():
-        fname = next(crawler)
+        fname, strain_fname = next(crawler)
+        if start is None:
+            start = int(fname.stem.split("-")[-2])
+
         witnesses = load_frame(fname, channels[1:], sample_rate)
-        strain = load_frame(fname, channels[0], sample_rate)
-        # logger.debug(f"Loaded {fname} with size {len(strain)}, {len(y)}/{size}")
+        strain = load_frame(strain_fname, channels[0], sample_rate)
 
         X = np.concatenate([X, witnesses], axis=1)
         y = np.concatenate([y, strain])

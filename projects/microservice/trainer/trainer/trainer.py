@@ -2,6 +2,8 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import numpy as np
+import requests
+from microservice.deployment import Deployment
 from trainer.dataloader import DataCollector
 
 from deepclean.architectures import architectures
@@ -25,7 +27,7 @@ def _get_str(*times):
 def train_on_segment(
     X: np.ndarray,
     y: np.ndarray,
-    output_directory: Path,
+    deployment: Deployment,
     start: float,
     architecture: Callable,
     sample_rate: float,
@@ -36,11 +38,11 @@ def train_on_segment(
     duration = len(y) / sample_rate
     str_rep = _get_str(start, start + duration)
 
-    log_file = output_directory / "log" / f"train-{str_rep}.log"
+    log_file = deployment.log_directory / f"train.{str_rep}.log"
 
-    output_directory = output_directory / "training" / str_rep
-    logger.info(f"Saving training outputs to directory {output_directory}")
+    output_directory = deployment.train_directory / str_rep
     output_directory.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Saving training outputs to directory {output_directory}")
 
     # now set the logger to one specific to this training run
     logger.set_logger(f"DeepClean train {str_rep}", log_file, verbose)
@@ -62,12 +64,15 @@ def train_on_segment(
     )
 
 
+exclude = ["X", "y", "architecture", "valid_data", "output_directory"]
+
+
 @scriptify(
-    kwargs=make_dummy(train, exclude=["X", "y", "architecture", "valid_data"]),
+    kwargs=make_dummy(train, exclude=exclude),
     architecture=architectures,
 )
 def main(
-    output_directory: Path,
+    run_directory: Path,
     data_directory: Path,
     channels: ChannelList,
     architecture: Callable,
@@ -79,15 +84,15 @@ def main(
     verbose: bool = False,
     **kwargs,
 ):
-    log_directory = output_directory / "log"
-    log_directory.mkdir(parents=True, exist_ok=True)
+    deployment = Deployment(run_directory)
+    log_file = deployment.log_directory / "train.root.log"
     root_logger = logger.set_logger(
-        "DeepClean trainer", log_directory / "root.log", verbose=verbose
+        "DeepClean trainer", log_file, verbose=verbose
     )
 
     frame_collector = DataCollector(
         data_directory,
-        log_directory,
+        deployment.log_directory,
         channels,
         train_duration,
         retrain_cadence,
@@ -115,7 +120,7 @@ def main(
             weights_path = train_on_segment(
                 X,
                 y,
-                output_directory=output_directory,
+                deployment=deployment,
                 start=start,
                 architecture=architecture,
                 sample_rate=sample_rate,
@@ -123,7 +128,6 @@ def main(
                 verbose=verbose,
                 **kwargs,
             )
-
             logger.set_logger("DeepClean train")
             logger.info(
                 "Training on segment {}-{} complete, saved "
@@ -131,6 +135,12 @@ def main(
                     start, start + train_duration, weights_path
                 )
             )
+
+            logger.info("Making export request")
+            weights_dir = weights_path.parent.name
+            r = requests.get(f"http://localhost:5000/export/{weights_dir}")
+            r.raise_for_status()
+            logger.info("Export request completed")
 
             # for trainings after the first, use the previous
             # optimized weights and reduce the learning rate

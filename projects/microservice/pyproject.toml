@@ -1,6 +1,6 @@
 [tool.typeo.base]
 # global paths
-log_dir = "${PROJECT_DIR}/logs"
+run_directory = "${PROJECT_DIR}"
 
 # global data args
 channels = [
@@ -62,8 +62,8 @@ verbose = false
 
 [tool.typeo.scripts.train]
 # paths
-output_directory = "${PROJECT_DIR}/train"
-data_directory = "${DATA_DIR}/H1"
+run_directory = "${base.run_directory}"
+data_directory = "${DATA_DIR}"
 
 # data parameters
 channels = "${base.channels}"
@@ -102,7 +102,7 @@ autoencoder = {}
 
 [tool.typeo.scripts.exporter]
 # paths
-repository_directory = "${PROJECT_DIR}/model_repo"
+run_directory = "${base.run_directory}"
 
 # data args
 channels = "${base.channels}"
@@ -122,8 +122,8 @@ instances = 4
 
 [tool.typeo.scripts.clean]
 # paths
-data_dir = "${DATA_DIR}" # /H1"
-write_dir = "${PROJECT_DIR}/frames"
+run_directory = "${base.run_directory}"
+data_directory = "${DATA_DIR}"
 
 # data args
 sample_rate = "${base.sample_rate}"
@@ -150,4 +150,4 @@ sequence_id = 1001
 start_first = true
 timeout = 3
 verbose = "${base.verbose}"
-log_file = "${base.log_dir}/clean.log"
+max_files = 4096

@@ -3,11 +3,10 @@ from pathlib import Path
 from typing import Iterable, Optional, Union
 
 from cleaner.dataloader import get_data_generators
-from cleaner.writer import Writer
+from cleaner.writer import Writer, ASDRMonitor
 from microservice.deployment import Deployment
 
 from deepclean.infer.callback import Callback, State
-from deepclean.infer.clean import Cleaner
 from deepclean.logging import logger
 from deepclean.utils.channels import ChannelList, get_channels
 from hermes.aeriel.client import InferenceClient
@@ -19,6 +18,7 @@ def main(
     # IO args
     run_directory: Path,
     data_directory: Path,
+    data_field: str,
     # Data args
     sample_rate: float,
     frame_length: float,
@@ -135,6 +135,7 @@ def main(
 
     witness_it, strain_it = get_data_generators(
         data_directory,
+        data_field,
         channels,
         sample_rate=sample_rate,
         inference_sampling_rate=inference_sampling_rate,
@@ -166,19 +167,19 @@ def main(
             inference_sampling_rate=inference_sampling_rate,
             batch_size=batch_size,
             aggregation_steps=aggregation_steps,
+            freq_low=freq_low,
+            freq_high=freq_high
         )
         states[name] = state
 
-    cleaner = Cleaner(
-        frame_length,
-        sample_rate,
-        filter_pad=look_ahead,
+    write_dir = deployment.frame_directory
+    monitor = ASDRMonitor(
+        buffer_length=8,
         freq_low=freq_low,
         freq_high=freq_high,
+        fftlength=2
     )
-
-    write_dir = deployment.frame_directory
-    writer = Writer(write_dir, strain_it, cleaner, max_files)
+    writer = Writer(write_dir, strain_it, monitor, max_files)
     callback = Callback(writer, **states)
 
     # finally create an inference client which will stream

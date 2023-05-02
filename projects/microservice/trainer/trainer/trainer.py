@@ -5,11 +5,12 @@ import numpy as np
 import requests
 from microservice.deployment import Deployment
 from trainer.dataloader import DataCollector
+from trainer.monitor import validate_csd
 
 from deepclean.architectures import architectures
 from deepclean.logging import logger
 from deepclean.trainer.trainer import train
-from deepclean.utils.channels import ChannelList
+from deepclean.utils.channels import ChannelList, get_channels
 from typeo import scriptify
 from typeo.utils import make_dummy
 
@@ -22,6 +23,16 @@ def _intify(x):
 
 def _get_str(*times):
     return "-".join(map(_intify, times))
+
+
+def export(weights_path: Path):
+    weights_dir = weights_path.parent.name
+    url = f"http://localhost:5000/export/{weights_dir}"
+    logger.info(f"Making export request to {url}")
+
+    r = requests.get(url)
+    r.raise_for_status()
+    logger.info("Export request completed")
 
 
 def train_on_segment(
@@ -74,6 +85,7 @@ exclude = ["X", "y", "architecture", "valid_data", "output_directory"]
 def main(
     run_directory: Path,
     data_directory: Path,
+    data_field: str,
     channels: ChannelList,
     architecture: Callable,
     train_duration: float,
@@ -90,8 +102,10 @@ def main(
         "DeepClean trainer", log_file, verbose=verbose
     )
 
+    channels = get_channels(channels)
     frame_collector = DataCollector(
         data_directory,
+        data_field,
         deployment.log_directory,
         channels,
         train_duration,
@@ -104,6 +118,12 @@ def main(
     last_start = None
     with frame_collector as data_it:
         for X, y, start in data_it:
+            span = _get_str(start, start + train_duration)
+            csd_fname = deployment.csd_directory / f"{span}.h5"
+            validate_csd(
+                X, y, channels, sample_rate, fftlength=8, fname=csd_fname
+            )
+
             if last_start is not None:
                 expected_start = last_start + retrain_cadence
                 if start > expected_start:
@@ -111,12 +131,7 @@ def main(
                     # training differently on a new lock segment
                     pass
 
-            root_logger.info(
-                "Launching training on segment {}-{}".format(
-                    start, start + train_duration
-                )
-            )
-
+            root_logger.info(f"Launching training on segment {span}")
             weights_path = train_on_segment(
                 X,
                 y,
@@ -130,17 +145,10 @@ def main(
             )
             logger.set_logger("DeepClean train")
             logger.info(
-                "Training on segment {}-{} complete, saved "
-                "optimized weights to {}".format(
-                    start, start + train_duration, weights_path
-                )
+                "Training on segment {} complete, saved "
+                "optimized weights to {}".format(span, weights_path)
             )
-
-            logger.info("Making export request")
-            weights_dir = weights_path.parent.name
-            r = requests.get(f"http://localhost:5000/export/{weights_dir}")
-            r.raise_for_status()
-            logger.info("Export request completed")
+            export(weights_path)
 
             # for trainings after the first, use the previous
             # optimized weights and reduce the learning rate

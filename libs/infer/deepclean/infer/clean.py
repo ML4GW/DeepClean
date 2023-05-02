@@ -22,7 +22,7 @@ class Cleaner:
         self.kernel_size = int(self.kernel_length * self.sample_rate)
         self.window = windows.hann(2 * self.pad_size)
 
-    def __call__(self, noise: np.ndarray, strain: np.ndarray) -> np.ndarray:
+    def __call__(self, noise: np.ndarray) -> np.ndarray:
         noise[: self.pad_size] *= self.window[: self.pad_size]
         noise[-self.pad_size :] *= self.window[-self.pad_size :]
         noise = self.bandpass(noise)
@@ -30,4 +30,4 @@ class Cleaner:
         start = -self.pad_size - self.kernel_size
         stop = -self.pad_size
         noise = noise[start:stop]
-        return strain - noise
+        return noise

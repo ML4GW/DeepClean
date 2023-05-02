@@ -3,51 +3,54 @@
 run_directory = "${PROJECT_DIR}"
 
 # global data args
-channels = [
+hanford_60Hz_channels = [
     "H1:GDS-CALIB_STRAIN",
-#     "H1:GDS-CALIB_F_S_SQUARED",
-#     "H1:GDS-CALIB_F_S_SQUARED_NOGATE",
-#     "H1:GDS-CALIB_SRC_Q_INVERSE",
-#     "H1:GDS-CALIB_SRC_Q_INVERSE_NOGATE",
-#     "H1:GDS-CALIB_F_CC",
-#     "H1:GDS-CALIB_F_CC_NOGATE",
-#     "H1:GDS-CALIB_KAPPA_C",
-#     "H1:GDS-CALIB_KAPPA_C_NOGATE",
-#     "H1:GDS-CALIB_KAPPA_PUM_IMAGINARY",
-#     "H1:GDS-CALIB_KAPPA_PUM_IMAGINARY_NOGATE",
-#     "H1:GDS-CALIB_KAPPA_PUM_REAL",
-#     "H1:GDS-CALIB_KAPPA_PUM_REAL_NOGATE",
-#     "H1:GDS-CALIB_KAPPA_UIM_IMAGINARY",
-#     "H1:GDS-CALIB_KAPPA_UIM_IMAGINARY_NOGATE",
-#     "H1:GDS-CALIB_KAPPA_UIM_REAL",
-#     "H1:GDS-CALIB_KAPPA_UIM_REAL_NOGATE",
-#     "H1:GDS-CALIB_KAPPA_TST_IMAGINARY",
-#     "H1:GDS-CALIB_KAPPA_TST_IMAGINARY_NOGATE",
-#     "H1:GDS-CALIB_KAPPA_TST_REAL",
-#     "H1:GDS-CALIB_KAPPA_TST_REAL_NOGATE",
-#     "H1:GDS-CALIB_STATE_VECTOR",
     "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
-    "H1:ASC-INP1_P_INMON",
-    "H1:ASC-INP1_Y_INMON",
-    "H1:ASC-MICH_P_INMON",
-    "H1:ASC-MICH_Y_INMON",
-    "H1:ASC-PRC1_P_INMON",
-    "H1:ASC-PRC1_Y_INMON",
-    "H1:ASC-PRC2_P_INMON",
-    "H1:ASC-PRC2_Y_INMON",
-    "H1:ASC-SRC1_P_INMON",
-    "H1:ASC-SRC1_Y_INMON",
-    "H1:ASC-SRC2_P_INMON",
-    "H1:ASC-SRC2_Y_INMON",
-    "H1:ASC-DHARD_P_INMON",
-    "H1:ASC-DHARD_Y_INMON",
-    "H1:ASC-CHARD_P_INMON",
-    "H1:ASC-CHARD_Y_INMON",
-    "H1:ASC-DSOFT_P_INMON",
-    "H1:ASC-DSOFT_Y_INMON",
-    "H1:ASC-CSOFT_P_INMON",
-    "H1:ASC-CSOFT_Y_INMON"
+    "H1:ASC-INP1_P_OUT_DQ",
+    "H1:ASC-INP1_Y_OUT_DQ",
+    "H1:ASC-MICH_P_OUT_DQ",
+    "H1:ASC-MICH_Y_OUT_DQ",
+    "H1:ASC-PRC1_P_OUT_DQ",
+    "H1:ASC-PRC1_Y_OUT_DQ",
+    "H1:ASC-PRC2_P_OUT_DQ",
+    "H1:ASC-PRC2_Y_OUT_DQ",
+    "H1:ASC-SRC1_P_OUT_DQ",
+    "H1:ASC-SRC1_Y_OUT_DQ",
+    "H1:ASC-SRC2_P_OUT_DQ",
+    "H1:ASC-SRC2_Y_OUT_DQ",
+    "H1:ASC-DHARD_P_OUT_DQ",
+    "H1:ASC-DHARD_Y_OUT_DQ",
+    "H1:ASC-CHARD_P_OUT_DQ",
+    "H1:ASC-CHARD_Y_OUT_DQ",
+    "H1:ASC-DSOFT_P_OUT_DQ",
+    "H1:ASC-DSOFT_Y_OUT_DQ",
+    "H1:ASC-CSOFT_P_OUT_DQ",
+    "H1:ASC-CSOFT_Y_OUT_DQ"
 ]
+livingston_60Hz_channels = [
+    "L1:GDS-CALIB_STRAIN",
+    "L1:PEM-CS_MAINSMON_EBAY_1_DQ",
+    "L1:ASC-CHARD_P_OUT_DQ",
+    "L1:ASC-CHARD_Y_OUT_DQ",
+    "L1:ASC-CSOFT_P_OUT_DQ",
+    "L1:ASC-DHARD_P_OUT_DQ",
+    "L1:ASC-DHARD_Y_OUT_DQ",
+    "L1:ASC-DSOFT_P_OUT_DQ",
+    "L1:ASC-INP1_P_OUT_DQ",
+    "L1:ASC-MICH_P_OUT_DQ",
+    "L1:ASC-MICH_Y_OUT_DQ",
+    "L1:ASC-PRC1_P_OUT_DQ",
+    "L1:ASC-PRC1_Y_OUT_DQ",
+    "L1:ASC-PRC2_P_OUT_DQ",
+    "L1:ASC-PRC2_Y_OUT_DQ",
+    "L1:ASC-SRC1_P_OUT_DQ",
+    "L1:ASC-SRC1_Y_OUT_DQ",
+    "L1:ASC-SRC2_P_OUT_DQ",
+    "L1:ASC-SRC2_Y_OUT_DQ",
+]
+data_directory = "${DATA_DIR}"
+data_field = "${DATA_FIELD}"
+
 sample_rate = 4096
 freq_low = 55
 freq_high = 65
@@ -63,10 +66,11 @@ verbose = false
 [tool.typeo.scripts.train]
 # paths
 run_directory = "${base.run_directory}"
-data_directory = "${DATA_DIR}"
+data_directory = "${base.data_directory}"
+data_field = "${base.data_field}"
 
 # data parameters
-channels = "${base.channels}"
+channels = "${base.livingston_60Hz_channels}"
 train_duration = 2048
 retrain_cadence = 1024
 sample_rate = "${base.sample_rate}"
@@ -105,7 +109,7 @@ autoencoder = {}
 run_directory = "${base.run_directory}"
 
 # data args
-channels = "${base.channels}"
+channels = "${base.livingston_60Hz_channels}"
 kernel_length = 1
 sample_rate = "${base.sample_rate}"
 
@@ -123,11 +127,12 @@ instances = 4
 [tool.typeo.scripts.clean]
 # paths
 run_directory = "${base.run_directory}"
-data_directory = "${DATA_DIR}"
+data_directory = "${base.data_directory}"
+data_field = "${base.data_field}"
 
 # data args
 sample_rate = "${base.sample_rate}"
-channels = "${base.channels}"
+channels = "${base.livingston_60Hz_channels}"
 freq_low = "${base.freq_low}"
 freq_high = "${base.freq_high}"
 frame_length = 1
@@ -147,7 +152,7 @@ model_version = -1
 sequence_id = 1001
 
 # misc args
-start_first = true
+start_first = false
 timeout = 3
-verbose = "${base.verbose}"
-max_files = 4096
+verbose = true # "${base.verbose}"
+max_files = 300

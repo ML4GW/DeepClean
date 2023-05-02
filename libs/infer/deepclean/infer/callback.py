@@ -1,10 +1,40 @@
+from dataclasses import dataclass
 import math
 import time
 from typing import Callable, Optional
 
 import numpy as np
+from scipy.signal import windows
 
 from deepclean.logging import logger
+from deepclean.utils.filtering import Frequency, BandpassFilter
+
+
+@dataclass
+class Cleaner:
+    kernel_length: float
+    sample_rate: float
+    filter_pad: float
+    freq_low: Frequency = None
+    freq_high: Frequency = None
+
+    def __post_init__(self):
+        self.bandpass = BandpassFilter(
+            self.freq_low, self.freq_high, self.sample_rate
+        )
+        self.pad_size = int(self.filter_pad * self.sample_rate)
+        self.kernel_size = int(self.kernel_length * self.sample_rate)
+        self.window = windows.hann(2 * self.pad_size)
+
+    def __call__(self, noise: np.ndarray) -> np.ndarray:
+        noise[: self.pad_size] *= self.window[: self.pad_size]
+        noise[-self.pad_size :] *= self.window[-self.pad_size :]
+        noise = self.bandpass(noise)
+
+        start = -self.pad_size - self.kernel_size
+        stop = -self.pad_size
+        noise = noise[start:stop]
+        return noise
 
 
 class State:
@@ -18,6 +48,8 @@ class State:
         inference_sampling_rate: float,
         batch_size: int,
         aggregation_steps: int,
+        freq_low: Frequency,
+        freq_high: Frequency
     ) -> None:
         self.frame_size = int(sample_rate * frame_length)
         self.stride = int(sample_rate // inference_sampling_rate)
@@ -38,6 +70,9 @@ class State:
 
         self._frame_idx = 0
         self._latest_seen = -1
+        self.cleaner = Cleaner(
+            frame_length, sample_rate, filter_pad, freq_low, freq_high
+        )
         self.logger = logger.get_logger(f"Output state {name}")
 
     def validate(self, response, request_id):
@@ -127,7 +162,7 @@ class State:
             if extra > 0:
                 self._state = self._state[extra:]
             self._frame_idx += 1
-            return noise
+            return self.cleaner(noise)
         return None
 
 

@@ -2,7 +2,6 @@ from exporter.exporter import Exporter
 from flask import Flask
 
 exporter = Exporter.from_config()
-exporter.export_weights("1251331220-1251333268")
 app = Flask(__name__)
 
 

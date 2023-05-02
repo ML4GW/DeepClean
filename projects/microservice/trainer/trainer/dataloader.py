@@ -18,13 +18,14 @@ from deepclean.utils.channels import ChannelList, get_channels
 def collect_frames(
     event: Event,
     data_directory: Path,
+    data_field: str,
     channels: ChannelList,
     duration: float,
     cadence: float,
     sample_rate: float,
     timeout: Optional[float] = None,
 ) -> np.ndarray:
-    stream = DataStream(data_directory)
+    stream = DataStream(data_directory, data_field)
     crawler = stream.crawl(t0=0, timeout=timeout)
 
     channels = get_channels(channels)
@@ -78,6 +79,7 @@ def collect_frames(
 @dataclass
 class DataCollector:
     data_directory: Path
+    data_field: str
     log_directory: Path
     channels: ChannelList
     duration: float
@@ -155,6 +157,7 @@ class DataCollector:
             it = collect_frames(
                 self.event,
                 self.data_directory,
+                self.data_field,
                 self.channels,
                 self.duration,
                 self.cadence,

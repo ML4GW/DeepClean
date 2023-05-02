@@ -17,21 +17,22 @@ def witness_iterator(it: Iterable, stride: int) -> np.ndarray:
     except StopIteration:
         raise ValueError("Frame crawler never returned any data")
 
-    sequence_end, idx = False, 0
-    while not sequence_end:
+    idx = 0
+    while True:
         start = idx * stride
         stop = (idx + 1) * stride
-        if (idx + 2) * stride > data.shape[-1]:
+        if stop > data.shape[-1]:
             try:
                 frame = next(it)
             except StopIteration:
-                sequence_end = True
+                yield np.zeros((stride,), dtype=np.float32), True
+                break
             else:
                 data = data[:, start:]
                 data = np.concatenate([data, frame], axis=-1)
                 idx, start, stop = 0, 0, stride
 
-        yield data[:, start:stop], sequence_end
+        yield data[:, start:stop], False
         idx += 1
 
 
@@ -49,7 +50,6 @@ def strain_iterator(q: Queue):
 
 def frame_iter(crawler, channels, sample_rate, q):
     for fname, strain_fname in crawler:
-        logger.debug(f"Loading frame file {fname}")
         witnesses = load_frame(fname, channels[1:], sample_rate)
         strain = TimeSeries.read(strain_fname, channel=channels[0])
         if strain.sample_rate.value != sample_rate:
@@ -62,6 +62,7 @@ def frame_iter(crawler, channels, sample_rate, q):
 
 def get_data_generators(
     data_dir: Path,
+    data_field: str,
     channels: List[str],
     sample_rate: float,
     inference_sampling_rate: float,
@@ -70,7 +71,7 @@ def get_data_generators(
     timeout: float = 10,
 ):
     t0 = 0 if start_first else -1
-    stream = DataStream(data_dir)
+    stream = DataStream(data_dir, data_field)
     crawler = stream.crawl(t0, timeout)
     strain_q = Queue()
     it = frame_iter(crawler, channels, sample_rate, strain_q)

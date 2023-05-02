@@ -218,7 +218,6 @@ def train(
         load_weights(init_weights, model, input_scaler)
     # get rid of any remaining 0s in the preprocessing module
     input_scaler.std[input_scaler.std == 0] = 1
-    print(input_scaler.std)
 
     # bandpass the strain up front so that we only
     # deal with the frequency ranges we care about

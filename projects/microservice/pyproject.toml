@@ -148,7 +148,6 @@ max_latency = "${base.inference_aggregation_time}"
 # triton args
 url = "localhost:8001"
 model_name = "deepclean-stream"
-model_version = -1
 sequence_id = 1001
 
 # misc args

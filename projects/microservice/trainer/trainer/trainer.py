@@ -35,6 +35,13 @@ def export(weights_path: Path):
     logger.info("Export request completed")
 
 
+def increment():
+    logger.info("Incrementing production DeepClean version")
+    r = requests.get("http://localhost:5000/increment")
+    r.raise_for_status()
+    logger.info("Version incrementing complete")
+
+
 def train_on_segment(
     X: np.ndarray,
     y: np.ndarray,
@@ -149,6 +156,8 @@ def main(
                 "optimized weights to {}".format(span, weights_path)
             )
             export(weights_path)
+            if last_start is None:
+                increment()
 
             # for trainings after the first, use the previous
             # optimized weights and reduce the learning rate

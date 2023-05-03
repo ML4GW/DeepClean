@@ -1,13 +1,13 @@
-from dataclasses import dataclass
 import math
 import time
+from dataclasses import dataclass
 from typing import Callable, Optional
 
 import numpy as np
 from scipy.signal import windows
 
 from deepclean.logging import logger
-from deepclean.utils.filtering import Frequency, BandpassFilter
+from deepclean.utils.filtering import BandpassFilter, Frequency
 
 
 @dataclass
@@ -49,7 +49,7 @@ class State:
         batch_size: int,
         aggregation_steps: int,
         freq_low: Frequency,
-        freq_high: Frequency
+        freq_high: Frequency,
     ) -> None:
         self.frame_size = int(sample_rate * frame_length)
         self.stride = int(sample_rate // inference_sampling_rate)

@@ -17,7 +17,7 @@ class Logger:
         logger,
         filename: Optional[str] = None,
         verbose: Optional[bool] = None,
-        add_stdout: bool = False
+        add_stdout: bool = False,
     ):
         if verbose is None:
             level = self._logger.level
@@ -43,7 +43,7 @@ class Logger:
         name: str,
         filename: Optional[str] = None,
         verbose: Optional[bool] = None,
-        add_stdout: bool = False
+        add_stdout: bool = False,
     ):
         logger = logging.getLogger(name)
         if name in self._cache:
@@ -76,3 +76,11 @@ class Logger:
 
 
 logger = Logger()
+
+
+def excepthook(exc_type, exc_value, exc_tb):
+    exc_info = exc_type, exc_value, exc_tb
+    logger.error("Unhandled exception:", exc_info=exc_info)
+
+
+sys.excepthook = excepthook

@@ -9,9 +9,11 @@ app = Flask(__name__)
 def export_model(train_dir):
     app.logger.info(f"Received export request for {train_dir}")
     exporter.export_weights(train_dir)
+    return "", 200
 
 
 @app.route("/increment")
 def increment_ensemble():
     app.logger.info("Received ensemble version increment request")
-    exporter.update_ensemble_version()
+    exporter.update_ensemble_versions()
+    return "", 200

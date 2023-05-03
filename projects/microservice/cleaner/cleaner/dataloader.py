@@ -50,6 +50,7 @@ def strain_iterator(q: Queue):
 
 def frame_iter(crawler, channels, sample_rate, q):
     for fname, strain_fname in crawler:
+        logger.debug(f"Loading frame files {fname}, {strain_fname}")
         witnesses = load_frame(fname, channels[1:], sample_rate)
         strain = TimeSeries.read(strain_fname, channel=channels[0])
         if strain.sample_rate.value != sample_rate:

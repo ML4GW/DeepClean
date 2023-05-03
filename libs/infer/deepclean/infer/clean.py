@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.signal import windows
 
-from deepclean.utils.filtering import Frequency, BandpassFilter
+from deepclean.utils.filtering import BandpassFilter, Frequency
 
 
 @dataclass

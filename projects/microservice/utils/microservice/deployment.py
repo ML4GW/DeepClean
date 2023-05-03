@@ -56,7 +56,7 @@ class DataStream:
 
             start_time = time.time()
             while not strain_fname.exists():
-                if (time.time() - start_time) > 5:
+                if (time.time() - start_time) > 10:
                     raise FileNotFoundError(
                         f"Strain file {strain_fname} does not exist"
                     )

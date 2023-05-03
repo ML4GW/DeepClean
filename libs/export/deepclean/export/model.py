@@ -1,4 +1,5 @@
 import torch
+
 from ml4gw.transforms import ChannelWiseScaler
 
 
@@ -25,7 +26,7 @@ class DeepClean(torch.nn.Module):
         self,
         preprocessor: ChannelWiseScaler,
         deepclean: torch.nn.Module,
-        postprocessor: ChannelWiseScaler
+        postprocessor: ChannelWiseScaler,
     ) -> None:
         super().__init__()
         self.preprocessor = Preprocessor(preprocessor)

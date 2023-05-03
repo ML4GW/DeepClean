@@ -2,10 +2,10 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterator, Optional
+from typing import Iterator, Optional
 
 from gwpy.timeseries import TimeSeries, TimeSeriesDict
-from microservice.frames import lock, parse_frame_name
+from microservice.frames import lock
 from scipy.signal.windows import tukey
 
 from deepclean.logging import logger
@@ -36,7 +36,7 @@ class ASDRMonitor:
             self.fftlength,
             overlap=self.overlap,
             window="hann",
-            method="median"
+            method="median",
         )
         return asd.crop(self.freq_low, self.freq_high)
 
@@ -114,12 +114,14 @@ class ASDRMonitor:
                 "Mean ASDR value in frequency range {}-{}Hz "
                 "is now {}, tapering noise subtraction back "
                 "into production data stream".format(
-                    self.freq_low, self.freq_high, asdr 
+                    self.freq_low, self.freq_high, asdr
                 )
             )
 
             self.in_spec = True
             noise = (raw - clean) * self.window[::-1]
+            frame = raw - noise
+        else:
             frame = raw - noise
 
         # finally, if we've reached our buffer length,
@@ -171,9 +173,7 @@ class Writer:
             # the raw frame
             if model == "production":
                 noise = TimeSeries(
-                    noise,
-                    t0=timestamp,
-                    sample_rate=sample_rate
+                    noise, t0=timestamp, sample_rate=sample_rate
                 )
                 frame = self.monitor(strain, noise)
             else:
@@ -187,10 +187,7 @@ class Writer:
                 continue
 
             frame = TimeSeries(
-                frame.value,
-                t0=t0,
-                sample_rate=sample_rate,
-                channel=channel
+                frame.value, t0=t0, sample_rate=sample_rate, channel=channel
             )
             tsd[channel] = frame
 

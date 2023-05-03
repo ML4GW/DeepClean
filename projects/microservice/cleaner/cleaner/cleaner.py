@@ -2,15 +2,64 @@ import time
 from pathlib import Path
 from typing import Iterable, Optional, Union
 
+import tritonclient.grpc as triton
 from cleaner.dataloader import get_data_generators
-from cleaner.writer import Writer, ASDRMonitor
+from cleaner.writer import ASDRMonitor, Writer
 from microservice.deployment import Deployment
+from tritonclient.utils import InferenceServerException
 
 from deepclean.infer.callback import Callback, State
 from deepclean.logging import logger
 from deepclean.utils.channels import ChannelList, get_channels
 from hermes.aeriel.client import InferenceClient
 from typeo import scriptify
+
+
+def wait(url):
+    client = triton.InferenceServerClient(url)
+
+    # first wait for server to come online
+    start_time = time.time()
+    while True:
+        try:
+            live = client.is_server_live()
+        except InferenceServerException:
+            time.sleep(1)
+        else:
+            if live:
+                break
+
+        elapsed = (time.time() - start_time) // 1
+        if not elapsed % 10:
+            logger.info(
+                f"Waiting for server to come online, {elapsed}s elapsed"
+            )
+
+    start_time = time.time()
+    while not client.is_model_ready("deepclean-stream"):
+        time.sleep(1)
+
+        elapsed = (time.time() - start_time) // 1
+        if not elapsed % 10:
+            logger.info(
+                "Waiting for streaming model to "
+                f"come online, {elapsed}s elapsed"
+            )
+
+    start_time = time.time()
+    while True:
+        metadata = client.get_model_metadata("deepclean")
+        versions = list(map(int, metadata.versions))
+        if max(versions) > 1:
+            break
+
+        time.sleep(1)
+        elapsed = (time.time() - start_time) // 1
+        if not elapsed % 10:
+            logger.info(
+                "Waiting for first DeepClean model to "
+                f"come online, {elapsed}s elapsed"
+            )
 
 
 @scriptify
@@ -31,7 +80,6 @@ def main(
     # Triton args
     url: str,
     model_name: str,
-    model_version: int = -1,
     sequence_id: int = 1001,
     # Misc args
     max_latency: Optional[float] = None,
@@ -133,6 +181,8 @@ def main(
     logger.set_logger("DeepClean infer", log_file, verbose)
     channels = get_channels(channels)
 
+    wait(url)
+
     witness_it, strain_it = get_data_generators(
         data_directory,
         data_field,
@@ -168,16 +218,13 @@ def main(
             batch_size=batch_size,
             aggregation_steps=aggregation_steps,
             freq_low=freq_low,
-            freq_high=freq_high
+            freq_high=freq_high,
         )
         states[name] = state
 
     write_dir = deployment.frame_directory
     monitor = ASDRMonitor(
-        buffer_length=8,
-        freq_low=freq_low,
-        freq_high=freq_high,
-        fftlength=2
+        buffer_length=8, freq_low=freq_low, freq_high=freq_high, fftlength=2
     )
     writer = Writer(write_dir, strain_it, monitor, max_files)
     callback = Callback(writer, **states)
@@ -189,7 +236,7 @@ def main(
     client = InferenceClient(
         address=url,
         model_name=model_name,
-        model_version=model_version,
+        model_version=-1,
         callback=callback,
     )
 

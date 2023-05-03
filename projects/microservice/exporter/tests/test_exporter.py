@@ -1,8 +1,6 @@
 from exporter.exporter import Exporter
-
-import pytest
-from tritonclient.grpc import model_config_pb2 as model_config
 from google.protobuf import text_format
+from tritonclient.grpc import model_config_pb2 as model_config
 
 
 def load_config(model):
@@ -15,7 +13,7 @@ def load_config(model):
 class TestExporter:
     def test_init(self, tmp_path):
         tmp_path.mkdir(exist_ok=True, parents=True)
-        exporter = Exporter(
+        _ = Exporter(
             tmp_path,
             channels=list("DCAEB"),
             kernel_length=1,
@@ -24,7 +22,7 @@ class TestExporter:
             batch_size=128,
             aggregation_time=0.25,
             streams_per_gpu=2,
-            instances=4
+            instances=4,
         )
 
         deepclean_path = tmp_path / "deepclean"

@@ -4,8 +4,8 @@ from typing import Callable, Dict, Optional, Tuple
 import numpy as np
 import torch
 
-from deepclean.logging import logger
 from deepclean.export.model import DeepClean
+from deepclean.logging import logger
 from deepclean.trainer import CompositePSDLoss
 from deepclean.trainer.analysis import analyze_model
 from deepclean.trainer.utils import Checkpointer, Trainer
@@ -27,9 +27,7 @@ def get_weights(state_dict: Dict, prefix: str):
 
 
 def load_weights(
-    init_weights: Path,
-    model: torch.nn.Module,
-    preprocessor: ChannelWiseScaler
+    init_weights: Path, model: torch.nn.Module, preprocessor: ChannelWiseScaler
 ):
     logger.info(f"Initializing model from checkpoint '{init_weights}'")
     state_dict = torch.load(init_weights)
@@ -43,7 +41,8 @@ def load_weights(
     mask = preprocessor.std == 0
     for param_name in ["mean", "std"]:
         param = getattr(preprocessor, param_name)
-        param[mask] = preproc_params[param_name][mask]
+        key = f"scaler.{param_name}"
+        param[mask] = preproc_params[key][mask]
 
 
 def train(

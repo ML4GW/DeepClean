@@ -209,6 +209,12 @@ class Exporter:
     def deepclean(self):
         return self.model.deepclean
 
+    def get_production_version(self):
+        ensemble = self.repo.models["deepclean-stream"]
+        for step in ensemble.config.steps:
+            if step.model_name == "deepclean":
+                return step.model_version
+
     def update_ensemble_versions(self, version: Optional[int] = None):
         ensemble = self.repo.models["deepclean-stream"]
         for step in ensemble.config.steps:

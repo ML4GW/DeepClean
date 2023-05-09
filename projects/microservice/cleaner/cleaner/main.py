@@ -68,6 +68,7 @@ def main(
     run_directory: Path,
     data_directory: Path,
     data_field: str,
+    export_endpoint: str,
     # Data args
     sample_rate: float,
     frame_length: float,
@@ -78,7 +79,7 @@ def main(
     freq_low: Union[float, Iterable[float]],
     freq_high: Union[float, Iterable[float]],
     # Triton args
-    url: str,
+    triton_endpoint: str,
     model_name: str,
     sequence_id: int = 1001,
     # Misc args
@@ -87,7 +88,6 @@ def main(
     timeout: Optional[float] = None,
     memory: float = 10,
     look_ahead: float = 0.5,
-    max_files: int = 300,
     verbose: bool = False,
 ) -> None:
     """
@@ -181,8 +181,7 @@ def main(
     logger.set_logger("DeepClean infer", log_file, verbose)
     channels = get_channels(channels)
 
-    wait(url)
-
+    wait(triton_endpoint)
     witness_it, strain_it = get_data_generators(
         data_directory,
         data_field,
@@ -193,6 +192,7 @@ def main(
         start_first=start_first,
         timeout=timeout,
     )
+
     # now create a file writer which takes the
     # responses returned by the server and turns them
     # into a timeseries of noise predictions which can
@@ -226,7 +226,7 @@ def main(
     monitor = ASDRMonitor(
         buffer_length=8, freq_low=freq_low, freq_high=freq_high, fftlength=2
     )
-    writer = Writer(write_dir, strain_it, monitor, max_files)
+    writer = Writer(write_dir, strain_it, monitor, export_endpoint)
     callback = Callback(writer, **states)
 
     # finally create an inference client which will stream
@@ -234,7 +234,7 @@ def main(
     # inference server and pass the responses to the writer
     # as a callback in a separate thread
     client = InferenceClient(
-        address=url,
+        address=triton_endpoint,
         model_name=model_name,
         model_version=-1,
         callback=callback,

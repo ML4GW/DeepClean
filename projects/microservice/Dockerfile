@@ -3,5 +3,5 @@ ENV DEEPCLEAN=/opt/deepclean
 COPY . $DEEPCLEAN
 
 ARG project
-ENV FLASK_APP=$DEEPCLEAN/projects/microservice/$project/$project
-RUN pinto -p $DEEPCLEAN/projects/microservice/$project build
+ENV PROJECT_DIR=$DEEPCLEAN/projects/microservice/$project
+RUN pinto -p $PROJECT_DIR build

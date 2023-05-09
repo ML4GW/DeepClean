@@ -6,6 +6,8 @@ authors = ["Alec Gunny <alecg@mit.edu>"]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
+requests = "^2.0"
+"deepclean.logging" = {path = "../../../libs/logging", develop = true}
 
 [build-system]
 requires = ["poetry-core"]

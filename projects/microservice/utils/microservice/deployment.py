@@ -2,7 +2,10 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import requests
 from microservice.frames import FrameCrawler
+
+from deepclean.logging import logger
 
 
 @dataclass
@@ -10,7 +13,7 @@ class Deployment:
     root: Path
 
     def __post_init__(self):
-        for d in ["log", "train", "csd", "frame", "repository"]:
+        for d in ["log", "train", "csd", "frame", "repository", "storage"]:
             dirname = getattr(self, f"{d}_directory")
             dirname.mkdir(exist_ok=True, parents=True)
 
@@ -27,12 +30,20 @@ class Deployment:
         return self.train_directory / "csds"
 
     @property
-    def frame_directory(self):
-        return self.root / "frames"
-
-    @property
     def repository_directory(self):
         return self.root / "model_repo"
+
+    @property
+    def infer_directory(self):
+        return self.root / "infer"
+
+    @property
+    def frame_directory(self):
+        return self.infer_directory / "frames"
+
+    @property
+    def storage_directory(self):
+        return self.infer_directory / "storage"
 
 
 @dataclass(frozen=True)
@@ -62,3 +73,40 @@ class DataStream:
                     )
 
             yield fname, strain_fname
+
+
+@dataclass
+class ExportClient:
+    endpoint: str
+
+    def __post_init__(self):
+        self.logger = logger.get_logger("Export client")
+        self._make_request("alive")
+
+    def _make_request(self, target, *args: str):
+        url = f"{self.endpoint}/{target}"
+        if args:
+            url += "/" + "/".join(args)
+
+        self.logger.debug(f"Making request to {url}")
+        r = requests.get(url)
+        r.raise_for_status()
+        self.logger.debug(f"Request to {url} successful")
+        return r.content
+
+    def export(self, weights_path: Path) -> None:
+        weights_dir = weights_path.parent.name
+        self._make_request("export", weights_dir)
+        return None
+
+    def increment(self) -> None:
+        self._make_request("increment")
+        return None
+
+    def production_version(self) -> int:
+        version = self._make_request("production-version")
+        return int(version)
+
+    def latest_version(self) -> int:
+        version = self._make_request("latest-version")
+        return int(version)

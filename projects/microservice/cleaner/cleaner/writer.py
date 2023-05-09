@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from gwpy.timeseries import TimeSeries, TimeSeriesDict
-from microservice.frames import lock
+from microservice.deployment import ExportClient
+from microservice.frames import DataProducts
 from scipy.signal.windows import tukey
 
 from deepclean.logging import logger
@@ -28,7 +29,9 @@ class ASDRMonitor:
         self.freq_low = self.freq_low[0]
         self.freq_high = self.freq_high[0]
 
-        self.in_spec = True
+        # always start out of spec until we can verify
+        # that our cleaned data is good
+        self.in_spec = False
         self.logger = logger.get_logger("DeepClean monitor")
 
     def get_asd(self, ts: TimeSeries):
@@ -53,7 +56,7 @@ class ASDRMonitor:
             size = int(sample_rate * 2)
             cutoff = int(sample_rate)
             self.window = tukey(size, alpha=1)[-cutoff:]
-            return None
+            return None, None
 
         self.raw = self.raw.append(raw, inplace=False)
         self.clean = self.clean.append(clean, inplace=False)
@@ -66,9 +69,9 @@ class ASDRMonitor:
         clean = self.clean.crop(tf - 2, tf - 1)
 
         # if we don't have enough data to measure the ASDR
-        # yet, then just return the buffered clean frame
+        # yet, then just return the buffered raw data
         if self.raw.duration.value < self.buffer_length:
-            return clean
+            return raw, raw
 
         # check the average ASDR over the relevant
         # frequency bins. TODO: do we want to do a
@@ -122,7 +125,7 @@ class ASDRMonitor:
             noise = (raw - clean) * self.window[::-1]
             frame = raw - noise
         else:
-            frame = raw - noise
+            frame = clean
 
         # finally, if we've reached our buffer length,
         # crop off the earliest part of the buffer
@@ -130,7 +133,7 @@ class ASDRMonitor:
             self.raw = self.raw.crop(t0 + 1, tf)
             self.clean = self.clean.crop(t0 + 1, tf)
 
-        return frame
+        return frame, clean
 
 
 @dataclass
@@ -138,18 +141,26 @@ class Writer:
     write_dir: Path
     strain_generator: Iterator
     monitor: ASDRMonitor
-    max_files: int
+    export_endpoint: str
 
     def __post_init__(self):
         self.write_dir.mkdir(parents=True, exist_ok=True)
         self.logger = logger.get_logger("DeepClean writer")
+        self.export_client = ExportClient(self.export_endpoint)
+        self.strain_buffer = None
         self.canary_buffer = None
         self.timestamp_buffer = None
-        self._files = []
 
     def __call__(self, **predictions):
         strain, fname = next(self.strain_generator)
-        self.logger.debug(f"Cleaning strain from file {fname}")
+
+        # check which version of the model cleaned this frame
+        # TODO: incorporate this as metadata somehow
+        version = self.export_client.production_version()
+        self.logger.info(
+            "Cleaning strain from file {} using predictions"
+            "made by DeepClean version {}".format(fname, version)
+        )
 
         sample_rate = strain.sample_rate.value
         ifo, field, timestamp, dur = fname.stem.split("-")
@@ -157,41 +168,72 @@ class Writer:
         t0 = timestamp - 1
         file_timestamp = os.path.getmtime(fname)
 
+        data_products = DataProducts(strain.channel.name)
         tsd = TimeSeriesDict()
         for key, noise in predictions.items():
             # parse out "canary" or "production" from the
-            # name of the prediction tensor and use it to
-            # construct the channel name for this model's
-            # predictions
+            # name of the prediction tensor
             model = key.split("-")[1]
-            postfix = "DEEPCLEAN_" + model.upper()
-            channel = strain.channel.name + "_" + postfix
-
-            # the production model needs to be cleaned
-            # specially to ensure that the ASDR matches
-            # our expectations, otherwise we'll just return
-            # the raw frame
-            if model == "production":
+            if model == "production" and version == 1:
+                # if the production model is still the
+                # randomly initialized version of DeepClean,
+                # then ignore the noise prediction altogether
+                # and just write the plain strain data
+                if self.strain_buffer is None:
+                    continue
+                tsd[data_products.out_dq] = TimeSeries(
+                    strain.value,
+                    t0=t0,
+                    sample_rate=sample_rate,
+                    channel=data_products.out_dq,
+                )
+                tsd[data_products.production] = TimeSeries(
+                    strain.value,
+                    t0=t0,
+                    sample_rate=sample_rate,
+                    channel=data_products.production,
+                )
+            elif model == "production":
+                # the production model needs to be cleaned
+                # specially to ensure that the ASDR matches
+                # our expectations, otherwise we'll just return
+                # the raw frame
                 noise = TimeSeries(
                     noise, t0=timestamp, sample_rate=sample_rate
                 )
-                frame = self.monitor(strain, noise)
-            else:
+                dq, clean = self.monitor(strain, noise)
+                if clean is None:
+                    continue
+
+                tsd[data_products.out_dq] = TimeSeries(
+                    dq.value,
+                    t0=t0,
+                    sample_rate=sample_rate,
+                    channel=data_products.out_dq,
+                )
+                tsd[data_products.production] = TimeSeries(
+                    clean.value,
+                    t0=t0,
+                    sample_rate=sample_rate,
+                    channel=data_products.production,
+                )
+            elif model == "canary":
                 # for the canary model, always clean normally
                 clean = strain - noise
-                frame = self.canary_buffer
+                if self.canary_buffer is not None:
+                    tsd[data_products.canary] = TimeSeries(
+                        self.canary_buffer.value,
+                        t0=t0,
+                        sample_rate=sample_rate,
+                        channel=data_products.canary,
+                    )
                 self.canary_buffer = clean
+            else:
+                raise ValueError("Unrecognized model {model}")
 
-            # short circuit for the first frame of each run
-            if frame is None:
-                continue
-
-            frame = TimeSeries(
-                frame.value, t0=t0, sample_rate=sample_rate, channel=channel
-            )
-            tsd[channel] = frame
-
-        # same short circuit as above
+        # short circuit if we didn't add anything
+        # to our timeseries dict
+        self.strain_buffer = strain
         if not tsd:
             # record the timestamp of this first file
             # to compute our write latency later
@@ -200,18 +242,11 @@ class Writer:
 
         write_name = f"{ifo}-{field}-{t0}-{dur}.gwf"
         write_path = self.write_dir / write_name
-        with lock:
-            tsd.write(write_path)
+        tsd.write(write_path)
         self.logger.debug(f"Finished cleaning of file {write_path}")
 
         write_time = time.time()
         latency = write_time - self.timestamp_buffer
         self.timestamp_buffer = file_timestamp
-
-        self._files.append(write_path)
-        if len(self._files) > self.max_files:
-            fname = self._files.pop(0)
-            self.logger.info(f"Removing file {fname} from replay directory")
-            fname.unlink()  # TODO: write these somewhere else?
 
         return write_path, latency

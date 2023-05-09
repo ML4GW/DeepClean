@@ -6,15 +6,15 @@ authors = ["Alec Gunny <alec.gunny@gmail.com>"]
 # readme = "README.md"
 
 [tool.poetry.scripts]
-clean = "cleaner.cleaner:main"
+clean = "cleaner.main:main"
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
 typeo = {path = "../../../typeo", develop = true}
 microservice = {path = "../utils", develop = true}
 
-"deepclean.logging" = {path = "../../../libs/logging", develop = true}
 "deepclean.infer" = {path = "../../../libs/infer", develop = true}
+"deepclean.logging" = {path = "../../../libs/logging", develop = true}
 "deepclean.utils" = {path = "../../../libs/utils", develop = true}
 
 [tool.poetry.dependencies."hermes.aeriel"]

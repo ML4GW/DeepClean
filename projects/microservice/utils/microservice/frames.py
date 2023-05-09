@@ -227,20 +227,32 @@ def load_frame(
         # if we don't have multiple channels, then just grab the data
         data = read_channel(fname, channels, sample_rate)
     else:
-        # otherwise stack the arrays
-        # with lock:
-        #     ts = TimeSeriesDict.read(fname, channels)
         data = []
         for channel in channels:
-            # x = resample(ts[channel], sample_rate)
             x = read_channel(fname, channel, sample_rate)
             data.append(x)
-
-        try:
-            data = np.stack(data)
-        except Exception:
-            print(fname, [(k, x.shape) for k, x in zip(channels, data)])
-            raise
+        data = np.stack(data)
 
     # return as the expected type
     return data.astype("float32")
+
+
+@dataclass
+class DataProducts:
+    channel: str
+
+    @property
+    def out_dq(self):
+        return self.channel + "DEEPCLEAN_PRODUCTION_OUT_DQ"
+
+    @property
+    def production(self):
+        return self.channel + "DEEPCLEAN_PRODUCTION"
+
+    @property
+    def canary(self):
+        return self.channel + "DEEPCLEAN_CANARY"
+
+    @property
+    def channels(self):
+        return [self.out_dq, self.production, self.canary]

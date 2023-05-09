@@ -129,6 +129,7 @@ instances = 4
 run_directory = "${base.run_directory}"
 data_directory = "${base.data_directory}"
 data_field = "${base.data_field}"
+export_endpoint = "localhost:5000"
 
 # data args
 sample_rate = "${base.sample_rate}"
@@ -146,7 +147,7 @@ inference_rate = 8
 max_latency = "${base.inference_aggregation_time}"
 
 # triton args
-url = "localhost:8001"
+triton_endpoint = "localhost:8001"
 model_name = "deepclean-stream"
 sequence_id = 1001
 
@@ -154,4 +155,3 @@ sequence_id = 1001
 start_first = false
 timeout = 3
 verbose = true # "${base.verbose}"
-max_files = 300

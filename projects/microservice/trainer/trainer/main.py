@@ -3,7 +3,7 @@ from typing import Callable, Optional
 
 import numpy as np
 import requests
-from microservice.deployment import Deployment
+from microservice.deployment import Deployment, ExportClient
 from trainer.dataloader import DataCollector
 from trainer.monitor import validate_csd
 
@@ -101,6 +101,7 @@ def main(
     valid_frac: float,
     fine_tune_decay: Optional[float] = None,
     verbose: bool = False,
+    export_endpoint: str = "http://localhost:5005",
     **kwargs,
 ):
     deployment = Deployment(run_directory)
@@ -108,6 +109,7 @@ def main(
     root_logger = logger.set_logger(
         "DeepClean trainer", log_file, verbose=verbose
     )
+    export_client = ExportClient(export_endpoint)
 
     channels = get_channels(channels)
     frame_collector = DataCollector(
@@ -155,9 +157,7 @@ def main(
                 "Training on segment {} complete, saved "
                 "optimized weights to {}".format(span, weights_path)
             )
-            export(weights_path)
-            if last_start is None:
-                increment()
+            export_client.export(weights_path)
 
             # for trainings after the first, use the previous
             # optimized weights and reduce the learning rate

@@ -17,3 +17,17 @@ def increment_ensemble():
     app.logger.info("Received ensemble version increment request")
     exporter.update_ensemble_versions()
     return "", 200
+
+
+@app.route("/production-version")
+def get_production_version():
+    version = exporter.get_production_version()
+    app.logger.info(f"Reporting production DeepClean version {version}")
+    return str(version), 200
+
+
+@app.route("/latest-version")
+def get_latest_version():
+    version = max(exporter.repo.models["deepclean"].versions)
+    app.logger.info(f"Reporting latest DeepClean version {version}")
+    return str(version), 200

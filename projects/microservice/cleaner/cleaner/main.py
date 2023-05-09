@@ -2,64 +2,16 @@ import time
 from pathlib import Path
 from typing import Iterable, Optional, Union
 
-import tritonclient.grpc as triton
 from cleaner.dataloader import get_data_generators
+from cleaner.utils import wait_for_server
 from cleaner.writer import ASDRMonitor, Writer
 from microservice.deployment import Deployment
-from tritonclient.utils import InferenceServerException
 
 from deepclean.infer.callback import Callback, State
 from deepclean.logging import logger
 from deepclean.utils.channels import ChannelList, get_channels
 from hermes.aeriel.client import InferenceClient
 from typeo import scriptify
-
-
-def wait(url):
-    client = triton.InferenceServerClient(url)
-
-    # first wait for server to come online
-    start_time = time.time()
-    while True:
-        try:
-            live = client.is_server_live()
-        except InferenceServerException:
-            time.sleep(1)
-        else:
-            if live:
-                break
-
-        elapsed = (time.time() - start_time) // 1
-        if not elapsed % 10:
-            logger.info(
-                f"Waiting for server to come online, {elapsed}s elapsed"
-            )
-
-    start_time = time.time()
-    while not client.is_model_ready("deepclean-stream"):
-        time.sleep(1)
-
-        elapsed = (time.time() - start_time) // 1
-        if not elapsed % 10:
-            logger.info(
-                "Waiting for streaming model to "
-                f"come online, {elapsed}s elapsed"
-            )
-
-    start_time = time.time()
-    while True:
-        metadata = client.get_model_metadata("deepclean")
-        versions = list(map(int, metadata.versions))
-        if max(versions) > 1:
-            break
-
-        time.sleep(1)
-        elapsed = (time.time() - start_time) // 1
-        if not elapsed % 10:
-            logger.info(
-                "Waiting for first DeepClean model to "
-                f"come online, {elapsed}s elapsed"
-            )
 
 
 @scriptify
@@ -181,7 +133,10 @@ def main(
     logger.set_logger("DeepClean infer", log_file, verbose)
     channels = get_channels(channels)
 
-    wait(triton_endpoint)
+    # don't start loading data until the server
+    # is online and a trained version of DeepClean
+    # has become available
+    wait_for_server(triton_endpoint)
     witness_it, strain_it = get_data_generators(
         data_directory,
         data_field,

@@ -32,7 +32,7 @@ class ASDRMonitor:
         # always start out of spec until we can verify
         # that our cleaned data is good
         self.in_spec = False
-        self.logger = logger.get_logger("DeepClean monitor")
+        self.logger = logger.get_logger("DeepClean online monitor")
 
     def get_asd(self, ts: TimeSeries):
         asd = ts.asd(
@@ -105,6 +105,9 @@ class ASDRMonitor:
             noise = (raw - clean) * self.window
             frame = raw - noise
         elif asdr > 1 and not self.in_spec:
+            self.logger.debug(
+                "Mean ASDR is still out of spec, writing raw strain"
+            )
             # we're currently out of spec and the most recent
             # frame hasn't changed that, so continue to
             # return the uncleaned data
@@ -125,6 +128,9 @@ class ASDRMonitor:
             noise = (raw - clean) * self.window[::-1]
             frame = raw - noise
         else:
+            self.logger.debug(
+                "Mean ASDR is still in spec, writing cleaned strain"
+            )
             frame = clean
 
         # finally, if we've reached our buffer length,
@@ -162,14 +168,24 @@ class Writer:
             "made by DeepClean version {}".format(fname, version)
         )
 
+        # extract some metadata about the frame we just got
         sample_rate = strain.sample_rate.value
         ifo, field, timestamp, dur = fname.stem.split("-")
+
+        # the timestamp of the frame we _write_ will be
+        # one second behind the timestamp of this frame.
+        # Record the actual time the frame got written
+        # for the purposes of measuring latency
         timestamp = int(timestamp)
         t0 = timestamp - 1
         file_timestamp = os.path.getmtime(fname)
 
+        # our frames will contain three channels as their
+        # data products, each one appending something
+        # different to the name of the strain channel
         data_products = DataProducts(strain.channel.name)
         tsd = TimeSeriesDict()
+
         for key, noise in predictions.items():
             # parse out "canary" or "production" from the
             # name of the prediction tensor
@@ -179,8 +195,13 @@ class Writer:
                 # randomly initialized version of DeepClean,
                 # then ignore the noise prediction altogether
                 # and just write the plain strain data
+                self.logger.debug(
+                    "Production model still randomly initialized, "
+                    "skipping production clean"
+                )
                 if self.strain_buffer is None:
                     continue
+
                 tsd[data_products.out_dq] = TimeSeries(
                     strain.value,
                     t0=t0,

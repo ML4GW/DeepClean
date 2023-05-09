@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import numpy as np
-import requests
 from microservice.deployment import Deployment, ExportClient
 from trainer.dataloader import DataCollector
 from trainer.monitor import validate_csd
@@ -23,23 +22,6 @@ def _intify(x):
 
 def _get_str(*times):
     return "-".join(map(_intify, times))
-
-
-def export(weights_path: Path):
-    weights_dir = weights_path.parent.name
-    url = f"http://localhost:5000/export/{weights_dir}"
-    logger.info(f"Making export request to {url}")
-
-    r = requests.get(url)
-    r.raise_for_status()
-    logger.info("Export request completed")
-
-
-def increment():
-    logger.info("Incrementing production DeepClean version")
-    r = requests.get("http://localhost:5000/increment")
-    r.raise_for_status()
-    logger.info("Version incrementing complete")
 
 
 def train_on_segment(
@@ -93,6 +75,7 @@ def main(
     run_directory: Path,
     data_directory: Path,
     data_field: str,
+    export_endpoint: str,
     channels: ChannelList,
     architecture: Callable,
     train_duration: float,
@@ -101,7 +84,6 @@ def main(
     valid_frac: float,
     fine_tune_decay: Optional[float] = None,
     verbose: bool = False,
-    export_endpoint: str = "http://localhost:5005",
     **kwargs,
 ):
     deployment = Deployment(run_directory)

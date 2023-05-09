@@ -50,6 +50,8 @@ livingston_60Hz_channels = [
 ]
 data_directory = "${DATA_DIR}"
 data_field = "${DATA_FIELD}"
+export_endpoint = "localhost:5000"
+triton_endpoint = "localhost:8001"
 
 sample_rate = 4096
 freq_low = 55
@@ -68,6 +70,7 @@ verbose = false
 run_directory = "${base.run_directory}"
 data_directory = "${base.data_directory}"
 data_field = "${base.data_field}"
+export_endpoint = "${base.export_endpoint}"
 
 # data parameters
 channels = "${base.livingston_60Hz_channels}"
@@ -99,9 +102,8 @@ factor = 0.1
 device = "cuda:0"
 verbose = "${base.verbose}"
 
-# architectures
-[tool.typeo.scripts.train.architecture]
-autoencoder = {}
+# architecture parameters
+architecture.autoencoder = {}
 
 
 [tool.typeo.scripts.exporter]
@@ -129,7 +131,7 @@ instances = 4
 run_directory = "${base.run_directory}"
 data_directory = "${base.data_directory}"
 data_field = "${base.data_field}"
-export_endpoint = "localhost:5000"
+export_endpoint = "${base.export_endpoint}"
 
 # data args
 sample_rate = "${base.sample_rate}"
@@ -147,11 +149,34 @@ inference_rate = 8
 max_latency = "${base.inference_aggregation_time}"
 
 # triton args
-triton_endpoint = "localhost:8001"
+triton_endpoint = "${base.triton_endpoint}"
 model_name = "deepclean-stream"
 sequence_id = 1001
 
 # misc args
 start_first = false
 timeout = 3
+verbose = true # "${base.verbose}"
+
+[tool.typeo.scripts.monitor]
+# paths
+run_directory = "${base.run_directory}"
+data_directory = "${base.data_directory}"
+data_field = "${base.data_field}"
+export_endpoint = "${base.export_endpoint}"
+
+# analysis args
+channels = "${base.livingston_60Hz_channels}"
+sample_rate = "${base.sample_rate}"
+asd_segment_length = 100
+fftlength = 8
+monitor_period = 100
+freq_low = "${base.freq_low}"
+freq_high = "${base.freq_high}"
+
+# storage args
+max_files = 300
+write_cadence = 1024
+
+# misc args
 verbose = true # "${base.verbose}"

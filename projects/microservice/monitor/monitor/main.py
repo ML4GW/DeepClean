@@ -13,19 +13,23 @@ from typeo import scriptify
 
 @scriptify
 def main(
+    # paths
+    run_directory: Path,
     data_directory: Path,
     data_field: str,
-    run_directory: Path,
     export_endpoint: str,
+    # data/analysis args
+    channels: ChannelList,
+    sample_rate: float,
+    fftlength: float,
     asd_segment_length: float,
     monitor_period: float,
     freq_low: Frequency,
     freq_high: Frequency,
+    # storage args
     max_files: int,
     write_cadence: int,
-    channels: ChannelList,
-    sample_rate: float,
-    fftlength: float = 8,
+    # misc args
     verbose: bool = False,
 ):
     deployment = Deployment(run_directory)

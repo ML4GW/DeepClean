@@ -84,7 +84,7 @@ class ExportClient:
         self._make_request("alive")
 
     def _make_request(self, target, *args: str):
-        url = f"{self.endpoint}/{target}"
+        url = f"http://{self.endpoint}/{target}"
         if args:
             url += "/" + "/".join(args)
 

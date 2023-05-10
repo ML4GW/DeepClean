@@ -31,7 +31,9 @@ class Exporter:
     streams_per_gpu: int = 2
     platform: qv.Platform = qv.Platform.ONNX
     instances: Optional[int] = None
+    max_versions: int = 5
     verbose: bool = False
+    clean: bool = True
 
     @classmethod
     def from_config(
@@ -50,7 +52,7 @@ class Exporter:
         typeo_parser = argparse.ArgumentParser()
         typeo_parser.add_argument(
             "--typeo",
-            bools={},
+            bools={"verbose": False, "clean": True},
             subcommands={},
             nargs="*",
             action=TypeoTomlAction,
@@ -99,8 +101,10 @@ class Exporter:
             self.channels[1:],
             self.platform,
             self.instances,
-            clean=True,
+            clean=self.clean,
         )
+        if not self.clean:
+            return
 
         # initialize an ensemble that we'll add steps to
         ensemble = self.repo.add(
@@ -192,7 +196,9 @@ class Exporter:
     def set_version_policy(self, model: qv.Model):
         model.config.version_policy.MergeFrom(
             model_config.ModelVersionPolicy(
-                latest=model_config.ModelVersionPolicy.Latest(num_versions=2)
+                latest=model_config.ModelVersionPolicy.Latest(
+                    num_versions=self.max_versions
+                )
             )
         )
         model.config.write()
@@ -209,33 +215,47 @@ class Exporter:
     def deepclean(self):
         return self.model.deepclean
 
-    def get_production_version(self):
+    @property
+    def latest_version(self) -> int:
+        return max(self.repo.models["deepclean"].versions)
+
+    def get_production_version(self) -> int:
         ensemble = self.repo.models["deepclean-stream"]
         for step in ensemble.config.steps:
-            if step.model_name == "deepclean":
+            if step.model_name == "deepclean" and step.model_version > 0:
                 return step.model_version
 
     def update_ensemble_versions(self, version: Optional[int] = None):
+        available_versions = self.repo.models["deepclean"].versions
+        if version is not None and version not in available_versions:
+            raise ValueError(
+                "Cannot set version of models in ensemble to {}, "
+                "only versions {} are available".format(
+                    version, ", ".join(available_versions)
+                )
+            )
+        elif version is None:
+            version = self.latest_version
+
         ensemble = self.repo.models["deepclean-stream"]
+        whitelist = ["snapshotter", "aggregator"]
         for step in ensemble.config.steps:
-            # don't update the version of the canary model,
-            # which will always point to the latest version
-            if step.model_version == -1:
-                continue
-            elif step.model_name in ["snapshotter", "aggregator"]:
-                # these models don't need to be versioned
-                # because they don't have any parameters
-                continue
+            # only versioned production models
+            # with non-negative versions need
+            # to be updated
+            if step.model_version > 0 and step.model_name not in whitelist:
+                self.logger.debug(
+                    "Updating production version of model {} "
+                    "to use version {} from version {}".format(
+                        step.model_name, version, step.model_version
+                    )
+                )
+                step.model_version = version
 
-            if version is None:
-                version = step.model_version + 1
-            step.model_version = version
-
-        self.logger.info(
-            "Updating production model in ensemble "
-            "to use version {}".format(version)
-        )
+        # write the config once it's been updated
+        # for the server to pick up
         ensemble.config.write()
+        return version
 
     def export(self):
         self.repo.models["preprocessor"].export_version(self.preprocessor)

@@ -5,6 +5,11 @@ exporter = Exporter.from_config()
 app = Flask(__name__)
 
 
+@app.route("/alive")
+def alive():
+    return "", 200
+
+
 @app.route("/export/<train_dir>")
 def export_model(train_dir):
     app.logger.info(f"Received export request for {train_dir}")
@@ -12,11 +17,14 @@ def export_model(train_dir):
     return "", 200
 
 
-@app.route("/increment")
-def increment_ensemble():
-    app.logger.info("Received ensemble version increment request")
-    exporter.update_ensemble_versions()
-    return "", 200
+@app.route("/production-version/set/<version>")
+def set_production_version(version):
+    version = int(version)
+    app.logger.info(f"Setting production DeepClean to version {version}")
+    if version == -1:
+        version = None
+    version = exporter.update_ensemble_versions(version)
+    return str(version), 200
 
 
 @app.route("/production-version")
@@ -28,6 +36,6 @@ def get_production_version():
 
 @app.route("/latest-version")
 def get_latest_version():
-    version = max(exporter.repo.models["deepclean"].versions)
+    version = exporter.latest_version
     app.logger.info(f"Reporting latest DeepClean version {version}")
     return str(version), 200

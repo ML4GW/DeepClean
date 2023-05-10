@@ -7,8 +7,26 @@ import numpy as np
 from gwpy.timeseries import TimeSeries
 from microservice.deployment import DataStream
 from microservice.frames import load_frame
+from scipy.signal.windows import hann
 
 from deepclean.logging import logger
+
+
+def extend(data, frame, stride, zeroed):
+    if frame is None:
+        shape = (len(data), stride)
+        frame = np.zeros(shape, dtype=np.float32)
+        if not zeroed:
+            taper = hann(2 * stride)[-stride:]
+            data[:, -stride:] *= taper
+        zeroed = True
+    elif zeroed:
+        taper = hann(2 * stride)[:stride]
+        frame[:, :stride] *= taper
+        zeroed = False
+
+    data = np.concatenate([data, frame], axis=-1)
+    return data, zeroed
 
 
 def witness_iterator(it: Iterable, stride: int) -> np.ndarray:
@@ -17,19 +35,19 @@ def witness_iterator(it: Iterable, stride: int) -> np.ndarray:
     except StopIteration:
         raise ValueError("Frame crawler never returned any data")
 
-    idx = 0
+    idx, zeroed = 0, False
     while True:
         start = idx * stride
         stop = (idx + 1) * stride
-        if stop > data.shape[-1]:
+        if (idx + 2) * stride > data.shape[-1]:
             try:
                 frame = next(it)
             except StopIteration:
-                yield np.zeros((stride,), dtype=np.float32), True
+                yield data[:, start:stop], True
                 break
             else:
                 data = data[:, start:]
-                data = np.concatenate([data, frame], axis=-1)
+                data, zeroed = extend(data, frame, stride, zeroed)
                 idx, start, stop = 0, 0, stride
 
         yield data[:, start:stop], False
@@ -50,8 +68,18 @@ def strain_iterator(q: Queue):
 
 def frame_iter(crawler, channels, sample_rate, q):
     for fname, strain_fname in crawler:
-        logger.debug(f"Loading frame files {fname}, {strain_fname}")
-        witnesses = load_frame(fname, channels[1:], sample_rate)
+        if not fname.exists():
+            logger.warning(
+                "Witness frame {} was dropped, attempting "
+                "to load corresponding strain frame {}".format(
+                    fname, strain_fname
+                )
+            )
+            witnesses = None
+        else:
+            logger.debug(f"Loading frame files {fname}, {strain_fname}")
+            witnesses = load_frame(fname, channels[1:], sample_rate)
+
         strain = TimeSeries.read(strain_fname, channel=channels[0])
         if strain.sample_rate.value != sample_rate:
             strain = strain.resample(sample_rate)

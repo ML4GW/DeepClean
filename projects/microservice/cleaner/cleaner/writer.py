@@ -7,7 +7,7 @@ from typing import Iterator, Optional
 from gwpy.timeseries import TimeSeries, TimeSeriesDict
 from microservice.deployment import ExportClient
 from microservice.frames import DataProducts
-from scipy.signal.windows import tukey
+from scipy.signal.windows import hann
 
 from deepclean.logging import logger
 from deepclean.utils.filtering import Frequency, normalize_frequencies
@@ -55,7 +55,7 @@ class ASDRMonitor:
             sample_rate = raw.sample_rate.value
             size = int(sample_rate * 2)
             cutoff = int(sample_rate)
-            self.window = tukey(size, alpha=1)[-cutoff:]
+            self.window = hann(size)[-cutoff:]
             return None, None
 
         self.raw = self.raw.append(raw, inplace=False)
@@ -162,7 +162,7 @@ class Writer:
 
         # check which version of the model cleaned this frame
         # TODO: incorporate this as metadata somehow
-        version = self.export_client.production_version()
+        version = self.export_client.get_production_version()
         self.logger.info(
             "Cleaning strain from file {} using predictions"
             "made by DeepClean version {}".format(fname, version)

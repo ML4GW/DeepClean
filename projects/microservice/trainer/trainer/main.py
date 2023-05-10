@@ -102,7 +102,7 @@ def main(
         train_duration,
         retrain_cadence,
         sample_rate,
-        timeout=60,
+        timeout=3,
         verbose=verbose,
     )
 

@@ -115,11 +115,16 @@ def get_prefix(data_dir: Path):
     return list(prefixes)[0], int(list(durations)[0])
 
 
+class DroppedFrames(Exception):
+    pass
+
+
 @dataclass
 class FrameCrawler:
     data_dir: Path
     t0: Optional[float] = None
     timeout: Optional[float] = None
+    max_dropped_frames: int = 0
 
     def __post_init__(self):
         prefix, self.length = get_prefix(self.data_dir)
@@ -133,6 +138,7 @@ class FrameCrawler:
             self.t0 = sorted(starts, reverse=self.t0 == -1)[0]
 
     def __iter__(self):
+        self._dropped_frames = 0
         return self
 
     def __next__(self):
@@ -155,9 +161,14 @@ class FrameCrawler:
             elif self.timeout == 0:
                 raise StopIteration
             elif (time.time() - start_time) > self.timeout:
-                raise RuntimeError(
-                    f"No frame file {fname} after {self.timeout}s"
-                )
+                self._dropped_frames += 1
+                if self._dropped_frames > self.max_dropped_frames:
+                    raise DroppedFrames(
+                        f"No frame file {fname} after {self.timeout}s"
+                    )
+                break
+        else:
+            self._dropped_frames = 0
 
         self.t0 += self.length
         return fname
@@ -165,8 +176,8 @@ class FrameCrawler:
 
 def resample(x: TimeSeries, sample_rate: float):
     if x.sample_rate.value != sample_rate:
-        return x.resample(sample_rate).value
-    return x.value
+        return x.resample(sample_rate)
+    return x
 
 
 def read_channel(fname, channel, sample_rate):
@@ -225,12 +236,12 @@ def load_frame(
 
     if isinstance(channels, str):
         # if we don't have multiple channels, then just grab the data
-        data = read_channel(fname, channels, sample_rate)
+        data = read_channel(fname, channels, sample_rate).value
     else:
         data = []
         for channel in channels:
             x = read_channel(fname, channel, sample_rate)
-            data.append(x)
+            data.append(x.value)
         data = np.stack(data)
 
     # return as the expected type
@@ -243,15 +254,15 @@ class DataProducts:
 
     @property
     def out_dq(self):
-        return self.channel + "DEEPCLEAN_PRODUCTION_OUT_DQ"
+        return self.channel + "_DEEPCLEAN_PRODUCTION_OUT_DQ"
 
     @property
     def production(self):
-        return self.channel + "DEEPCLEAN_PRODUCTION"
+        return self.channel + "_DEEPCLEAN_PRODUCTION"
 
     @property
     def canary(self):
-        return self.channel + "DEEPCLEAN_CANARY"
+        return self.channel + "_DEEPCLEAN_CANARY"
 
     @property
     def channels(self):

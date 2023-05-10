@@ -10,6 +10,7 @@ from typing import Optional
 import numpy as np
 from microservice.deployment import DataStream
 from microservice.frames import load_frame
+from scipy.signal.windows import hann
 
 from deepclean.logging import logger
 from deepclean.utils.channels import ChannelList, get_channels
@@ -35,6 +36,8 @@ def collect_frames(
     edge_size = int(cadence * sample_rate)
     X = np.zeros((len(channels) - 1, 0))
     y = np.zeros((0,))
+    zeroed = False
+    taper = hann(int(2 * sample_rate))[: int(sample_rate)]
 
     # clear the first couple filenames to avoid
     # a race condition where the first file
@@ -47,10 +50,28 @@ def collect_frames(
         if start is None:
             start = int(fname.stem.split("-")[-2])
 
-        witnesses = load_frame(fname, channels[1:], sample_rate)
-        strain = load_frame(strain_fname, channels[0], sample_rate)
+        if not fname.exists():
+            logger.warning(
+                "Witness frame {} was dropped, attempting "
+                "to load corresponding strain frame {}".format(
+                    fname, strain_fname
+                )
+            )
+            witnesses = np.zeros(
+                (len(channels) - 1, int(sample_rate)),
+            )
+            if not zeroed:
+                X[:, -int(sample_rate) :] *= taper[::-1]
+                zeroed = True
+        else:
+            logger.debug(f"Loading frame files {fname}, {strain_fname}")
+            witnesses = load_frame(fname, channels[1:], sample_rate)
+            if zeroed:
+                witnesses[:, : int(sample_rate)] *= taper
+                zeroed = False
 
         X = np.concatenate([X, witnesses], axis=1)
+        strain = load_frame(strain_fname, channels[0], sample_rate)
         y = np.concatenate([y, strain])
 
         # TODO: insert some checks here about data quality,

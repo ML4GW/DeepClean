@@ -1,6 +1,7 @@
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import requests
 from microservice.frames import FrameCrawler
@@ -57,10 +58,10 @@ class DataStream:
 
     @property
     def hoft(self):
-        return self.root / "kafka" / self.field
+        return self.root / "kafka" / self.field.replace("replay", "")
 
     def crawl(self, t0, timeout):
-        crawler = FrameCrawler(self.detchar, t0, timeout)
+        crawler = FrameCrawler(self.detchar, t0, timeout, max_dropped_frames=5)
         for fname in crawler:
             strain_fname = fname.name.replace("lldetchar", "llhoft")
             strain_fname = self.hoft / strain_fname
@@ -99,14 +100,15 @@ class ExportClient:
         self._make_request("export", weights_dir)
         return None
 
-    def increment(self) -> None:
-        self._make_request("increment")
-        return None
-
-    def production_version(self) -> int:
+    def get_production_version(self) -> int:
         version = self._make_request("production-version")
         return int(version)
 
-    def latest_version(self) -> int:
+    def set_production_version(self, version: Optional[int] = None):
+        version = version or -1
+        version = self._make_request("production-version/set", str(version))
+        return int(version)
+
+    def get_latest_version(self) -> int:
         version = self._make_request("latest-version")
         return int(version)

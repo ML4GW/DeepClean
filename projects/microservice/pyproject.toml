@@ -1,6 +1,11 @@
 [tool.typeo.base]
 # global paths
 run_directory = "${PROJECT_DIR}"
+data_directory = "${DATA_DIR}"
+data_field = "${DATA_FIELD}"
+
+export_endpoint = "localhost:5000"
+triton_endpoint = "localhost:8001"
 
 # global data args
 hanford_60Hz_channels = [
@@ -48,22 +53,19 @@ livingston_60Hz_channels = [
     "L1:ASC-SRC2_P_OUT_DQ",
     "L1:ASC-SRC2_Y_OUT_DQ",
 ]
-data_directory = "${DATA_DIR}"
-data_field = "${DATA_FIELD}"
-export_endpoint = "localhost:5000"
-triton_endpoint = "localhost:8001"
 
 sample_rate = 4096
-freq_low = 55
-freq_high = 65
+freq_low = 58
+freq_high = 62
 
 # global inference args
 inference_sampling_rate = 512
 inference_aggregation_time = 0.5
-inference_batch_size = 256  # TODO: enforce that this is agg_time * inference_sampling_rate
+inference_batch_size = 128
 
 # global misc args
 verbose = false
+
 
 [tool.typeo.scripts.train]
 # paths
@@ -121,9 +123,13 @@ batch_size = "${base.inference_batch_size}"
 aggregation_time = "${base.inference_aggregation_time}"
 
 # triton args
-streams_per_gpu = 2
+streams_per_gpu = 1
 platform = "tensorrt_plan"
 instances = 4
+
+# misc args
+clean = true
+verbose = "${base.verbose}"
 
 
 [tool.typeo.scripts.clean]
@@ -155,7 +161,7 @@ sequence_id = 1001
 
 # misc args
 start_first = false
-timeout = 3
+timeout = 2
 verbose = true # "${base.verbose}"
 
 [tool.typeo.scripts.monitor]
@@ -168,15 +174,15 @@ export_endpoint = "${base.export_endpoint}"
 # analysis args
 channels = "${base.livingston_60Hz_channels}"
 sample_rate = "${base.sample_rate}"
-asd_segment_length = 100
+asd_segment_length = 10
 fftlength = 8
-monitor_period = 100
+monitor_period = 10
 freq_low = "${base.freq_low}"
 freq_high = "${base.freq_high}"
 
 # storage args
 max_files = 300
-write_cadence = 1024
+write_cadence = 128
 
 # misc args
 verbose = true # "${base.verbose}"

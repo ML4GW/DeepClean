@@ -3,7 +3,7 @@ from pathlib import Path
 
 from gwpy.timeseries import TimeSeriesDict
 from microservice.deployment import DataStream, Deployment, ExportClient
-from microservice.frames import DataProducts, FrameCrawler, load_frame
+from microservice.frames import DataProducts, FrameCrawler, read_channel
 
 from deepclean.logging import logger
 from deepclean.utils.channels import ChannelList, get_channels
@@ -64,7 +64,7 @@ def main(
     files = []
     buffer, t0 = TimeSeriesDict(), None
 
-    latest_version = 1
+    latest_version = export_client.get_latest_version()
     validating = False
     in_spec_for = 0
 
@@ -75,22 +75,23 @@ def main(
             t0 = timestamp
 
         # grab all of the data products from the current
-        # frame as well as its associate raw data
+        # frame as well as its associated raw data
         strain_fname = stream.hoft / fname.name
-        frame = load_frame(fname, data_products.channels, sample_rate)
-        raw = load_frame(strain_fname, strain_channel, sample_rate)
-
-        frame[strain_channel] = raw
+        frame = TimeSeriesDict()
+        for channel in data_products.channels:
+            frame[channel] = read_channel(fname, channel, sample_rate)
+        strain = read_channel(strain_fname, strain_channel, sample_rate)
+        frame[strain_channel] = strain
         buffer.append(frame)
 
         # see if we've aggregated enough data to move
         # into cold storage in our output directory
-        if (timestamp - t0) == write_cadence:
+        if (timestamp + 1 - t0) == write_cadence:
             # slice out the current segment for writing, ignoring
             # any data from the past that we might have had to hold
             # on to for canary validation
-            output = buffer.crop(t0, timestamp)
-            write_fname = f"{ifo}-{field}-{output.t0}-{write_cadence}.h5"
+            output = buffer.crop(t0, timestamp + 1, copy=True)
+            write_fname = f"{ifo}-{field}-{t0}-{write_cadence}.h5"
             write_path = deployment.storage_directory / write_fname
 
             logger.info(
@@ -102,10 +103,10 @@ def main(
 
             # now slough off the data from the frame we just
             # wrote, saving just enough to be able to keep
-            # doing canary model validation. Increment t0 to mathc
+            # doing canary model validation. Increment t0 to match
             start = timestamp - asd_segment_length
-            buffer = buffer.crop(start, timestamp)
-            t0 = timestamp
+            buffer = buffer.crop(start, timestamp + 1, copy=True)
+            t0 = timestamp + 1
 
         files.append(fname)
         if len(files) > max_files:
@@ -114,14 +115,22 @@ def main(
             removed.unlink()
 
         # if we don't have enough data to validate the ASD, move on
-        if buffer.duration < asd_segment_length:
+        start, stop = buffer.span
+        if (stop - start) < asd_segment_length:
             continue
 
         # if we're not currently validating, see if there is a
         # newer version of the model that needs validation
         if not validating:
-            version = export_client.latest_version()
+            # TODO: should we check for new versions even
+            # if we're validating and interrupt to start
+            # validating those instead?
+            version = export_client.get_latest_version()
             if version > latest_version:
+                logger.info(
+                    f"Beginning validation of new DeepClean version {version}"
+                )
+
                 latest_version = version
                 validating = True
                 in_spec_for = 0
@@ -147,15 +156,31 @@ def main(
         # TODO: write this to some sort of Prometheus
         # dashboard or something
         asdr = clean / raw
-        if asdr.mean() <= 1:
+        mean_asdr = asdr.mean()
+        if mean_asdr <= 1:
             in_spec_for += 1
+            logger.info(
+                "Canary DeepClean version {} been in-spec for "
+                "{} seconds".format(latest_version, in_spec_for)
+            )
         else:
+            logger.debug(
+                "Canary DeepClean version {} has fallen "
+                "out of spec after {}s with asdr {}, "
+                "resetting validation counter".format(
+                    latest_version, in_spec_for, mean_asdr
+                )
+            )
             in_spec_for = 0
 
         # if we've been in spec for the right period,
         # then increment the production version of
         # DeepClean and reset our validation counter
         if in_spec_for >= monitor_period:
-            export_client.increment()
+            logger.info(
+                "Canary DeepClean version {} has passed "
+                "validation, moving to production".format(latest_version)
+            )
+            export_client.set_production_version(latest_version)
             validating = False
             in_spec_for = 0

@@ -3,8 +3,8 @@ from typing import Callable, Optional
 
 import numpy as np
 from microservice.deployment import Deployment, ExportClient
+from trainer.checks import data_checks
 from trainer.dataloader import DataCollector
-from trainer.monitor import validate_csd
 
 from deepclean.architectures import architectures
 from deepclean.logging import logger
@@ -85,14 +85,21 @@ def main(
     fine_tune_decay: Optional[float] = None,
     verbose: bool = False,
     **kwargs,
-):
+) -> None:
+    # build a deployment object that contains all
+    # the structure of where our logs/intermediate
+    # data products go
     deployment = Deployment(run_directory)
     log_file = deployment.log_directory / "train.root.log"
     root_logger = logger.set_logger(
         "DeepClean trainer", log_file, verbose=verbose
     )
+
+    # connect to the export service
     export_client = ExportClient(export_endpoint)
 
+    # start collecting frames from the data stream
+    # to aggregate into a dataset
     channels = get_channels(channels)
     frame_collector = DataCollector(
         data_directory,
@@ -106,15 +113,32 @@ def main(
         verbose=verbose,
     )
 
+    # enter it as a context since it does the
+    # collection in a background process while
+    # we train in the main process
     last_start = None
     with frame_collector as data_it:
         for X, y, start in data_it:
             span = _get_str(start, start + train_duration)
-            csd_fname = deployment.csd_directory / f"{span}.h5"
-            validate_csd(
-                X, y, channels, sample_rate, fftlength=8, fname=csd_fname
-            )
 
+            # perform some checks on the training dataset
+            # to see if it's even worth attemptint to train
+            # a model on it
+            fname = deployment.data_checks_directory / f"{span}.h5"
+            passed = data_checks(
+                X, y, channels, sample_rate, fftlength=8, fname=fname
+            )
+            if not passed:
+                logger.warning(
+                    "Training dataset {} did not pass quality checks, "
+                    "skipping training on this dataset"
+                )
+                continue
+
+            # check to see if this dataset falls directly
+            # after the previous one, or if we need to
+            # take some special steps to reset after a
+            # dropped dataset
             if last_start is not None:
                 expected_start = last_start + retrain_cadence
                 if start > expected_start:
@@ -122,6 +146,7 @@ def main(
                     # training differently on a new lock segment
                     pass
 
+            # launch a training job on the current dataset
             root_logger.info(f"Launching training on segment {span}")
             weights_path = train_on_segment(
                 X,
@@ -139,6 +164,9 @@ def main(
                 "Training on segment {} complete, saved "
                 "optimized weights to {}".format(span, weights_path)
             )
+
+            # send the optimized weights to the export service
+            # to add the trained model to our model repository
             export_client.export(weights_path)
 
             # for trainings after the first, use the previous

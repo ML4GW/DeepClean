@@ -14,9 +14,10 @@ class Deployment:
     root: Path
 
     def __post_init__(self):
-        for d in ["log", "train", "csd", "frame", "repository", "storage"]:
-            dirname = getattr(self, f"{d}_directory")
-            dirname.mkdir(exist_ok=True, parents=True)
+        for name, prop in self.__class__.__dict__.items():
+            if isinstance(prop, property) and name.endswith("directory"):
+                dirname = getattr(self, name)
+                dirname.mkdir(exist_ok=True, parents=True)
 
     @property
     def log_directory(self):
@@ -27,8 +28,8 @@ class Deployment:
         return self.root / "train"
 
     @property
-    def csd_directory(self):
-        return self.train_directory / "csds"
+    def data_checks_directory(self):
+        return self.train_directory / "checks"
 
     @property
     def repository_directory(self):

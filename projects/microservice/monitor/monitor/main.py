@@ -48,11 +48,11 @@ def main(
     start_time = time.time()
     while not list(deployment.frame_directory.iterdir()):
         time.sleep(1)
-        div, mod = divmod(time.time() - start_time, 10)
-        if not mod:
+        elapsed = int(time.time() - start_time)
+        if not elapsed % 10:
             logger.info(
                 "Waiting for first frame to be written, "
-                "{}s elapsed".format(div)
+                "{}s elapsed".format(elapsed)
             )
 
     # now start iterating through written frames and
@@ -64,7 +64,10 @@ def main(
     files = []
     buffer, t0 = TimeSeriesDict(), None
 
-    latest_version = export_client.get_latest_version()
+    # initialize latest version to be the production
+    # version so that any newer versions will trigger
+    # validation
+    latest_version = export_client.get_production_version()
     validating = False
     in_spec_for = 0
 

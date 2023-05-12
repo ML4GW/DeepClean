@@ -76,8 +76,8 @@ export_endpoint = "${base.export_endpoint}"
 
 # data parameters
 channels = "${base.livingston_60Hz_channels}"
-train_duration = 2048
-retrain_cadence = 1024
+train_duration = 1024
+retrain_cadence = 512
 sample_rate = "${base.sample_rate}"
 valid_frac = 0.25
 
@@ -151,7 +151,7 @@ look_ahead = 0.5
 # inference args
 inference_sampling_rate = "${base.inference_sampling_rate}"
 batch_size = "${base.inference_batch_size}"
-inference_rate = 8
+inference_rate = 64
 max_latency = "${base.inference_aggregation_time}"
 
 # triton args

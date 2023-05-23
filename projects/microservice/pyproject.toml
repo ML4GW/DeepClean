@@ -76,8 +76,8 @@ export_endpoint = "${base.export_endpoint}"
 
 # data parameters
 channels = "${base.livingston_60Hz_channels}"
-train_duration = 1024
-retrain_cadence = 512
+train_duration = 4096
+retrain_cadence = 2048
 sample_rate = "${base.sample_rate}"
 valid_frac = 0.25
 

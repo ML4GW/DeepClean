@@ -22,14 +22,14 @@ def check_coherences(
     target frequency range.
     """
     logger.info("Evaluating coherece of strain channel with witnesses")
-    psd_kwargs = dict(fftlength=fftlength, window="hann", method="median")
+    psd_kwargs = dict(fftlength=fftlength, window="hann")
     y = TimeSeries(y, sample_rate=sample_rate)
-    pyy = y.psd(**psd_kwargs)
+    pyy = y.psd(method="median", **psd_kwargs)
 
     coherences = {}
     for x, channel in zip(X, channels[1:]):
         x = TimeSeries(x, sample_rate=sample_rate)
-        pxx = x.psd(**psd_kwargs)
+        pxx = x.psd(method="median", **psd_kwargs)
         pxy = y.csd(x, **psd_kwargs)
         coh = pxy**2 / (pxx * pyy)
         coherences[channel] = coh.value**0.5

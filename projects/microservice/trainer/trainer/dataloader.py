@@ -50,8 +50,12 @@ def collect_frames(
         # that this strain data is analysis ready,
         # otherwise we'll be training on bad data
         # see: https://wiki.ligo.org/DetChar/DataQuality/O4Flags#Detector_state_segments # noqa: E501
-        state_vector = read_channel(strain_fname, state).value
-        ready = ((state_vector & 3) == 3).all()
+        # Allow ourselves to accept a dropped frame,
+        # but inherit the readiness status of the
+        # previous non-dropped frame
+        if strain_fname.exists():
+            state_vector = read_channel(strain_fname, state).value
+            ready = ((state_vector & 3) == 3).all()
 
         if not ready and collecting:
             logger.warning(

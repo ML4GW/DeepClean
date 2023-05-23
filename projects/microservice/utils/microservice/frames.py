@@ -3,7 +3,6 @@ import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from threading import Lock
 from typing import Iterable, Literal, Optional, Tuple, Union
 
 import numpy as np
@@ -24,8 +23,6 @@ patterns = {
 groups = {k: f"(?P<{k}>{v})" for k, v in patterns.items()}
 pattern = "{prefix}-{start}-{duration}.{suffix}".format(**groups)
 fname_re = re.compile(pattern)
-
-lock = Lock()
 
 
 def parse_frame_name(fname: PATH_LIKE) -> Tuple[str, int, int]:
@@ -123,6 +120,32 @@ class DroppedFrames(Exception):
 
 @dataclass
 class FrameCrawler:
+    """
+    Iterable which will crawl through a directory
+    containing a stream of frame data and will
+    return the frame filenames in chronological order
+    based on the timestamps in their filenames.
+
+    Args:
+        data_dir: Path to the frame directory
+        t0: First timestamp that should be used
+            from frame directory. If left as `None`
+            or set to `0`, will begin with the first frame
+            in `data_dir`. If set to `-1`, will begin
+            with the last frame in `data_dir`.
+        timeout: Time after which a frame that is expected
+            to exist but is not available should be considered
+            dropped. If left as `None`, will wait indefinitely
+            for expected frames to exist. If set to `0`, will
+            raise a `StopIteration` as soon as an expected file
+            does not exist (useful for cases where you don't
+            expect a directory to be updated with new files).
+        max_dropped_frames: The number of consecutive dropped
+            frames allowed before an error is raised indicating
+            that the `data_dir` is no longer producing the
+            expected data stream
+    """
+
     data_dir: Path
     t0: Optional[float] = None
     timeout: Optional[float] = None
@@ -144,13 +167,18 @@ class FrameCrawler:
         return self
 
     def __next__(self):
+        # get the full path to the next frame
         fname = self.file_format.get_name(self.t0, self.length)
         fname = self.data_dir / fname
 
+        # begin a timer to check if frame has been
+        # dropped or not
         start_time = time.time()
         i, interval = 1, 3
         while not fname.exists():
             time.sleep(1e-3)
+
+            # log that we're still waiting at some fixed interval
             if (time.time() - start_time) > (i * interval):
                 logging.debug(
                     "Waiting for frame files for timestamp {}, "
@@ -159,28 +187,46 @@ class FrameCrawler:
                 i += 1
 
             if self.timeout is None:
+                # never break if timeout is None
                 continue
             elif self.timeout == 0:
+                # if we have no waiting tolerance, break
+                # by raising a `StopIteration`
                 raise StopIteration
             elif (time.time() - start_time) > self.timeout:
+                # otherwise if we've hit our timeout, increment
+                # our number of consecutive dropped frames
                 self._dropped_frames += 1
+
+                # raise an error if we've hit our dropped frame limit
                 if self._dropped_frames > self.max_dropped_frames:
                     raise DroppedFrames(
                         f"No frame file {fname} after {self.timeout}s"
                     )
                 break
         else:
+            # the frame existed before timeout, so reset our counter
             self._dropped_frames = 0
 
+        # increment our timestamp to the next file, and
+        # *always* return a filename, even if it doesn't
+        # exist, for downstream use cases to decide how
+        # to handle missing files
         self.t0 += self.length
         return fname
 
 
-def read_channel(fname, channel):
+def read_channel(fname: Union[str, Path], channel: str):
+    """
+    Read a specific channel from a frame file. Encodes
+    a lot of gross logic about how to handle errors that
+    occur when trying to read frames that are still being
+    written.
+    """
+
     for i in range(3):
         try:
-            with lock:
-                x = TimeSeries.read(fname, channel=channel)
+            x = TimeSeries.read(fname, channel=channel)
         except ValueError as e:
             if str(e) == (
                 "Cannot generate TimeSeries with 2-dimensional data"
@@ -243,45 +289,82 @@ def load_frame(fname: str, channels: Union[str, Iterable[str]]) -> np.ndarray:
 
 @dataclass
 class Buffer:
+    """
+    Maintains a 3 second buffer of a particular
+    channel's timeseries that is intended to be
+    resampled to a given `target_sample_rate`, and
+    which uses the buffer to resample the middle
+    second at each iteration to avoid edge effects
+    from resampling.
+    """
+
     def __init__(self, target_sample_rate: float):
         self.target_sample_rate = target_sample_rate
+
+        # these will all be updated using the first
+        # timeseries used to update the buffer
         self.sample_rate = None
         self.x = None
         self.taper = None
         self.zeroed = False
 
-    def update(self, x):
+    def update(self, fname, channel):
+        if not fname.exists():
+            x = None
+        else:
+            x = read_channel(fname, channel)
+
+        # if this is the first time this buffer
+        # is being updated, infer the original
+        # sample rate of this channel from the
+        # TimeSeries and then exit
         if self.sample_rate is None:
             if x is None:
                 return
             self.sample_rate = x.sample_rate.value
             self.x = x.value
 
+            # create a half Hann window for tapering
+            # data in and out when frames are missing
             fs = int(self.sample_rate)
             self.taper = hann(2 * fs)[:fs]
             return
 
         if x is None:
+            # passing None indicates that this frame was
+            # dropped, so taper out the existing data
+            # and just append zeros to our buffer
             if not self.zeroed:
-                self.x *= self.taper[::-1]
+                self.x[-len(self.taper) :] *= self.taper[::-1]
             self.x = np.append(self.x, np.zeros(self.sample_rate))
             self.zeroed = True
         else:
+            # otherwise append this timeseries data to
+            # our buffer, potentially tapering it back
+            # in if the previous frame was dropped
             x = x.value
             if self.zeroed:
                 x *= self.taper
             self.x = np.append(self.x, x)
             self.zeroed = False
 
+        # check if we have enough data to resample
+        # the center of our buffer and return it
         dur = len(self.x) / self.sample_rate
         if dur >= 3:
             length = int(dur * self.target_sample_rate)
             x = resample(self.x, length, window="hann")
 
+            # slice out the middle second of our buffer
+            # to return, then cut off the earliest second
+            # that we no longer need
             size = int(self.target_sample_rate)
             x = x[-2 * size : -size]
             self.x = self.x[int(self.sample_rate) :]
             return x
+
+        # otherwise indicate that we don't have
+        # enough data to return
         return None
 
 
@@ -317,23 +400,26 @@ def frame_it(fname_it, channels: Iterable[str], sample_rate: float):
                 f"Loading frame files {witness_fname}, {strain_fname}"
             )
 
-        x = read_channel(strain_fname, strain)
-        y = buffers[strain].update(x)
-
+        y = buffers[strain].update(strain_fname, strain)
         X = []
         for channel in witnesses:
-            if not witness_fname.exists():
-                x = buffers[channel].update(None)
-            else:
-                x = read_channel(witness_fname, channel)
-                x = buffers[channel].update(x)
+            x = buffers[channel].update(witness_fname, channel)
 
+            # if the buffer update returned a frame that's
+            # been resampled and is ready for use, append it
             if x is not None:
                 X.append(x)
 
-        if X:
+        # if all our buffers returned usable data,
+        # concatenate them into a single array and
+        # return it along with the strain filename
+        # and associated data
+        if len(X) == len(witnesses):
             X = np.stack(X)
             yield fname_buffer, y, X
+
+        # update our strain filename buffer to
+        # represent the current filename
         fname_buffer = strain_fname
 
 

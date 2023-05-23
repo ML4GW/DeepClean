@@ -7,7 +7,7 @@ app = Flask(__name__)
 
 @app.route("/alive")
 def alive():
-    return "", 200
+    return "0", 200
 
 
 @app.route("/export/<train_dir>")

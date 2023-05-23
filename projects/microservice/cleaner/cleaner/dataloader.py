@@ -4,54 +4,8 @@ from queue import Empty, Queue
 from typing import Iterable, List
 
 import numpy as np
-from gwpy.timeseries import TimeSeries
 from microservice.deployment import DataStream
-from microservice.frames import load_frame
-from scipy.signal.windows import hann
-
-from deepclean.logging import logger
-
-
-def extend(data, frame, stride, zeroed):
-    if frame is None:
-        shape = (len(data), stride)
-        frame = np.zeros(shape, dtype=np.float32)
-        if not zeroed:
-            taper = hann(2 * stride)[-stride:]
-            data[:, -stride:] *= taper
-        zeroed = True
-    elif zeroed:
-        taper = hann(2 * stride)[:stride]
-        frame[:, :stride] *= taper
-        zeroed = False
-
-    data = np.concatenate([data, frame], axis=-1)
-    return data, zeroed
-
-
-def witness_iterator(it: Iterable, stride: int) -> np.ndarray:
-    try:
-        data = next(it)
-    except StopIteration:
-        raise ValueError("Frame crawler never returned any data")
-
-    idx, zeroed = 0, False
-    while True:
-        start = idx * stride
-        stop = (idx + 1) * stride
-        if (idx + 2) * stride > data.shape[-1]:
-            try:
-                frame = next(it)
-            except StopIteration:
-                yield data[:, start:stop], True
-                break
-            else:
-                data = data[:, start:]
-                data, zeroed = extend(data, frame, stride, zeroed)
-                idx, start, stop = 0, 0, stride
-
-        yield data[:, start:stop], False
-        idx += 1
+from microservice.frames import frame_it
 
 
 def strain_iterator(q: Queue):
@@ -66,27 +20,37 @@ def strain_iterator(q: Queue):
             yield response
 
 
-def frame_iter(crawler, channels, sample_rate, q):
-    for fname, strain_fname in crawler:
-        if not fname.exists():
-            logger.warning(
-                "Witness frame {} was dropped, attempting "
-                "to load corresponding strain frame {}".format(
-                    fname, strain_fname
-                )
-            )
-            witnesses = None
-        else:
-            logger.debug(f"Loading frame files {fname}, {strain_fname}")
-            witnesses = load_frame(fname, channels[1:], sample_rate)
+def frame_iter(
+    crawler: Iterable,
+    channels: List[str],
+    sample_rate: float,
+    inference_sampling_rate: float,
+    batch_size: int,
+    q: Queue,
+):
+    stride = int(batch_size * sample_rate / inference_sampling_rate)
+    it = frame_it(crawler, channels, sample_rate)
 
-        strain = TimeSeries.read(strain_fname, channel=channels[0])
-        if strain.sample_rate.value != sample_rate:
-            strain = strain.resample(sample_rate)
+    strain_fname, strain, witnesses = next(it)
+    q.put((strain, strain_fname))
 
-        q.put((strain, strain_fname))
-        yield witnesses
-    q.put(None)
+    idx = 0
+    while True:
+        start = idx * stride
+        stop = (idx + 1) * stride
+        if (idx + 2) * stride > witnesses.shape[-1]:
+            try:
+                strain_fname, strain, update = next(it)
+            except StopIteration:
+                yield witnesses[:, start:stop], True
+                q.put(None)
+                break
+            else:
+                q.put((strain, strain_fname))
+                witnesses = witnesses[:, start:]
+                witnesses = np.concatenate([witnesses, update], axis=1)
+                idx, start, stop = 0, 0, stride
+        yield witnesses[:, start:stop], False
 
 
 def get_data_generators(
@@ -103,9 +67,13 @@ def get_data_generators(
     stream = DataStream(data_dir, data_field)
     crawler = stream.crawl(t0, timeout)
     strain_q = Queue()
-    it = frame_iter(crawler, channels, sample_rate, strain_q)
-
-    stride = int(batch_size * sample_rate / inference_sampling_rate)
-    witness_it = witness_iterator(it, stride)
+    witness_it = frame_iter(
+        crawler,
+        channels,
+        sample_rate,
+        inference_sampling_rate,
+        batch_size,
+        strain_q,
+    )
     strain_it = strain_iterator(strain_q)
     return witness_it, strain_it

@@ -9,8 +9,7 @@ from typing import Optional
 
 import numpy as np
 from microservice.deployment import DataStream
-from microservice.frames import load_frame, read_channel
-from scipy.signal.windows import hann
+from microservice.frames import frame_it, read_channel
 
 from deepclean.logging import logger
 from deepclean.utils.channels import ChannelList, get_channels
@@ -26,10 +25,10 @@ def collect_frames(
     sample_rate: float,
     timeout: Optional[float] = None,
 ) -> np.ndarray:
+    channels = get_channels(channels)
     stream = DataStream(data_directory, data_field)
     crawler = stream.crawl(t0=0, timeout=timeout)
-
-    channels = get_channels(channels)
+    loader = frame_it(crawler, channels, sample_rate)
     start = None
 
     size = int(duration * sample_rate)
@@ -37,36 +36,22 @@ def collect_frames(
     X = np.zeros((len(channels) - 1, 0))
     y = np.zeros((0,))
 
-    # initialize a window taper we'll use if
-    # we drop any frames to keep some sense
-    # of continuity. Include a flag to indicate
-    # whether the taper needs to be applied
-    # or not in the case of a dropped frame
-    zeroed = False
-    taper = hann(int(2 * sample_rate))[: int(sample_rate)]
-
     # set up some parameters to inspect the
     # interferometer state vector
     ifo = channels[0].split(":")[0]
     state = f"{ifo}:GDS-CALIB_STATE_VECTOR"
     collecting = True
 
-    # clear the first couple filenames to avoid
-    # a race condition where the first file
-    # accidentally gets cycled out before we start
-    for _ in range(2):
-        next(crawler)
-
     while not event.is_set():
-        fname, strain_fname = next(crawler)
+        strain_fname, strain, witnesses = next(loader)
 
         # first check the logical and of the first
         # two bits of the state vector to ensure
         # that this strain data is analysis ready,
         # otherwise we'll be training on bad data
         # see: https://wiki.ligo.org/DetChar/DataQuality/O4Flags#Detector_state_segments # noqa: E501
-        state_vector = read_channel(strain_fname, state, 16)
-        ready = all([all(map(int, f"{i:b}"[:2])) for i in state_vector.value])
+        state_vector = read_channel(strain_fname, state).value
+        ready = ((state_vector & 3) == 3).all()
 
         if not ready and collecting:
             logger.warning(
@@ -76,7 +61,6 @@ def collect_frames(
             )
             start = None
             collecting = False
-            zeroed = False
             X = np.zeros((len(channels) - 1, 0))
             y = np.zeros((0,))
             continue
@@ -98,42 +82,12 @@ def collect_frames(
         # of data for returning to the main training
         # process in case we interrupt at some point
         if start is None:
-            start = int(fname.stem.split("-")[-2])
-
-        # sometimes the witness channels get dropped. If
-        # this happens, create a dummy empty witness frame
-        if not fname.exists():
-            logger.warning(
-                "Witness frame {} was dropped, attempting "
-                "to load corresponding strain frame {}".format(
-                    fname, strain_fname
-                )
-            )
-
-            shape = (len(channels) - 1, int(sample_rate))
-            witnesses = np.zeros(shape)
-
-            # if we're not already zeroed out, taper out
-            # the old witness data to ensure we don't
-            # introduce any artifacts
-            if not zeroed and X.size > 0:
-                X[:, -int(sample_rate) :] *= taper[::-1]
-                zeroed = True
-        else:
-            logger.debug(f"Loading frame files {fname}, {strain_fname}")
-            witnesses = load_frame(fname, channels[1:], sample_rate)
-
-            # if we were in a stretch with zeroed out
-            # data, taper this witness back in
-            if zeroed:
-                witnesses[:, : int(sample_rate)] *= taper
-                zeroed = False
+            start = int(strain_fname.stem.split("-")[-2])
 
         # now add this data to our running array, and
         # do the same for the strain data (which is
         # pretty much never dropped)
         X = np.concatenate([X, witnesses], axis=1)
-        strain = load_frame(strain_fname, channels[0], sample_rate)
         y = np.concatenate([y, strain])
 
         # pass these arrays out to the training process

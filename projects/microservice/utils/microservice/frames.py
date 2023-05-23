@@ -8,6 +8,8 @@ from typing import Iterable, Literal, Optional, Tuple, Union
 
 import numpy as np
 from gwpy.timeseries import TimeSeries
+from scipy.signal import resample
+from scipy.signal.windows import hann
 
 from deepclean.logging import logger
 
@@ -174,13 +176,7 @@ class FrameCrawler:
         return fname
 
 
-def resample(x: TimeSeries, sample_rate: float):
-    if x.sample_rate.value != sample_rate:
-        return x.resample(sample_rate)
-    return x
-
-
-def read_channel(fname, channel, sample_rate):
+def read_channel(fname, channel):
     for i in range(3):
         try:
             with lock:
@@ -210,8 +206,7 @@ def read_channel(fname, channel, sample_rate):
             else:
                 raise
 
-        x = resample(x, sample_rate)
-        if len(x) != sample_rate:
+        if len(x) != x.sample_rate.value:
             logger.warning(
                 "Channel {} in file {} got corrupted with "
                 "length {}, attempting reread {}".format(
@@ -229,23 +224,117 @@ def read_channel(fname, channel, sample_rate):
         )
 
 
-def load_frame(
-    fname: str, channels: Union[str, Iterable[str]], sample_rate: float
-) -> np.ndarray:
+def load_frame(fname: str, channels: Union[str, Iterable[str]]) -> np.ndarray:
     """Load the indicated channels from the indicated frame file"""
 
     if isinstance(channels, str):
         # if we don't have multiple channels, then just grab the data
-        data = read_channel(fname, channels, sample_rate).value
+        data = read_channel(fname, channels).value
     else:
         data = []
         for channel in channels:
-            x = read_channel(fname, channel, sample_rate)
+            x = read_channel(fname, channel)
             data.append(x.value)
         data = np.stack(data)
 
     # return as the expected type
-    return data.astype("float32")
+    return data
+
+
+@dataclass
+class Buffer:
+    def __init__(self, target_sample_rate: float):
+        self.target_sample_rate = target_sample_rate
+        self.sample_rate = None
+        self.x = None
+        self.taper = None
+        self.zeroed = False
+
+    def update(self, x):
+        if self.sample_rate is None:
+            if x is None:
+                return
+            self.sample_rate = x.sample_rate.value
+            self.x = x.value
+
+            fs = int(self.sample_rate)
+            self.taper = hann(2 * fs)[:fs]
+            return
+
+        if x is None:
+            if not self.zeroed:
+                self.x *= self.taper[::-1]
+            self.x = np.append(self.x, np.zeros(self.sample_rate))
+            self.zeroed = True
+        else:
+            x = x.value
+            if self.zeroed:
+                x *= self.taper
+            self.x = np.append(self.x, x)
+            self.zeroed = False
+
+        dur = len(self.x) / self.sample_rate
+        if dur >= 3:
+            length = int(dur * self.target_sample_rate)
+            x = resample(self.x, length, window="hann")
+
+            size = int(self.target_sample_rate)
+            x = x[-2 * size : -size]
+            self.x = self.x[int(self.sample_rate) :]
+            return x
+        return None
+
+
+def frame_it(fname_it, channels: Iterable[str], sample_rate: float):
+    """
+    Load frames from the filenames returned by an
+    iterator, using a 3 second buffer to reduce
+    the edge effects incurred by resampling. This
+    introduces a 1 second latency into the data
+    being used for inference, since we need to wait
+    for the next frame to become available for
+    resampling purposes.
+    """
+    strain, *witnesses = channels
+    buffers = {i: Buffer(sample_rate) for i in channels}
+    fname_buffer = None
+
+    i = 0
+    for witness_fname, strain_fname in fname_it:
+        if i < 2:
+            i += 1
+            continue
+
+        if not witness_fname.exists():
+            logger.warning(
+                "Witness frame {} was dropped, attempting "
+                "to load corresponding strain frame {}".format(
+                    witness_fname, strain_fname
+                )
+            )
+        else:
+            logger.debug(
+                f"Loading frame files {witness_fname}, {strain_fname}"
+            )
+
+        x = read_channel(strain_fname, strain)
+        y = buffers[strain].update(x)
+
+        X = []
+        for channel in witnesses:
+            if not witness_fname.exists():
+                x = buffers[channel].update(None)
+            else:
+                x = read_channel(witness_fname, channel)
+                x = buffers[channel].update(x)
+
+            if x is not None:
+                X.append(x)
+
+        if X:
+            X = np.stack(X)
+            yield fname_buffer, y, X
+        fname_buffer = strain_fname
 
 
 @dataclass

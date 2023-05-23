@@ -5,7 +5,7 @@ description = "DeepClean production data product monitoring app"
 authors = ["Alec Gunny <alecg@mit.edu>"]
 
 [tool.poetry.scripts]
-train = "monitor.main:main"
+monitor = "monitor.main:main"
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"

@@ -33,6 +33,7 @@ def main(
     url: str,
     model_repo_dir: str,
     model_name: str,
+    image: str,
     channels: ChannelList,
     t0: int,
     duration: int,
@@ -68,6 +69,12 @@ def main(
             Directory containing models to serve for inference
         model_name:
             Model to which to send streaming inference requests
+        image:
+            The path to the Singularity image to execute
+            Triton inside of. If given as a relative path,
+            will first be checked relative to the current
+            working directory, then relative to
+            /cvmfs/singularity.opensciencegrid.org/ml4gw
         output_directory:
             Directory to save logs and cleaned frames
         channels:
@@ -133,7 +140,9 @@ def main(
     # take care of some data bookkeeping while we wait for
     # it to come online
     log_file = output_directory / "server.log"
-    serve_ctx = serve(model_repo_dir, gpus=gpus, log_file=log_file, wait=False)
+    serve_ctx = serve(
+        model_repo_dir, gpus=gpus, image=image, log_file=log_file, wait=False
+    )
     with serve_ctx as instance:
         # load all of the test data into memory, making sure we
         # have enough to fully process the desired interval

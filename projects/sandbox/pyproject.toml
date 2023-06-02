@@ -111,6 +111,7 @@ commands.autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.infer]
 url = "localhost:8001"
+image = "hermes/tritonserver:22.12"
 model_name = "deepclean-stream-${base.max_latency}"
 
 output_directory = "${PROJECT_DIR}"

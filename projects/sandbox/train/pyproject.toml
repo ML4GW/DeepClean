@@ -15,6 +15,12 @@ python = "^3.8,<3.10"
 "deepclean.logging" = {path = "../../../libs/logging", develop = true}
 "deepclean.trainer" = {path = "../../../libs/trainer", develop = true, extras=["wrapper"]}
 
+[[tool.poetry.source]]
+name = "torch"
+url = "https://download.pytorch.org/whl/cu116"
+secondary = true
+default = false
+
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
 

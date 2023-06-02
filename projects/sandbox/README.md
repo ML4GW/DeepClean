@@ -17,10 +17,10 @@ Compute and plot the ASDs of the raw and cleaned frames, as well as the ratio be
 ## Running
 If you installed the `pinto` command line utility described in the root [README](../../README.md), you can build each component's environment individually by running  `pinto build <path to component>`. Consult each component's documentation for the commands and options they expose.
 
-Running the workflow end-to-end requires exporting three environment variables (with apologies for the inconsistent naming conventions for now)
+Running the workflow end-to-end requires exporting three environment variables
 
 ```console
-PROJECT_DIRECTORY="..."  # the directory to write workflow outputs to
+PROJECT_DIR="..."  # the directory to write workflow outputs to
 DATA_DIR="..."  # the path to a directory of 1s .gwf witness/strain files
 MODEL_REPOSITORY="..."  # the directory to serve models from
 ```

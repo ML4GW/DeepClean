@@ -227,7 +227,8 @@ def export(
     logging.info(f"Creating model and loading weights from {weights}")
     nn = architecture(len(channels) - 1)
     nn = PrePostDeepClean(nn)
-    nn.load_state_dict(torch.load(weights))
+    state_dict = torch.load(weights, map_location="cpu")
+    nn.load_state_dict(state_dict)
     nn.eval()
 
     # instantiate a model repository at the

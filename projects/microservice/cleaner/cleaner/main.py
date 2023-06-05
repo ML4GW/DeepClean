@@ -1,15 +1,15 @@
 import time
 from pathlib import Path
-from typing import Iterable, Optional, Union
+from typing import Dict, Iterable, Optional, Union
 
 from cleaner.dataloader import get_data_generators
 from cleaner.utils import wait_for_server
 from cleaner.writer import ASDRMonitor, Writer
 from microservice.deployment import Deployment
+from microservice.frames import get_channels
 
 from deepclean.infer.callback import Callback, State
 from deepclean.logging import logger
-from deepclean.utils.channels import ChannelList, get_channels
 from hermes.aeriel.client import InferenceClient
 from typeo import scriptify
 
@@ -19,7 +19,7 @@ def main(
     # IO args
     run_directory: Path,
     data_directory: Path,
-    data_field: str,
+    ifo: str,
     export_endpoint: str,
     # Data args
     sample_rate: float,
@@ -27,7 +27,7 @@ def main(
     inference_sampling_rate: float,
     batch_size: int,
     inference_rate: float,
-    channels: ChannelList,
+    channels: Dict[str, str],
     freq_low: Union[float, Iterable[float]],
     freq_high: Union[float, Iterable[float]],
     # Triton args
@@ -131,7 +131,8 @@ def main(
     deployment = Deployment(run_directory)
     log_file = deployment.log_directory / "infer.log"
     logger.set_logger("DeepClean infer", log_file, verbose)
-    channels = get_channels(channels)
+
+    channels = get_channels(channels[ifo])
 
     # don't start loading data until the server
     # is online and a trained version of DeepClean
@@ -139,7 +140,7 @@ def main(
     wait_for_server(triton_endpoint)
     witness_it, strain_it = get_data_generators(
         data_directory,
-        data_field,
+        ifo,
         channels,
         sample_rate=sample_rate,
         inference_sampling_rate=inference_sampling_rate,

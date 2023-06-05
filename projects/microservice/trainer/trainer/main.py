@@ -1,15 +1,15 @@
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Dict, Optional
 
 import numpy as np
 from microservice.deployment import Deployment, ExportClient
+from microservice.frames import get_channels
 from trainer.checks import data_checks
 from trainer.dataloader import DataCollector
 
 from deepclean.architectures import architectures
 from deepclean.logging import logger
 from deepclean.trainer.trainer import train
-from deepclean.utils.channels import ChannelList, get_channels
 from typeo import scriptify
 from typeo.utils import make_dummy
 
@@ -74,9 +74,9 @@ exclude = ["X", "y", "architecture", "valid_data", "output_directory"]
 def main(
     run_directory: Path,
     data_directory: Path,
-    data_field: str,
+    ifo: str,
     export_endpoint: str,
-    channels: ChannelList,
+    channels: Dict[str, str],
     architecture: Callable,
     train_duration: float,
     retrain_cadence: float,
@@ -100,10 +100,10 @@ def main(
 
     # start collecting frames from the data stream
     # to aggregate into a dataset
-    channels = get_channels(channels)
+    channels = get_channels(channels[ifo])
     frame_collector = DataCollector(
         data_directory,
-        data_field,
+        ifo,
         deployment.log_directory,
         channels,
         train_duration,

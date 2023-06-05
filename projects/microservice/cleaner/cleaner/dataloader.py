@@ -106,7 +106,7 @@ def batch_iter(
 
 def get_data_generators(
     data_dir: Path,
-    data_field: str,
+    ifo: str,
     channels: List[str],
     sample_rate: float,
     inference_sampling_rate: float,
@@ -115,7 +115,7 @@ def get_data_generators(
     timeout: float = 10,
 ):
     t0 = 0 if start_first else -1
-    stream = DataStream(data_dir, data_field)
+    stream = DataStream(data_dir, ifo)
     crawler = stream.crawl(t0, timeout)
     strain_q = Queue()
     witness_it = batch_iter(

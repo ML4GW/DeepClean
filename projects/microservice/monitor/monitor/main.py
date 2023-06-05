@@ -16,7 +16,7 @@ def main(
     # paths
     run_directory: Path,
     data_directory: Path,
-    data_field: str,
+    ifo: str,
     export_endpoint: str,
     # data/analysis args
     channels: ChannelList,
@@ -60,7 +60,7 @@ def main(
     # 2. Remove files to keep frame directory at fixed max length
     # 3. Monitor frames cleaned by the canary model to ensure that
     #     it's in spec before moving it into production
-    stream = DataStream(data_directory, data_field)
+    stream = DataStream(data_directory, ifo)
     files = []
     buffer, t0 = TimeSeriesDict(), None
 

@@ -2,58 +2,12 @@
 # global paths
 run_directory = "${PROJECT_DIR}"
 data_directory = "${DATA_DIR}"
-data_field = "${DATA_FIELD}"
 
 export_endpoint = "localhost:5000"
 triton_endpoint = "localhost:8001"
 
 # global data args
-hanford_60Hz_channels = [
-    "H1:GDS-CALIB_STRAIN",
-    "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
-    "H1:ASC-INP1_P_OUT_DQ",
-    "H1:ASC-INP1_Y_OUT_DQ",
-    "H1:ASC-MICH_P_OUT_DQ",
-    "H1:ASC-MICH_Y_OUT_DQ",
-    "H1:ASC-PRC1_P_OUT_DQ",
-    "H1:ASC-PRC1_Y_OUT_DQ",
-    "H1:ASC-PRC2_P_OUT_DQ",
-    "H1:ASC-PRC2_Y_OUT_DQ",
-    "H1:ASC-SRC1_P_OUT_DQ",
-    "H1:ASC-SRC1_Y_OUT_DQ",
-    "H1:ASC-SRC2_P_OUT_DQ",
-    "H1:ASC-SRC2_Y_OUT_DQ",
-    "H1:ASC-DHARD_P_OUT_DQ",
-    "H1:ASC-DHARD_Y_OUT_DQ",
-    "H1:ASC-CHARD_P_OUT_DQ",
-    "H1:ASC-CHARD_Y_OUT_DQ",
-    "H1:ASC-DSOFT_P_OUT_DQ",
-    "H1:ASC-DSOFT_Y_OUT_DQ",
-    "H1:ASC-CSOFT_P_OUT_DQ",
-    "H1:ASC-CSOFT_Y_OUT_DQ"
-]
-livingston_60Hz_channels = [
-    "L1:GDS-CALIB_STRAIN",
-    "L1:PEM-CS_MAINSMON_EBAY_1_DQ",
-    "L1:ASC-CHARD_P_OUT_DQ",
-    "L1:ASC-CHARD_Y_OUT_DQ",
-    "L1:ASC-CSOFT_P_OUT_DQ",
-    "L1:ASC-DHARD_P_OUT_DQ",
-    "L1:ASC-DHARD_Y_OUT_DQ",
-    "L1:ASC-DSOFT_P_OUT_DQ",
-    "L1:ASC-INP1_P_OUT_DQ",
-    "L1:ASC-MICH_P_OUT_DQ",
-    "L1:ASC-MICH_Y_OUT_DQ",
-    "L1:ASC-PRC1_P_OUT_DQ",
-    "L1:ASC-PRC1_Y_OUT_DQ",
-    "L1:ASC-PRC2_P_OUT_DQ",
-    "L1:ASC-PRC2_Y_OUT_DQ",
-    "L1:ASC-SRC1_P_OUT_DQ",
-    "L1:ASC-SRC1_Y_OUT_DQ",
-    "L1:ASC-SRC2_P_OUT_DQ",
-    "L1:ASC-SRC2_Y_OUT_DQ",
-]
-
+ifo = "${IFO}"
 sample_rate = 4096
 freq_low = 58
 freq_high = 62
@@ -66,16 +20,63 @@ inference_batch_size = 128
 # global misc args
 verbose = false
 
+[tool.typeo.base.channels]
+H1 = """\
+    H1:GDS-CALIB_STRAIN,\
+    H1:PEM-CS_MAINSMON_EBAY_1_DQ,\
+    H1:ASC-INP1_P_OUT_DQ,\
+    H1:ASC-INP1_Y_OUT_DQ,\
+    H1:ASC-MICH_P_OUT_DQ,\
+    H1:ASC-MICH_Y_OUT_DQ,\
+    H1:ASC-PRC1_P_OUT_DQ,\
+    H1:ASC-PRC1_Y_OUT_DQ,\
+    H1:ASC-PRC2_P_OUT_DQ,\
+    H1:ASC-PRC2_Y_OUT_DQ,\
+    H1:ASC-SRC1_P_OUT_DQ,\
+    H1:ASC-SRC1_Y_OUT_DQ,\
+    H1:ASC-SRC2_P_OUT_DQ,\
+    H1:ASC-SRC2_Y_OUT_DQ,\
+    H1:ASC-DHARD_P_OUT_DQ,\
+    H1:ASC-DHARD_Y_OUT_DQ,\
+    H1:ASC-CHARD_P_OUT_DQ,\
+    H1:ASC-CHARD_Y_OUT_DQ,\
+    H1:ASC-DSOFT_P_OUT_DQ,\
+    H1:ASC-DSOFT_Y_OUT_DQ,\
+    H1:ASC-CSOFT_P_OUT_DQ,\
+    H1:ASC-CSOFT_Y_OUT_DQ\
+"""
+L1 = """\
+    L1:GDS-CALIB_STRAIN,\
+    L1:PEM-CS_MAINSMON_EBAY_1_DQ,\
+    L1:ASC-CHARD_P_OUT_DQ,\
+    L1:ASC-CHARD_Y_OUT_DQ,\
+    L1:ASC-CSOFT_P_OUT_DQ,\
+    L1:ASC-DHARD_P_OUT_DQ,\
+    L1:ASC-DHARD_Y_OUT_DQ,\
+    L1:ASC-DSOFT_P_OUT_DQ,\
+    L1:ASC-INP1_P_OUT_DQ,\
+    L1:ASC-MICH_P_OUT_DQ,\
+    L1:ASC-MICH_Y_OUT_DQ,\
+    L1:ASC-PRC1_P_OUT_DQ,\
+    L1:ASC-PRC1_Y_OUT_DQ,\
+    L1:ASC-PRC2_P_OUT_DQ,\
+    L1:ASC-PRC2_Y_OUT_DQ,\
+    L1:ASC-SRC1_P_OUT_DQ,\
+    L1:ASC-SRC1_Y_OUT_DQ,\
+    L1:ASC-SRC2_P_OUT_DQ,\
+    L1:ASC-SRC2_Y_OUT_DQ,\
+"""
+
 
 [tool.typeo.scripts.train]
 # paths
 run_directory = "${base.run_directory}"
 data_directory = "${base.data_directory}"
-data_field = "${base.data_field}"
+ifo = "${base.ifo}"
 export_endpoint = "${base.export_endpoint}"
 
 # data parameters
-channels = "${base.livingston_60Hz_channels}"
+channels = "${base.channels}"
 train_duration = 4096
 retrain_cadence = 2048
 sample_rate = "${base.sample_rate}"
@@ -113,7 +114,7 @@ architecture.autoencoder = {}
 run_directory = "${base.run_directory}"
 
 # data args
-channels = "${base.livingston_60Hz_channels}"
+channels = "${base.channels}"
 kernel_length = 1
 sample_rate = "${base.sample_rate}"
 
@@ -136,12 +137,12 @@ verbose = "${base.verbose}"
 # paths
 run_directory = "${base.run_directory}"
 data_directory = "${base.data_directory}"
-data_field = "${base.data_field}"
+ifo = "${base.ifo}"
 export_endpoint = "${base.export_endpoint}"
 
 # data args
 sample_rate = "${base.sample_rate}"
-channels = "${base.livingston_60Hz_channels}"
+channels = "${base.channels}"
 freq_low = "${base.freq_low}"
 freq_high = "${base.freq_high}"
 frame_length = 1
@@ -168,11 +169,11 @@ verbose = true # "${base.verbose}"
 # paths
 run_directory = "${base.run_directory}"
 data_directory = "${base.data_directory}"
-data_field = "${base.data_field}"
+ifo = "${base.ifo}"
 export_endpoint = "${base.export_endpoint}"
 
 # analysis args
-channels = "${base.livingston_60Hz_channels}"
+channels = "${base.channels}"
 sample_rate = "${base.sample_rate}"
 asd_segment_length = 10
 fftlength = 8

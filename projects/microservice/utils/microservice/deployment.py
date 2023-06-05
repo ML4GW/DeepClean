@@ -51,15 +51,16 @@ class Deployment:
 @dataclass(frozen=True)
 class DataStream:
     root: Path
-    field: str
+    ifo: str
+    strain_offset: float = 7
 
     @property
     def detchar(self):
-        return self.root / "lldetchar" / self.field
+        return self.root / "lldetchar" / self.ifo
 
     @property
     def hoft(self):
-        return self.root / "kafka" / self.field.replace("replay", "")
+        return self.root / "kafka" / self.ifo
 
     def crawl(self, t0, timeout):
         crawler = FrameCrawler(self.detchar, t0, timeout, max_dropped_frames=5)
@@ -67,12 +68,16 @@ class DataStream:
             strain_fname = fname.name.replace("lldetchar", "llhoft")
             strain_fname = self.hoft / strain_fname
 
-            start_time = time.time()
-            while not strain_fname.exists():
-                if (time.time() - start_time) > 10:
-                    raise FileNotFoundError(
-                        f"Strain file {strain_fname} does not exist"
-                    )
+            tick = time.time()
+            timeout = 3 + self.strain_offset
+            while time.time() < tick + timeout:
+                if strain_fname.exists():
+                    break
+            else:
+                raise FileNotFoundError(
+                    "Strain file {} still doesn't exist after "
+                    "waiting for {} seconds".format(strain_fname, timeout)
+                )
 
             yield fname, strain_fname
 

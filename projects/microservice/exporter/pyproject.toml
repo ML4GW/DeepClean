@@ -20,6 +20,7 @@ microservice = {path = "../utils", develop = true}
 "deepclean.export" = {path = "../../../libs/export", develop = true}
 "deepclean.logging" = {path = "../../../libs/logging", develop = true}
 "deepclean.utils" = {path = "../../../libs/utils", develop = true}
+python-dotenv = "^1.0.0"
 
 [tool.poetry.dependencies."hermes.quiver"]
 path = "../../../hermes/hermes/hermes.quiver"

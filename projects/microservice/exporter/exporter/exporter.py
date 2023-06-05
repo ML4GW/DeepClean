@@ -6,6 +6,7 @@ from typing import Optional
 
 import torch
 import tritonclient.grpc.model_config_pb2 as model_config
+from dotenv import load_dotenv
 from microservice.deployment import Deployment
 
 import hermes.quiver as qv
@@ -44,6 +45,10 @@ class Exporter:
             config = Path(__file__).parent.parent.parent / "pyproject.toml"
             if script is None:
                 script = "exporter"
+
+        dotenv_file = config.parent / ".env"
+        if dotenv_file.exists():
+            load_dotenv(dotenv_file)
 
         args.append(str(config))
         if script is not None:

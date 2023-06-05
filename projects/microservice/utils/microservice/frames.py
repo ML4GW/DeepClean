@@ -11,6 +11,7 @@ from scipy.signal import resample
 from scipy.signal.windows import hann
 
 from deepclean.logging import logger
+from deepclean.utils.channels import get_channels as sort_channels
 
 PATH_LIKE = Union[str, Path]
 
@@ -23,6 +24,11 @@ patterns = {
 groups = {k: f"(?P<{k}>{v})" for k, v in patterns.items()}
 pattern = "{prefix}-{start}-{duration}.{suffix}".format(**groups)
 fname_re = re.compile(pattern)
+
+
+def get_channels(channels: str):
+    channels = [i for i in channels.split(",") if i]
+    return sort_channels(channels)
 
 
 def parse_frame_name(fname: PATH_LIKE) -> Tuple[str, int, int]:

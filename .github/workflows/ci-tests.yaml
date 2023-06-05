@@ -5,6 +5,11 @@ on:
   push:
     branches:
       - main
+      - dev
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   # tests the libraries that our projects depend on
@@ -21,7 +26,7 @@ jobs:
         - ${{ github.workspace }}:/github/workspace
     strategy:
       matrix:
-        lib: [architectures, signal, export, gwftools, trainer, infer]
+        lib: [architectures, export, infer, trainer, utils]
     steps:
       - uses: actions/checkout@v2
         with:
@@ -58,3 +63,40 @@ jobs:
         env:
           test_dir: /github/workspace/projects/${{ matrix.project }}
         run: pinto -p $test_dir run pytest $test_dir/tests -x
+
+  production-container-builds:
+    needs: project-ci-tests
+    if: |
+      ${{ github.event_name == 'push' }} &&
+      ${{ github.repository_owner == 'ML4GW' }} &&
+      ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project: [cleaner, exporter, trainer, monitor]
+    steps:
+      - 
+        name: Check out the repo
+        uses: actions/checkout@v2
+      - 
+        name: Log in to registry
+        uses: docker/login-action@master
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - 
+        name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@master
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/production/${{ matrix.project }}
+          tags: type=schedule,pattern={{date 'YY.MM'}}
+      -
+        name: Rebuild and push
+        uses: docker/build-push-action@v2
+        with:
+          context: projects/microservice
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

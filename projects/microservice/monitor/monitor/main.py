@@ -1,12 +1,17 @@
 import time
 from pathlib import Path
+from typing import Dict
 
 from gwpy.timeseries import TimeSeriesDict
 from microservice.deployment import DataStream, Deployment, ExportClient
-from microservice.frames import DataProducts, FrameCrawler, read_channel
+from microservice.frames import (
+    DataProducts,
+    FrameCrawler,
+    get_channels,
+    read_channel,
+)
 
 from deepclean.logging import logger
-from deepclean.utils.channels import ChannelList, get_channels
 from deepclean.utils.filtering import Frequency, normalize_frequencies
 from typeo import scriptify
 
@@ -19,7 +24,7 @@ def main(
     ifo: str,
     export_endpoint: str,
     # data/analysis args
-    channels: ChannelList,
+    channels: Dict[str, str],
     sample_rate: float,
     fftlength: float,
     asd_segment_length: float,
@@ -37,7 +42,7 @@ def main(
     logger.set_logger("DeepClean infer", log_file, verbose)
     export_client = ExportClient(export_endpoint)
 
-    channels = get_channels(channels)
+    channels = get_channels(channels[ifo])
     strain_channel = channels[0]
     data_products = DataProducts(strain_channel)
 
@@ -82,8 +87,8 @@ def main(
         strain_fname = stream.hoft / fname.name
         frame = TimeSeriesDict()
         for channel in data_products.channels:
-            frame[channel] = read_channel(fname, channel, sample_rate)
-        strain = read_channel(strain_fname, strain_channel, sample_rate)
+            frame[channel] = read_channel(fname, channel)
+        strain = read_channel(strain_fname, strain_channel)
         frame[strain_channel] = strain
         buffer.append(frame)
 
@@ -169,7 +174,7 @@ def main(
         else:
             logger.debug(
                 "Canary DeepClean version {} has fallen "
-                "out of spec after {}s with asdr {}, "
+                "out of spec after {}s with asdr {:0.4f}, "
                 "resetting validation counter".format(
                     latest_version, in_spec_for, mean_asdr
                 )

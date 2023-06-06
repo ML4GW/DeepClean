@@ -4,6 +4,7 @@ from queue import Empty, Queue
 from typing import Iterable, List, Tuple
 
 import numpy as np
+from gwpy.timeseries import TimeSeries
 from microservice.deployment import DataStream
 from microservice.frames import frame_it
 
@@ -68,6 +69,7 @@ def batch_iter(
     it = frame_it(crawler, channels, sample_rate)
 
     strain_fname, strain, witnesses = next(it)
+    strain = TimeSeries(strain, channel=channels[0], sample_rate=sample_rate)
     q.put((strain, strain_fname))
 
     idx = 0
@@ -91,6 +93,9 @@ def batch_iter(
                 # put the strain data and its associated
                 # filename in the queue that can be passed
                 # to our callback thread
+                strain = TimeSeries(
+                    strain, channel=channels[0], sample_rate=sample_rate
+                )
                 q.put((strain, strain_fname))
 
                 # slough off any old witness data that
@@ -102,6 +107,7 @@ def batch_iter(
                 # new witness data array
                 idx, start, stop = 0, 0, stride
         yield witnesses[:, start:stop], False
+        idx += 1
 
 
 def get_data_generators(

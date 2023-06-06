@@ -182,7 +182,12 @@ def main(
     monitor = ASDRMonitor(
         buffer_length=8, freq_low=freq_low, freq_high=freq_high, fftlength=2
     )
-    writer = Writer(write_dir, strain_it, monitor, export_endpoint)
+    writer = Writer(
+        write_dir,
+        strain_generator=strain_it,
+        monitor=monitor,
+        export_endpoint=export_endpoint,
+    )
     callback = Callback(writer, **states)
 
     # finally create an inference client which will stream
@@ -217,7 +222,7 @@ def main(
             response = client.get()
             if response is not None:
                 fname, latency = response
-                logger.info(f"Wrote file {fname} with latency {latency}s")
+                logger.info(f"Wrote file {fname} with latency {latency:0.2f}s")
 
 
 if __name__ == "__main__":

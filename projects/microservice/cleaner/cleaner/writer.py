@@ -70,7 +70,12 @@ class ASDRMonitor:
 
         # if we don't have enough data to measure the ASDR
         # yet, then just return the buffered raw data
-        if self.raw.duration.value < self.buffer_length:
+        duration = self.raw.duration.value
+        if duration < self.buffer_length:
+            self.logger.info(
+                "Buffer only {:0.0f}s long, not enough to "
+                "measure ASDR so only producing raw data".format(duration)
+            )
             return raw, raw
 
         # check the average ASDR over the relevant
@@ -80,7 +85,7 @@ class ASDRMonitor:
         clean_asd = self.get_asd(self.clean)
         asdr = (clean_asd / raw_asd).value.mean()
 
-        self.logger.debug(
+        self.logger.info(
             "Mean ASDR value over GPS times {}-{} "
             "and frequency range {}-{}Hz is currently {}".format(
                 t0, tf, self.freq_low, self.freq_high, asdr
@@ -164,7 +169,7 @@ class Writer:
         # TODO: incorporate this as metadata somehow
         version = self.export_client.get_production_version()
         self.logger.info(
-            "Cleaning strain from file {} using predictions"
+            "Cleaning strain from file {} using predictions "
             "made by DeepClean version {}".format(fname, version)
         )
 
@@ -259,12 +264,13 @@ class Writer:
             # record the timestamp of this first file
             # to compute our write latency later
             self.timestamp_buffer = file_timestamp
+            self.logger.info("Skipping clean of first file")
             return None
 
         write_name = f"{ifo}-{field}-{t0}-{dur}.gwf"
         write_path = self.write_dir / write_name
         tsd.write(write_path)
-        self.logger.debug(f"Finished cleaning of file {write_path}")
+        self.logger.info(f"Finished cleaning of file {write_path}")
 
         write_time = time.time()
         latency = write_time - self.timestamp_buffer

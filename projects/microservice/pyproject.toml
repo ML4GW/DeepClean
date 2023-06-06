@@ -164,7 +164,7 @@ sequence_id = 1001
 # misc args
 start_first = false
 timeout = 2
-verbose = true # "${base.verbose}"
+verbose = "${base.verbose}"
 
 
 [tool.typeo.scripts.monitor]

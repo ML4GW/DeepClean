@@ -7,6 +7,9 @@ prun() {
 }
 tmux new-session -s deepclean-production -d "CUDA_VISIBLE_DEVICES=0 $(prun exporter) flask --app=exporter run"
 
+# all the other projects require communicating with the
+# export service, so wait until it's online before
+# launching the remainder of the services
 while [[ -z $(curl -s localhost:5000/alive) ]]; do
     echo "Waiting for export service to come online"
     sleep 2

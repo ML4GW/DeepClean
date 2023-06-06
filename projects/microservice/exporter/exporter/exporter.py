@@ -2,19 +2,19 @@ import argparse
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 import torch
 import tritonclient.grpc.model_config_pb2 as model_config
 from dotenv import load_dotenv
 from microservice.deployment import Deployment
+from microservice.frames import get_channels
 
 import hermes.quiver as qv
 from deepclean.architectures import DeepCleanAE as architecture
 from deepclean.export import repo as repo_utils
 from deepclean.export.model import DeepClean
 from deepclean.logging import logger
-from deepclean.utils.channels import ChannelList, get_channels
 from ml4gw.transforms import ChannelWiseScaler
 from typeo.actions import TypeoTomlAction
 from typeo.parser import make_parser
@@ -23,7 +23,8 @@ from typeo.parser import make_parser
 @dataclass
 class Exporter:
     run_directory: Path
-    channels: ChannelList
+    channels: Dict[str, str]
+    ifo: str
     kernel_length: float
     sample_rate: float
     inference_sampling_rate: float
@@ -76,7 +77,7 @@ class Exporter:
             self.deployment.log_directory / "exporter.log",
             verbose=self.verbose,
         )
-        self.channels = get_channels(self.channels)
+        self.channels = get_channels(self.channels[self.ifo])
         self.num_witnesses = len(self.channels) - 1
 
         # start by initializing a full model instance

@@ -114,6 +114,7 @@ architecture.autoencoder = {}
 run_directory = "${base.run_directory}"
 
 # data args
+ifo = "${base.ifo}"
 channels = "${base.channels}"
 kernel_length = 1
 sample_rate = "${base.sample_rate}"
@@ -164,6 +165,7 @@ sequence_id = 1001
 start_first = false
 timeout = 2
 verbose = true # "${base.verbose}"
+
 
 [tool.typeo.scripts.monitor]
 # paths

@@ -150,20 +150,41 @@ class State:
         # number of steps in each frame to see if the current
         # cleanable index is past the end of the next frame
         div, rem = divmod(step_idx, self.steps_per_frame)
-        if (
-            div == (self._frame_idx + 1) and rem >= self.steps_ahead
-        ) or div > self._frame_idx + 1:
+        if div <= self._frame_idx:
+            # haven't gotten past the current frame,
+            # so definitely won't be ready
+            return None
+        elif div > (self._frame_idx + 1) or rem >= self.steps_ahead:
+            # either we're far enough into the next frame to
+            # clean the current frame, or we're already into
+            # the frame after that, so either way we're ready
+            # to clean
+
+            # start by figuring out how far into
+            # our current memory the frame to be
+            # cleaned ought to start
             frame_idx = self._frame_idx * self.frame_size
             idx = min(self.memory, frame_idx)
+
+            # then include the current frame and whatever
+            # future data we'll need to clean it
             idx += self.frame_size + self.samples_ahead
             noise = self._state[:idx]
 
+            # if we have our full memory's worth of
+            # data store in our internal state *excluding*
+            # the current frame then slough off one frame's
+            # worth of data
             extra = len(noise) - self.samples_ahead - self.memory
             if extra > 0:
                 self._state = self._state[extra:]
+
+            # increment our frame and return our postprocessed
+            # noise estimate
             self._frame_idx += 1
             return self.cleaner(noise)
-        return None
+        else:
+            return None
 
 
 class Callback:

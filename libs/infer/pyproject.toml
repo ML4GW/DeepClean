@@ -11,10 +11,12 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
 scipy = "^1.7"
+
 "deepclean.utils" = {path = "../utils", develop = true}
+"deepclean.logging" = {path = "../logging", develop = true}
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2"
+pytest = "^7.0"
 
 [build-system]
 requires = ["poetry-core"]

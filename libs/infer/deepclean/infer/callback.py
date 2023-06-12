@@ -124,24 +124,26 @@ class State:
         # use the package request id to figure out where
         # in the blank noise array we need to insert
         # this prediction. Subtract the steps that we threw away
+        request_id = request_id - self.agg_batches
         total_steps = request_id * self.batch_size
-        step_idx = total_steps - self.aggregation_steps
-        start_idx = 0 if step_idx < 0 else int(step_idx * self.stride)
+        step_idx = total_steps - self.agg_leftover
+        # start_idx = 0 if step_idx < 0 else int(step_idx * self.stride)
 
-        # If we've sloughed off any past data so far,
-        # make sure to account for that
-        frame_idx = self._frame_idx * self.frame_size
-        start_idx -= max(frame_idx - self.memory, 0)
+        # # If we've sloughed off any past data so far,
+        # # make sure to account for that
+        # frame_idx = self._frame_idx * self.frame_size
+        # start_idx -= max(frame_idx - self.memory, 0)
 
-        # now make sure that we have data to fill out,
-        # otherwise extend the array
-        if (start_idx + len(x)) > len(self._state):
-            self._state = np.append(self._state, self._zeros)
+        # # now make sure that we have data to fill out,
+        # # otherwise extend the array
+        # if (start_idx + len(x)) > len(self._state):
+        #     self._state = np.append(self._state, self._zeros)
 
-        # now insert the response into the existing array
-        # TODO: should we check that this is all 0s to
-        # double check ourselves here?
-        self._state[start_idx : start_idx + len(x)] = x
+        # # now insert the response into the existing array
+        # # TODO: should we check that this is all 0s to
+        # # double check ourselves here?
+        # self._state[start_idx : start_idx + len(x)] = x
+        self._state = np.append(self._state, x)
 
         # return the number of steps that have been completed
         step_idx = step_idx + self.batch_size
@@ -182,7 +184,7 @@ class State:
             # increment our frame and return our postprocessed
             # noise estimate
             self._frame_idx += 1
-            return self.cleaner(noise)
+            return self.cleaner(noise.copy())
         else:
             return None
 

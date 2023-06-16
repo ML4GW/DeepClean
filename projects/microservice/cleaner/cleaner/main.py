@@ -145,7 +145,7 @@ def main(
         sample_rate=sample_rate,
         inference_sampling_rate=inference_sampling_rate,
         batch_size=batch_size,
-        start_first=start_first,
+        t0=0 if start_first else -1,
         timeout=timeout,
     )
 
@@ -158,7 +158,7 @@ def main(
     if max_latency is None:
         aggregation_steps = 0
     else:
-        aggregation_steps = int(max_latency * inference_sampling_rate)
+        aggregation_steps = int(max_latency * inference_sampling_rate) - 1
 
     states = {}
     for model in ["production", "canary"]:

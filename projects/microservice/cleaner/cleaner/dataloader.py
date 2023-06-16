@@ -1,7 +1,7 @@
 import time
 from pathlib import Path
 from queue import Empty, Queue
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
 from gwpy.timeseries import TimeSeries
@@ -117,10 +117,10 @@ def get_data_generators(
     sample_rate: float,
     inference_sampling_rate: float,
     batch_size: int,
-    start_first: bool = True,
+    t0: Optional[float] = None,
     timeout: float = 10,
 ):
-    t0 = 0 if start_first else -1
+    # t0 = 0 if start_first else -1
     stream = DataStream(data_dir, ifo)
     crawler = stream.crawl(t0, timeout)
     strain_q = Queue()

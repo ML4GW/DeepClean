@@ -148,7 +148,7 @@ freq_low = "${base.freq_low}"
 freq_high = "${base.freq_high}"
 frame_length = 1
 memory = 10
-look_ahead = 0.5
+look_ahead = 1
 
 # inference args
 inference_sampling_rate = "${base.inference_sampling_rate}"

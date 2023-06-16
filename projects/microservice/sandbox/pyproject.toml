@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "sandbox"
+version = "0.0.1"
+description = "Production DeepClean cleaning service"
+authors = ["Alec Gunny <alec.gunny@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = ">3.8,<3.11"
+jupyter = "^1.0"
+trainer = {path = "../trainer", develop = true}
+cleaner = {path = "../cleaner", develop = true}
+monitor = {path = "../monitor", develop = true}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

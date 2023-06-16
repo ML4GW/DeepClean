@@ -1,7 +1,7 @@
 version: "2.0"
 instances:
   server:
-    image: /cvmfs/singularity.opensciencegrid.org/fastml/gwiaas.tritonserver:stable
+    image: /cvmfs/singularity.opensciencegrid.org/ml4gw/hermes/tritonserver:22.12
     network:
       enable: false
       allocate_ip: false

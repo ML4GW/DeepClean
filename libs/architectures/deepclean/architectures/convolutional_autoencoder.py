@@ -13,7 +13,7 @@ class ConvBlock(nn.Module):
         padding: int,
         transpose: bool,
         output_padding: Optional[int] = None,
-        activation: nn.Module = nn.Tanh,
+        activation: nn.Module = nn.ELU,
     ) -> None:
         super().__init__()
 

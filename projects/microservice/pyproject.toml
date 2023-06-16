@@ -1,54 +1,191 @@
 [tool.typeo.base]
-channels = [
-    "H1:GDS-CALIB_STRAIN",
-    "H1:PEM-CS_MAINSMON_EBAY_1_DQ",
-    "H1:ASC-INP1_P_INMON",
-    "H1:ASC-INP1_Y_INMON",
-    "H1:ASC-MICH_P_INMON",
-    "H1:ASC-MICH_Y_INMON",
-    "H1:ASC-PRC1_P_INMON",
-    "H1:ASC-PRC1_Y_INMON",
-    "H1:ASC-PRC2_P_INMON",
-    "H1:ASC-PRC2_Y_INMON",
-    "H1:ASC-SRC1_P_INMON",
-    "H1:ASC-SRC1_Y_INMON",
-    "H1:ASC-SRC2_P_INMON",
-    "H1:ASC-SRC2_Y_INMON",
-    "H1:ASC-DHARD_P_INMON",
-    "H1:ASC-DHARD_Y_INMON",
-    "H1:ASC-CHARD_P_INMON",
-    "H1:ASC-CHARD_Y_INMON",
-    "H1:ASC-DSOFT_P_INMON",
-    "H1:ASC-DSOFT_Y_INMON",
-    "H1:ASC-CSOFT_P_INMON",
-    "H1:ASC-CSOFT_Y_INMON"
-]
+# global paths
+run_directory = "${PROJECT_DIR}"
+data_directory = "${DATA_DIR}"
+
+export_endpoint = "localhost:5000"
+triton_endpoint = "localhost:8001"
+
+# global data args
+ifo = "${IFO}"
 sample_rate = 4096
+freq_low = 58
+freq_high = 62
 
-[tool.typeo.scripts.clean]
-url = "localhost:8001"
-model_name = "deepclean-stream-0.5"
-model_version = 1
+# global inference args
+inference_sampling_rate = 512
+inference_aggregation_time = 0.5
+inference_batch_size = 128
 
-witness_data_dir = "${DATA_DIR}/lldetchar"
-strain_data_dir = "${DATA_DIR}/llhoft"
-write_dir = "${PROJECT_DIR}/production"
+# global misc args
+verbose = false
 
+[tool.typeo.base.channels]
+H1 = """\
+    H1:GDS-CALIB_STRAIN,\
+    H1:PEM-CS_MAINSMON_EBAY_1_DQ,\
+    H1:ASC-INP1_P_OUT_DQ,\
+    H1:ASC-INP1_Y_OUT_DQ,\
+    H1:ASC-MICH_P_OUT_DQ,\
+    H1:ASC-MICH_Y_OUT_DQ,\
+    H1:ASC-PRC1_P_OUT_DQ,\
+    H1:ASC-PRC1_Y_OUT_DQ,\
+    H1:ASC-PRC2_P_OUT_DQ,\
+    H1:ASC-PRC2_Y_OUT_DQ,\
+    H1:ASC-SRC1_P_OUT_DQ,\
+    H1:ASC-SRC1_Y_OUT_DQ,\
+    H1:ASC-SRC2_P_OUT_DQ,\
+    H1:ASC-SRC2_Y_OUT_DQ,\
+    H1:ASC-DHARD_P_OUT_DQ,\
+    H1:ASC-DHARD_Y_OUT_DQ,\
+    H1:ASC-CHARD_P_OUT_DQ,\
+    H1:ASC-CHARD_Y_OUT_DQ,\
+    H1:ASC-DSOFT_P_OUT_DQ,\
+    H1:ASC-DSOFT_Y_OUT_DQ,\
+    H1:ASC-CSOFT_P_OUT_DQ,\
+    H1:ASC-CSOFT_Y_OUT_DQ\
+"""
+L1 = """\
+    L1:GDS-CALIB_STRAIN,\
+    L1:PEM-CS_MAINSMON_EBAY_1_DQ,\
+    L1:ASC-CHARD_P_OUT_DQ,\
+    L1:ASC-CHARD_Y_OUT_DQ,\
+    L1:ASC-CSOFT_P_OUT_DQ,\
+    L1:ASC-DHARD_P_OUT_DQ,\
+    L1:ASC-DHARD_Y_OUT_DQ,\
+    L1:ASC-DSOFT_P_OUT_DQ,\
+    L1:ASC-INP1_P_OUT_DQ,\
+    L1:ASC-MICH_P_OUT_DQ,\
+    L1:ASC-MICH_Y_OUT_DQ,\
+    L1:ASC-PRC1_P_OUT_DQ,\
+    L1:ASC-PRC1_Y_OUT_DQ,\
+    L1:ASC-PRC2_P_OUT_DQ,\
+    L1:ASC-PRC2_Y_OUT_DQ,\
+    L1:ASC-SRC1_P_OUT_DQ,\
+    L1:ASC-SRC1_Y_OUT_DQ,\
+    L1:ASC-SRC2_P_OUT_DQ,\
+    L1:ASC-SRC2_Y_OUT_DQ,\
+"""
+
+
+[tool.typeo.scripts.train]
+# paths
+run_directory = "${base.run_directory}"
+data_directory = "${base.data_directory}"
+ifo = "${base.ifo}"
+export_endpoint = "${base.export_endpoint}"
+
+# data parameters
+channels = "${base.channels}"
+train_duration = 4096
+retrain_cadence = 2048
+sample_rate = "${base.sample_rate}"
+valid_frac = 0.25
+
+# preprocessing parameters
+kernel_length = 8
+kernel_stride = 0.0625
+freq_low = "${base.freq_low}"
+freq_high = "${base.freq_high}"
+filter_order = 8
+fftlength = 2
+overlap = 1
+alpha = 1
+
+# optimziation parameters
+batch_size = 256
+lr = 1e-3
+fine_tune_decay = 0.1
+weight_decay = 1e-5
+max_epochs = 50
+patience = 5
+factor = 0.1
+
+# misc. parameters
+device = "cuda:0"
+verbose = "${base.verbose}"
+
+# architecture parameters
+architecture.autoencoder = {}
+
+
+[tool.typeo.scripts.exporter]
+# paths
+run_directory = "${base.run_directory}"
+
+# data args
+ifo = "${base.ifo}"
 channels = "${base.channels}"
 kernel_length = 1
-inference_sampling_rate = 512
-inference_rate = 512
 sample_rate = "${base.sample_rate}"
 
-max_latency = 0.5
-freq_low = 55
-freq_high = 65 
-memory = 10
-look_ahead = 0.5
+# infer args
+inference_sampling_rate = "${base.inference_sampling_rate}"
+batch_size = "${base.inference_batch_size}"
+aggregation_time = "${base.inference_aggregation_time}"
 
-start_first = true
-timeout = 1
+# triton args
+streams_per_gpu = 1
+platform = "tensorrt_plan"
+instances = 4
+
+# misc args
+clean = true
+verbose = "${base.verbose}"
+
+
+[tool.typeo.scripts.clean]
+# paths
+run_directory = "${base.run_directory}"
+data_directory = "${base.data_directory}"
+ifo = "${base.ifo}"
+export_endpoint = "${base.export_endpoint}"
+
+# data args
+sample_rate = "${base.sample_rate}"
+channels = "${base.channels}"
+freq_low = "${base.freq_low}"
+freq_high = "${base.freq_high}"
+frame_length = 1
+memory = 10
+look_ahead = 1
+
+# inference args
+inference_sampling_rate = "${base.inference_sampling_rate}"
+batch_size = "${base.inference_batch_size}"
+inference_rate = 64
+max_latency = "${base.inference_aggregation_time}"
+
+# triton args
+triton_endpoint = "${base.triton_endpoint}"
+model_name = "deepclean-stream"
 sequence_id = 1001
 
-verbose = false
-log_file = "${PROJECT_DIR}/clean.log_"
+# misc args
+start_first = false
+timeout = 2
+verbose = "${base.verbose}"
+
+
+[tool.typeo.scripts.monitor]
+# paths
+run_directory = "${base.run_directory}"
+data_directory = "${base.data_directory}"
+ifo = "${base.ifo}"
+export_endpoint = "${base.export_endpoint}"
+
+# analysis args
+channels = "${base.channels}"
+sample_rate = "${base.sample_rate}"
+asd_segment_length = 10
+fftlength = 8
+monitor_period = 10
+freq_low = "${base.freq_low}"
+freq_high = "${base.freq_high}"
+
+# storage args
+max_files = 300
+write_cadence = 128
+
+# misc args
+verbose = true # "${base.verbose}"

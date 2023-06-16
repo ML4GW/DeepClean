@@ -10,15 +10,14 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
-tritonclient = {extras = ["all"], version = "^2.18.0"}
+scipy = "^1.7"
 
-"deepclean.base" = {path = "../base", develop = true}
-"deepclean.gwftools" = {path = "../gwftools", develop = true}
-"deepclean.signal" = {path = "../signal", develop = true}
+"deepclean.utils" = {path = "../utils", develop = true}
+"deepclean.logging" = {path = "../logging", develop = true}
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2"
+pytest = "^7.0"
 
 [build-system]
-requires = ["poetry>=1.2"]
-build-backend = "poetry.masonry.api"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

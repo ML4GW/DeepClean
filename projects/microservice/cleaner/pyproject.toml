@@ -6,22 +6,24 @@ authors = ["Alec Gunny <alec.gunny@gmail.com>"]
 # readme = "README.md"
 
 [tool.poetry.scripts]
-clean = "cleaner:main"
+clean = "cleaner.main:main"
 
 [tool.poetry.dependencies]
 python = "^3.8,<3.11"
-"hermes.typeo" = "^0.1.5"
+typeo = {path = "../../../typeo", develop = true}
+microservice = {path = "../utils", develop = true}
 
-"deepclean.logging" = {path = "../../../libs/logging", develop = true}
 "deepclean.infer" = {path = "../../../libs/infer", develop = true}
+"deepclean.logging" = {path = "../../../libs/logging", develop = true}
+"deepclean.utils" = {path = "../../../libs/utils", develop = true}
 
 [tool.poetry.dependencies."hermes.aeriel"]
 path = "../../../hermes/hermes/hermes.aeriel"
 develop = true
 
 [tool.poetry.dev-dependencies]
-pytest = "^6.2"
+pytest = "^7.0"
 
 [build-system]
-requires = ["poetry>=1.2"]
-build-backend = "poetry.masonry.api"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

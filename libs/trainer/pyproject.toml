@@ -9,26 +9,15 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8,<3.10"
-torch = "^1.0"
+python = "^3.8,<3.11"
+ml4gw = {path = "../../ml4gw", develop = true}
 
-# include signal processing libraries
-# for preprocessing steps
-"deepclean.signal" = {path = "../signal", develop = true}
-
-# include network architecture libraries
-# if we want to build a wrapper that exposes
-# architecture-specific args
-"deepclean.architectures" = {path = "../architectures", develop = true}
-
+"deepclean.utils" = {path = "../utils", develop = true}
 "deepclean.export" = {path = "../export", develop = true}
-"deepclean.base" = {path = "../base", develop = true}
-
-"hermes.typeo" = "^0.1.5"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2"
 
 [build-system]
-requires = ["poetry>=1.2"]
+requires = ["poetry-core"]
 build-backend = "poetry.masonry.api"

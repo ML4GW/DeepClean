@@ -33,16 +33,14 @@ channels = [
 ]
 sample_rate = 4096
 verbose = false
-
-train_t0 = 1243278913
-train_duration = 4096
+train_duration = 1024
 
 infer_kernel_length = 1
 infer_batch_size = 64
 inference_sampling_rate = 512
 
-test_t0 = 1243283009
-test_duration = 1024
+test_t0 = 1251339410
+test_duration = 16384
 
 max_latency = 0.5
 freq_low = 55
@@ -55,19 +53,20 @@ autoencoder = {}
 [tool.typeo.scripts.train]
 # paths
 output_directory = "${PROJECT_DIR}"
-data_path = "${DATA_DIR}"
+data_directory = "${DATA_DIR}"
+segment_file = "${PROJECT_DIR}/segments.txt"
 
 # data parameters
 channels = "${base.channels}"
-t0 = "${base.train_t0}"
-duration = "${base.train_duration}"
+train_duration = "${base.train_duration}"
+retrain_cadence = 1024
+min_test_required = 256
 valid_frac = 0.25
 
 # data loading parameters
 sample_rate = "${base.sample_rate}"
 kernel_length = 8
-kernel_stride = 0.25
-chunk_length = 0
+kernel_stride = 0.0625
 
 # preprocessing parameters
 freq_low = "${base.freq_low}"
@@ -75,9 +74,10 @@ freq_high = "${base.freq_high}"
 filter_order = 8
 
 # optimization parameters
-batch_size = 32
+batch_size = 256
 max_epochs = 500
 lr = 3.2e-2
+fine_tune_decay = 0.1
 weight_decay = 1e-5
 patience = 8
 factor = 0.2
@@ -94,7 +94,8 @@ profile = false
 verbose = "${base.verbose}"
 
 # architecture subcommands
-commands.autoencoder = "${base.autoencoder}"
+[tool.typeo.scripts.train.architecture]
+autoencoder = "${base.autoencoder}"
 
 [tool.typeo.scripts.export-model]
 repository_directory = "${MODEL_REPOSITORY}"
